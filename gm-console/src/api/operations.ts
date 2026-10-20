@@ -419,6 +419,15 @@ export async function prepareOperation(
         { confirm: true, enabled: true },
         { kind: "benefit-enable" },
       );
+  } else if (command.kind === "benefit-redeliver") {
+    if (!api.meta.features.backgroundBenefits) throw new Error("补发服务尚未就绪，请刷新页面后重试");
+    const path = `/api/v1/benefits/${segment(command.id)}`;
+    const { data: rule } = await api.http.get(path);
+    if (!rule.enabled) throw new Error("请先启用福利规则再补发");
+    p.title = "确认补发未收到的福利";
+    p.target = rule.reward.title;
+    p.summary = `按原规则检查本次开始前已创建的${rule.scope === "account" ? "账号及其收件角色" : "角色"}，补发符合条件且尚未收到的奖励。已领取记录保持，${rule.scope === "account" ? "每账号" : "每角色"}仅发一次。任务在后台继续，进度可在发放详情查看。`;
+    add("开始后台补发", path + "/redelivery", { revision: rule.revision, confirm: true });
   } else if (command.kind === "benefit-toggle") {
     const b = api.state.benefits.find((b) => b.id === command.id);
     if (!b) throw new Error("规则不存在");

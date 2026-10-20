@@ -234,6 +234,7 @@ export class ConsoleAPI {
       this.meta.features = {
         ...cap.features,
         backgroundMail: !!cap.backgroundMail,
+      backgroundBenefits: !!cap.backgroundBenefits,
       };
       this.meta.authenticated = true;
       this.meta.error = "";
@@ -254,6 +255,7 @@ export class ConsoleAPI {
     this.meta.features = {
       ...cap.features,
       backgroundMail: !!cap.backgroundMail,
+      backgroundBenefits: !!cap.backgroundBenefits,
     };
     this.meta.authenticated = true;
     this.meta.authReady = true;

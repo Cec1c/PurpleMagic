@@ -2,8 +2,8 @@ package mysql
 
 import (
 	"context"
-	"errors"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
+	"errors"
 	"strings"
 )
 
@@ -53,7 +53,7 @@ func (u *mysqlMailboxAssetUnitOfWork) WithinAccountMailboxCharacter(ctx context.
 	if !found || character.CharacterID != characterID || character.AccountID != accountID {
 		return errors.Join(repository.ErrMailboxAssetTransactionUnavailable, tx.Rollback())
 	}
-	accounts := &rentalScopedAccountRepository{accountID: accountID, base: base.Account}
+	accounts := &mailDeliveryAccountRepository{rentalScopedAccountRepository{accountID: accountID, base: base.Account}}
 	account, found, err := accounts.Load(ctx, accountID)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
@@ -61,7 +61,7 @@ func (u *mysqlMailboxAssetUnitOfWork) WithinAccountMailboxCharacter(ctx context.
 	if !found || account.AccountID != accountID {
 		return errors.Join(repository.ErrMailboxAssetTransactionUnavailable, tx.Rollback())
 	}
-	mailboxes := &mailboxAssetScopedMailboxRepository{characterID: characterID, base: base.Mailbox}
+	mailboxes := &mailDeliveryMailboxRepository{mailboxAssetScopedMailboxRepository: mailboxAssetScopedMailboxRepository{characterID: characterID, base: base.Mailbox}, router: r}
 	if err := apply(accounts, repository.CloneCharacter(character), mailboxes); err != nil {
 		return errors.Join(err, tx.Rollback())
 	}

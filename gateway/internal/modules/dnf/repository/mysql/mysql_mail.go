@@ -284,6 +284,10 @@ func replaceMails(
 			return err
 		}
 	}
+	return insertMails(ctx, database, mailsTable, metadataTable, attachmentsTable, attachmentExtraTable, characterID, mails)
+}
+
+func insertMails(ctx context.Context, database SQLDB, mailsTable, metadataTable, attachmentsTable, attachmentExtraTable, characterID string, mails map[string]repository.MailRecord) error {
 	mailQuery := "INSERT INTO " + mailsTable + " (character_id, mail_id, sender_character_id, sender_name, recipient_character_id, recipient_name, title, body, gold, read_flag, claimed_flag, deleted_flag, created_at, expire_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	metadataQuery := "INSERT INTO " + metadataTable + " (character_id, mail_id, metadata_key, metadata_value) VALUES (?, ?, ?, ?)"
 	attachmentQuery := "INSERT INTO " + attachmentsTable + " (character_id, mail_id, attachment_index, item_id, item_count, bind_flag, expire_at, raw_entry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"

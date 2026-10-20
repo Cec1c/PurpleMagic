@@ -199,6 +199,7 @@ export class HttpClient {
       features: Record<string, boolean>;
       csrfToken: string;
       backgroundMail?: boolean;
+      backgroundBenefits?: boolean;
     }>("/api/v1/capabilities");
     this.csrf = data.csrfToken;
     return data;

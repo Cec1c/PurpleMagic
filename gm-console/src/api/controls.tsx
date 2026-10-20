@@ -151,7 +151,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           <li key={s.id}>
             {s.done && <CheckCircle2 size={14} />}
             <strong>{s.label}</strong>
-            {s.done && <span>已取得回执</span>}
+            {s.done && <span>{s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
             {s.kind === "task" && s.result && (
               <span>
                 已发 {s.result.sent} / {s.result.total} · 失败{" "}
@@ -182,6 +182,8 @@ export function TaskDetail({
 }) {
   const api = useLive()!;
   const [task, setTask] = useState<DTO>();
+  const [redelivery, setRedelivery] = useState<DTO | null>(null);
+  const [redeliveryError, setRedeliveryError] = useState("");
   const [rows, setRows] = useState<DTO[]>([]),
     [next, setNext] = useState(""),
     [error, setError] = useState("");
@@ -219,6 +221,26 @@ export function TaskDetail({
     void read();
     return () => readController.current?.abort();
   }, [id, campaignId]);
+  useEffect(() => {
+    if (!campaignId || !api.meta.features.backgroundBenefits) return;
+    const controller = new AbortController();
+    let polling = false;
+    const poll = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const r = await api.http.get(`/api/v1/benefits/${segment(campaignId)}/redelivery`, controller.signal);
+        if (!controller.signal.aborted) { setRedelivery(r.data); setRedeliveryError(""); }
+      } catch (e) { if (!controller.signal.aborted) setRedeliveryError((e as Error).message); }
+      finally { polling = false; }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 2000);
+    return () => { clearInterval(timer); controller.abort(); };
+  }, [campaignId]);
+  useEffect(() => {
+    if (redelivery && redelivery.status !== "active") void read();
+  }, [redelivery?.id, redelivery?.status]);
   function act(action: "pause" | "retry" | "resume") {
     onClose();
     request({ kind: "task-control", id: task?.id || id, action });
@@ -237,6 +259,11 @@ export function TaskDetail({
           >
             刷新进度
           </button>
+          {campaignId && <button className="primary"
+            disabled={busy || redelivery?.status === "active" || !api.meta.features.backgroundBenefits || !api.state.benefits.find(b => b.id === campaignId)?.enabled}
+            onClick={() => { onClose(); request({ kind: "benefit-redeliver", id: campaignId }); }}>
+            {redelivery?.status === "active" ? "补发处理中…" : "补发未收到"}
+          </button>}
           {task?.schedule === "active" && (
             <button
               className="secondary"
@@ -274,6 +301,15 @@ export function TaskDetail({
         </p>
       )}
       {campaignId && <p>已加载 {rows.length} 项 · 已发 {rows.filter(r => r.state === "sent").length} · 待发 {rows.filter(r => r.state === "pending").length}{next ? " · 还有更多" : ""}</p>}
+      {redelivery && <div className="benefit-redelivery-status" role="status">
+        <strong>{({active: "正在后台补发", completed: "本轮补发完成", failed: "本轮补发结束，存在失败记录", conflict: "补发已停止"} as Record<string, string>)[redelivery.status]}</strong>
+        <p>已检查 {redelivery.checked} · 确认已收到 {redelivery.received} · 跳过 {redelivery.skipped} · 失败 {redelivery.failed}</p>
+        <small>确认已收到包含此前已发放的对象；失败后可再次补发，已收到的会自动跳过。</small>
+        {redelivery.error && <p role="alert">{redelivery.error}</p>}
+        {redelivery.failures?.length > 0 && <ul>{redelivery.failures.map((f: DTO) => <li key={`${f.accountId}/${f.characterId}`}>账号 {f.accountId} · 角色 {f.characterId}：{f.message}</li>)}</ul>}
+        {redelivery.failed > (redelivery.failures?.length || 0) && <small>仅显示前 10 个失败对象。</small>}
+      </div>}
+      {redeliveryError && <p role="alert" className="inline-error">补发进度：{redeliveryError}</p>}
       {busy && <p role="status">正在读取发放记录…</p>}
       {!busy && !error && !rows.length && <p>暂无收件角色</p>}
       <div className="table-scroll">

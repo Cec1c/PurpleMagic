@@ -25,8 +25,9 @@ type queuedMail struct {
 	InFlight        bool   `json:"inFlight"`
 }
 type queueState struct {
-	Hash string                `json:"pvfSha256"`
-	Jobs map[string]queuedMail `json:"jobs"`
+	Hash     string                   `json:"pvfSha256"`
+	Jobs     map[string]queuedMail    `json:"jobs"`
+	Benefits map[string]queuedBenefit `json:"benefits,omitempty"`
 }
 type queueTask struct {
 	ID          string `json:"id"`
@@ -39,10 +40,11 @@ type queueTask struct {
 // ExternalQueue persists administrator-confirmed work. Delivery and deduplication
 // remain authoritative in the original gateway database, including after restart.
 type ExternalQueue struct {
-	mu    sync.Mutex
-	path  string
-	state queueState
-	peer  *servicehttp.Client
+	mu        sync.Mutex
+	benefitMu sync.Mutex
+	path      string
+	state     queueState
+	peer      *servicehttp.Client
 }
 
 func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, error) {
@@ -63,7 +65,22 @@ func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, e
 				return nil, errors.New("invalid queued mail identity")
 			}
 		}
+		if len(q.state.Benefits) > 1000 {
+			return nil, errors.New("invalid benefit queue")
+		}
+		for id, j := range q.state.Benefits {
+			if !queueID(id) || id != j.ID || !queueID(j.CampaignID) || j.StartedAt.IsZero() || len(j.Cursor) > 256 || len(j.Failures) > 10 || (j.Status != "active" && j.Status != "completed" && j.Status != "failed" && j.Status != "conflict") {
+				return nil, errors.New("invalid queued benefit")
+			}
+		}
 		if q.state.Hash != peer.Hash() {
+			for id, j := range q.state.Benefits {
+				if j.Status == "active" {
+					j.Status = "conflict"
+					j.Error = "PVF 已变化，请核对后重新补发"
+					q.state.Benefits[id] = j
+				}
+			}
 			for id, j := range q.state.Jobs {
 				if j.Status == "active" {
 					j.Status = "conflict"
@@ -72,6 +89,9 @@ func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, e
 			}
 			q.state.Hash = peer.Hash()
 		}
+	}
+	if q.state.Benefits == nil {
+		q.state.Benefits = map[string]queuedBenefit{}
 	}
 	if e = os.MkdirAll(filepath.Dir(path), 0700); e != nil {
 		return nil, e
@@ -89,6 +109,9 @@ func (q *ExternalQueue) save() error {
 	raw, e := json.Marshal(q.state)
 	if e != nil {
 		return e
+	}
+	if len(raw) > 2<<20 {
+		return errors.New("external GM queue full")
 	}
 	f, e := os.CreateTemp(filepath.Dir(q.path), ".queue-")
 	if e != nil {
@@ -274,6 +297,9 @@ func (q *ExternalQueue) Run(ctx context.Context, log func(string, ...any)) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
+			if e := q.stepBenefits(ctx); e != nil && ctx.Err() == nil {
+				log("external-benefit-queue-retry")
+			}
 			if e := q.step(ctx); e != nil && ctx.Err() == nil {
 				log("external-mail-queue-retry")
 			}

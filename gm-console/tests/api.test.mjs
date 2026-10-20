@@ -162,3 +162,12 @@ test('global benefit confirmation refreshes only benefits even when a character 
  assert.match(api.meta.pending.target,/全部现有角色/);await api.confirm();
  assert.equal(api.meta.pending.completed,true);assert.deepEqual(calls,[['/api/v1/benefits','POST'],['/api/v1/benefits','GET']]);
 });
+
+test('benefit redelivery confirms original rule without a whole-server preview or character', async()=>{
+ const api=new ConsoleAPI(()=>{});api.meta.features={backgroundBenefits:true};const calls=[];
+ api.http.fetcher=async(path,init)=>{calls.push([path,init.method]);assert.equal(path,'/api/v1/benefits/rule');assert.equal(init.method,'GET');return response({id:'rule',revision:7,enabled:true,scope:'account',reward:{title:'点券福利'}})};
+ await api.prepare({kind:'benefit-redeliver',id:'rule'},{accounts:[],characters:[]});
+ const pending=api.meta.pending;assert.equal(calls.length,1);assert.equal(pending.steps.length,1);
+ assert.equal(pending.steps[0].path,'/api/v1/benefits/rule/redelivery');assert.deepEqual(pending.steps[0].body,{revision:7,confirm:true});assert.match(pending.summary,/每账号仅发一次/);assert.match(pending.summary,/后台继续/);
+ api.cancel();api.http.fetcher=async()=>response({enabled:false});await assert.rejects(api.prepare({kind:'benefit-redeliver',id:'rule'},{accounts:[],characters:[]}),/先启用/);
+});

@@ -191,6 +191,8 @@ export function BenefitsPage({ state, request }: PageProps) {
                         </Pill>
                       </td>
                       <td>
+                        {live && <button className="secondary" disabled={!b.enabled || !live.meta.features.backgroundBenefits}
+                          onClick={() => request({ kind: "benefit-redeliver", id: b.id })}>补发未收到</button>}
                         <button
                           className="secondary"
                           onClick={() =>

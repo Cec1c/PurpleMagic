@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// SystemMailAppender is available only on transaction-scoped stores.
+// It allocates the ID under the mailbox owner lock and preserves existing mail.
+type SystemMailAppender interface {
+	AppendSystemMailRecord(context.Context, string, MailRecord) (string, error)
+}
+
 var ErrSystemMailInvalid = errors.New("system mailbox delivery is invalid")
 
 // SystemMailDelivery is a server-owned, non-expiring mail created by a
@@ -53,26 +59,11 @@ func appendSystemMail(ctx context.Context, repo MailboxRepository, delivery Syst
 		}
 	}
 
-	record, found, err := repo.Load(ctx, recipientID)
-	if err != nil {
-		return "", err
-	}
-	if !found {
-		record = MailboxRecord{CharacterID: recipientID}
-	}
-	if record.Mails == nil {
-		record.Mails = make(map[string]MailRecord)
-	}
-	mailID, err := nextSystemMailID(record.Mails)
-	if err != nil {
-		return "", err
-	}
 	now := delivery.CreatedAt.UTC()
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	record.Mails[mailID] = MailRecord{
-		MailID:               mailID,
+	mail := MailRecord{
 		SenderCharacterID:    "0",
 		SenderName:           "系统",
 		RecipientCharacterID: recipientID,
@@ -90,6 +81,25 @@ func appendSystemMail(ctx context.Context, repo MailboxRepository, delivery Syst
 			"unlimited":   "true",
 		},
 	}
+	if appender, ok := repo.(SystemMailAppender); ok {
+		return appender.AppendSystemMailRecord(ctx, recipientID, mail)
+	}
+	record, found, err := repo.Load(ctx, recipientID)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		record = MailboxRecord{CharacterID: recipientID}
+	}
+	if record.Mails == nil {
+		record.Mails = make(map[string]MailRecord)
+	}
+	mailID, err := nextSystemMailID(record.Mails)
+	if err != nil {
+		return "", err
+	}
+	mail.MailID = mailID
+	record.Mails[mailID] = mail
 	record.UpdatedAt = now
 	if err := SaveMailboxFields(ctx, repo, record, MailboxFieldMails); err != nil {
 		return "", err

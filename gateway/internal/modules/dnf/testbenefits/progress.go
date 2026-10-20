@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
@@ -51,6 +52,12 @@ type CampaignRecipient struct {
 // taking a policy write lock or freezing the entire server's recipients.
 // A page visits at most five accounts; sparse pages still carry a next cursor.
 func (s *Store) CampaignRecipientPage(ctx context.Context, group repository.Group, c Campaign, after string, limit int) ([]CampaignRecipient, string, error) {
+	return s.CampaignRecipientPageThrough(ctx, group, c, after, limit, time.Time{})
+}
+
+// Through freezes the character creation boundary of an operator-confirmed
+// scan. Filter before choosing the account's single delivery character.
+func (s *Store) CampaignRecipientPageThrough(ctx context.Context, group repository.Group, c Campaign, after string, limit int, through time.Time) ([]CampaignRecipient, string, error) {
 	var accountAfter int64
 	characterAfter := ""
 	if after != "" {
@@ -103,6 +110,14 @@ func (s *Store) CampaignRecipientPage(ctx context.Context, group repository.Grou
 		audience := c
 		audience.Enabled = true
 		allCharacters := characters
+		if !through.IsZero() {
+			characters = nil
+			for _, ch := range allCharacters {
+				if !ch.CreatedAt.After(through) {
+					characters = append(characters, ch)
+				}
+			}
+		}
 		if c.Reward.Scope.Effective() == ScopeAccount && len(characters) > 0 {
 			target := characters[0]
 			for _, ch := range characters {

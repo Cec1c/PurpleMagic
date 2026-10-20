@@ -186,6 +186,7 @@ export type Command =
       scope: "existing" | "future";
     }
   | { kind: "benefit-toggle"; id: string }
+  | { kind: "benefit-redeliver"; id: string }
   | { kind: "task-control"; id: string; action: "resume" | "retry" | "pause" }
   | {
       kind: "news";
@@ -407,6 +408,9 @@ export function applyCommand(
       target = b.name;
       summary = b.enabled ? "规则已启用，已自动发放" : "规则已保存";
       break;
+    }
+    case "benefit-redeliver": {
+      throw new Error("请连接服务后补发福利");
     }
     case "benefit-toggle": {
       const b = s.benefits.find((b) => b.id === command.id);

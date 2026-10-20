@@ -16,6 +16,7 @@ import (
 	dnfpvf "dnf90.local/gateway/internal/modules/dnf/pvf"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 	"dnf90.local/gateway/internal/modules/dnf/testbenefits"
+	"dnf90.local/gateway/internal/servicehttp"
 )
 
 // An actual HTTP service and disposable database with synthetic item definitions.
@@ -61,23 +62,29 @@ func TestV1BenefitRewardsBrowserMySQL(t *testing.T) {
 	check(err)
 	root, err := filepath.Abs("../../../../gm-console/dist")
 	check(err)
-	server := httptest.NewServer(s.ManagementHandler(root))
+	hash, token := s.v1PVFChecksum(), strings.Repeat("t", 48)
+	gateway := httptest.NewServer(s.GatewayHandler(token, hash))
+	defer gateway.Close()
+	peer, err := servicehttp.New(servicehttp.Config{URL: gateway.URL, Token: token, PVFSHA256: hash})
+	check(err)
+	queue, err := OpenExternalQueue(filepath.Join(t.TempDir(), "queue.json"), peer)
+	check(err)
+	server := httptest.NewServer(s.ExternalHandler(root, "", peer, queue))
 	defer server.Close()
-	// Exercise the same resumable worker used by the external GM, with a short
-	// fixture-only schedule. Viewing status itself never sends rewards.
+	// Automatic scanning is deliberately off during browser acceptance.
+	// Only the confirmed redelivery queue may award these fixture recipients.
 	worker, stop := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
-		var position benefitScanPosition
 		for {
 			select {
 			case <-worker.Done():
 				return
 			case <-timer.C:
-				position, _ = s.scanBenefitDeliveries(worker, position)
+				_ = queue.stepBenefits(worker)
 			}
 		}
 	}()
@@ -111,6 +118,52 @@ func TestV1BenefitRewardsBrowserMySQL(t *testing.T) {
 		}
 		if found != 1 || equipment != 1 {
 			t.Fatal("browser item delivery", id, found, equipment)
+		}
+	}
+	stop()
+	<-done
+	_, err = s.db.Exec("INSERT INTO web_accounts(id,account_id,account) VALUES(3,'wallet:3','new-account')")
+	check(err)
+	check(g.Account.Save(ctx, repository.AccountRecord{AccountID: "wallet:3", Metadata: map[string]string{"account_cera": "1000"}}))
+	for _, target := range []struct {
+		account, id string
+		slot        int
+	}{{"wallet:1", "12", 3}, {"wallet:3", "30", 0}, {"wallet:3", "31", 1}} {
+		check(g.Character.Save(ctx, repository.CharacterRecord{AccountID: target.account, CharacterID: target.id, Name: "new-role", Slot: target.slot, CreatedAt: time.Now().UTC()}))
+	}
+	for round := 0; round < 2; round++ {
+		position := benefitScanPosition{}
+		for i := 0; i < 20; i++ {
+			position, err = s.scanBenefitDeliveries(ctx, position)
+			check(err)
+			if position.Account == 0 {
+				break
+			}
+			if i == 19 {
+				t.Fatal("future scan unfinished")
+			}
+		}
+	}
+	for _, id := range []string{"12", "30", "31"} {
+		box, _, err := g.Mailbox.Load(ctx, id)
+		check(err)
+		items := 0
+		for _, mail := range box.Mails {
+			for _, item := range mail.Attachments {
+				if (item.ItemID == 7001 && item.Count == 1) || (item.ItemID == 7002 && item.Count == 12) {
+					items++
+				}
+			}
+		}
+		if items != 2 {
+			t.Fatal("future item rewards missing or duplicated", id, items)
+		}
+	}
+	for _, id := range []string{"wallet:1", "wallet:2", "wallet:3"} {
+		a, _, err := g.Account.Load(ctx, id)
+		check(err)
+		if a.Metadata["account_cera"] != "1500" {
+			t.Fatal("future cera not once", id)
 		}
 	}
 	jobs, err := store.Jobs(ctx)

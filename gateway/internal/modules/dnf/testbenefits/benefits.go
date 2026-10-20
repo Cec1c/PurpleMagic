@@ -252,9 +252,11 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 			payload = string(raw)
 		}
 		if job.Cera > 0 {
-			account.Metadata[key] = prefix + payload
-			account.UpdatedAt = time.Now().UTC()
-			return accounts.Save(ctx, account)
+			for _, field := range []string{"account_cera", "gm_currency_sequence_v1"} {
+				if err := repository.SaveAccountMetadataEntry(ctx, accounts, account, field, account.Metadata[field], time.Now().UTC()); err != nil {
+					return err
+				}
+			}
 		}
 		return repository.SaveAccountMetadataEntry(ctx, accounts, account, key, prefix+payload, time.Now().UTC())
 	})

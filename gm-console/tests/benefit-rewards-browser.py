@@ -52,6 +52,13 @@ with sync_playwright() as p:
             row.get_by_role('button', name='查看发放情况', exact=True).click()
             modal = page.get_by_role('dialog')
             expected = 2 if name == '浏览器点券福利' else 3
+            expect(modal).to_contain_text(f'待发 {expected}')
+            modal.get_by_role('button', name='补发未收到', exact=True).click()
+            expect(page.get_by_role('dialog')).to_contain_text('按原规则检查')
+            confirm()
+            row.get_by_role('button', name='查看发放情况', exact=True).click()
+            modal = page.get_by_role('dialog')
+            expect(modal).to_contain_text('本轮补发完成', timeout=30000)
             for attempt in range(30):
                 expect(modal.get_by_role('button', name='刷新进度', exact=True)).to_be_enabled()
                 if f'已发 {expected}' in modal.inner_text(): break
@@ -101,16 +108,32 @@ with sync_playwright() as p:
         form.get_by_role('button', name='创建并启用', exact=True).click()
         expect(page.get_by_role('dialog')).to_contain_text('测试短剑（7001）× 1')
         confirm(); send('浏览器装备福利')
+        # Rule-row action also works without a selected character; repeating it
+        # must not issue new credits or mails (verified by the Go fixture).
+        row = page.locator('tr').filter(has_text='浏览器点券福利')
+        row.get_by_role('button', name='补发未收到', exact=True).click(); confirm()
+        page.reload()
+        page.locator('tr').filter(has_text='浏览器点券福利').get_by_role('button', name='查看发放情况', exact=True).click()
+        expect(page.get_by_role('dialog')).to_contain_text('本轮补发完成', timeout=30000)
+        expect(page.get_by_role('dialog')).to_contain_text('确认已收到 2')
+        page.screenshot(path=str(args.output_dir/'redelivery-desktop.png'), full_page=True)
+        page.get_by_role('dialog').get_by_role('button', name='关闭', exact=True).click()
         page.set_viewport_size({'width': 390, 'height': 844})
         page.screenshot(path=str(args.output_dir/'item-mobile-dark.png'), full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+        page.locator('tr').filter(has_text='浏览器点券福利').get_by_role('button', name='查看发放情况', exact=True).click()
+        expect(page.get_by_role('dialog')).to_contain_text('本轮补发完成')
+        expect(page.get_by_role('dialog').get_by_role('button', name='补发未收到', exact=True)).to_be_visible()
+        page.screenshot(path=str(args.output_dir/'redelivery-mobile-dark.png'), full_page=True)
+        assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+        page.get_by_role('dialog').get_by_role('button', name='关闭', exact=True).click()
         page.get_by_role('button', name='切换浅色主题', exact=True).click()
         page.wait_for_timeout(350)
         page.screenshot(path=str(args.output_dir/'item-mobile-light.png'), full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
         assert not errors, errors
         assert not status_writes, status_writes
-        (args.output_dir/'receipt.json').write_text(json.dumps({'passed': True, 'errors': errors, 'realHTTPAndDisposableDatabase': True, 'syntheticPVF': True, 'independentBenefitsWithoutCharacter': True, 'statusCreatesNoJobs': True}, ensure_ascii=False, indent=2), encoding='utf-8')
+        (args.output_dir/'receipt.json').write_text(json.dumps({'passed': True, 'errors': errors, 'realHTTPAndDisposableDatabase': True, 'syntheticPVF': True, 'independentBenefitsWithoutCharacter': True, 'statusCreatesNoJobs': True, 'manualRedeliveryWithoutAutomaticScanner': True, 'reloadAndRepeatedRedelivery': True}, ensure_ascii=False, indent=2), encoding='utf-8')
     except Exception:
         page.screenshot(path=str(args.output_dir/'failure.png'), full_page=True)
         (args.output_dir/'failure.html').write_text(page.content(), encoding='utf-8')

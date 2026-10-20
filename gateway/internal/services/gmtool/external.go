@@ -30,6 +30,7 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 	api := s.v1Routes()
 	var scan sync.Mutex
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/internal/gateway/v1/benefits/{id}/redelivery", s.redeliverBenefitPage)
 	mux.HandleFunc("POST /api/internal/gateway/v1/scan-v2", func(w http.ResponseWriter, r *http.Request) {
 		var in benefitScanPosition
 		if !v1Decode(w, r, &in) {
@@ -148,6 +149,9 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		if r.Method == http.MethodPost && !s.v1CheckWrite(w, r) {
 			return
 		}
+		if queue != nil && strings.HasPrefix(r.URL.Path, "/api/v1/benefits/") && queue.HandleBenefit(w, r) {
+			return
+		}
 		if queue != nil && strings.HasPrefix(r.URL.Path, "/api/v1/tasks/") && queue.Handle(w, r) {
 			return
 		}
@@ -192,6 +196,7 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			data["csrfToken"] = s.v1CSRF(r)
 			data["deployment"] = "external-gm-v1"
 			data["backgroundMail"] = queue != nil
+			data["backgroundBenefits"] = queue != nil
 			if features, ok := data["features"].(map[string]any); ok {
 				features["pvf.mode"] = s.pvfModeControl() != nil
 			}
