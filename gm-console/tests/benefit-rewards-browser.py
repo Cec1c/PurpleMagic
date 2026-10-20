@@ -17,6 +17,8 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={'width': 1440, 'height': 1050}, device_scale_factor=1)
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
+    status_writes = []
+    page.on('request', lambda r: status_writes.append(r.url) if r.method == 'POST' and r.url.endswith('/preview') and '/benefits/' in r.url else None)
     # Synthetic fixture supplies item definitions, without growth/quest tables.
     def capabilities(route):
         res = route.fetch()
@@ -34,10 +36,9 @@ with sync_playwright() as p:
         page.get_by_label('访问 Token', exact=True).fill('fixture')
         page.get_by_label('在此设备记忆 30 天', exact=True).uncheck()
         page.get_by_role('button', name='进入工作台', exact=True).click()
-        row = page.locator('tr').filter(has_text='福利测试10')
-        row.first.get_by_role('button', name='打开工作区', exact=True).click()
-        page.get_by_role('link', name='GM', exact=True).click()
-        page.get_by_role('tab', name='福利规则', exact=True).click()
+        page.get_by_role('link', name='福利规则', exact=True).click()
+        expect(page.get_by_text('选择一位角色开始管理', exact=True)).to_have_count(0)
+        expect(page.locator('.current-target')).to_have_count(0)
         page.get_by_role('button', name='创建规则', exact=True).click()
         form = page.locator('form.benefit-create')
 
@@ -50,8 +51,15 @@ with sync_playwright() as p:
             row = page.locator('tr').filter(has_text=name)
             row.get_by_role('button', name='查看发放情况', exact=True).click()
             modal = page.get_by_role('dialog')
-            modal.get_by_role('button', name='继续发放', exact=True).click()
-            confirm()
+            expected = 2 if name == '浏览器点券福利' else 3
+            for attempt in range(30):
+                expect(modal.get_by_role('button', name='刷新进度', exact=True)).to_be_enabled()
+                if f'已发 {expected}' in modal.inner_text(): break
+                page.wait_for_timeout(100)
+                modal.get_by_role('button', name='刷新进度', exact=True).click()
+            expect(modal).to_contain_text(f'已发 {expected}')
+            expect(modal.get_by_role('button', name='继续发放', exact=True)).to_have_count(0)
+            modal.get_by_role('button', name='关闭', exact=True).click()
 
         form.get_by_label('规则名称', exact=True).fill('浏览器点券福利')
         form.get_by_label('奖励类型', exact=True).select_option('cera')
@@ -68,7 +76,7 @@ with sync_playwright() as p:
         row.get_by_role('button', name='启用', exact=True).click(); confirm()
         row.get_by_role('button', name='查看', exact=False).click()
         expect(page.get_by_role('dialog')).to_contain_text('余额 1000 → 1500')
-        expect(page.get_by_role('dialog')).to_contain_text('已发 2 / 2')
+        expect(page.get_by_role('dialog')).to_contain_text('已加载 2 项 · 已发 2')
         page.screenshot(path=str(args.output_dir/'cera-receipts.png'), full_page=True)
         page.get_by_role('dialog').get_by_role('button', name='关闭', exact=True).click()
 
@@ -101,7 +109,8 @@ with sync_playwright() as p:
         page.screenshot(path=str(args.output_dir/'item-mobile-light.png'), full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
         assert not errors, errors
-        (args.output_dir/'receipt.json').write_text(json.dumps({'passed': True, 'errors': errors, 'realHTTPAndDisposableDatabase': True, 'syntheticPVF': True}, ensure_ascii=False, indent=2), encoding='utf-8')
+        assert not status_writes, status_writes
+        (args.output_dir/'receipt.json').write_text(json.dumps({'passed': True, 'errors': errors, 'realHTTPAndDisposableDatabase': True, 'syntheticPVF': True, 'independentBenefitsWithoutCharacter': True, 'statusCreatesNoJobs': True}, ensure_ascii=False, indent=2), encoding='utf-8')
     except Exception:
         page.screenshot(path=str(args.output_dir/'failure.png'), full_page=True)
         (args.output_dir/'failure.html').write_text(page.content(), encoding='utf-8')

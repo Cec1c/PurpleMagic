@@ -97,8 +97,9 @@ try {
  assert.ok(delivered,'automatic benefit must arrive without manually running a job');
  let proofTask;
  for(let attempt=0;attempt<15;attempt++) {
-  const proof = await api.benefitProgress(rule.id);
-  proofTask=(await api.http.get(`/api/v1/tasks/${proof}`)).data;
+  let cursor="", sent=0;
+  do { const page=await api.http.get(`/api/v1/benefits/${rule.id}/recipients?limit=100&cursor=${encodeURIComponent(cursor)}`); sent+=page.data.filter(r=>r.state==="sent").length; cursor=page.page?.nextCursor||""; } while(cursor);
+  proofTask={sent};
   if(proofTask.sent===8) break;
   await new Promise(resolve=>setTimeout(resolve,1000));
  }

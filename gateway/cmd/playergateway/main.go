@@ -219,7 +219,7 @@ func runGateway(ctx context.Context, c config) error {
 	}
 	var module *management.Module
 	if c.Management != nil {
-		module, err = management.Open(ctx, *c.Management, func(msg string, args ...any) { log.Print(msg) })
+		module, err = management.Open(ctx, *c.Management, func(msg string, args ...any) { log.Println(append([]any{msg}, args...)...) })
 		if err != nil {
 			return err
 		}

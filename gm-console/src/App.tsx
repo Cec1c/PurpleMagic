@@ -5,6 +5,7 @@ import {
   Mail,
   ScrollText,
   WandSparkles,
+  Gift,
   Users,
   Settings2,
   Megaphone,
@@ -40,6 +41,7 @@ import { Players, PlayerPicker } from "./pages/Players";
 import { MailPage } from "./pages/Mail";
 import { QuestPage } from "./pages/Quests";
 import { GmPage } from "./pages/Gm";
+import { BenefitsPage } from "./pages/Benefits";
 import { Settings } from "./pages/Settings";
 import { ConsoleAPI } from "./api/console";
 import { emptyState } from "./api/model";
@@ -84,8 +86,9 @@ const navigation = [
     label: "GM",
     icon: WandSparkles,
     title: "GM 管理",
-    sub: "角色成长、资产调整与自动福利。",
+    sub: "角色成长与资产调整。",
   },
+  { id: "benefits", label: "福利规则", icon: Gift, title: "福利规则", sub: "全局奖励自动发放，查看每个账号与角色的发放情况。" },
   {
     id: "accounts",
     label: "账号与角色",
@@ -274,7 +277,7 @@ export function App() {
             pending.command.recipients.includes(c.id),
         )
       : [];
-  const noIdentity = ["query", "accounts", "settings", "quests"].includes(section);
+  const noIdentity = ["query", "accounts", "settings", "quests", "benefits"].includes(section);
   if (live && !state.api?.authenticated) {
     return <LiveContext.Provider value={live}>
       <div className="app-shell auth-shell">
@@ -436,14 +439,14 @@ export function App() {
                 </div>
                 <p>{nav.sub}</p>
               </div>
-              <button
+              {section !== "benefits" && <button
                 className="secondary current-target"
                 onClick={() => setPickCharacter(true)}
               >
                 <Users size={15} />
                 {character.name}
                 <ChevronRight size={14} />
-              </button>
+              </button>}
             </div>
             {!noIdentity &&
               character.id &&
@@ -469,12 +472,12 @@ export function App() {
                 </button>
               </div>
             )}
-            <div key={`${section}-${character.id}`} className="page-content">
+            <div key={`${section}-${section === "benefits" ? "global" : character.id}`} className="page-content">
               {live && !state.api?.authenticated ? (
                 <LoginPanel />
               ) : live &&
                 !live.current &&
-                !["query", "accounts", "settings", "quests"].includes(section) ? (
+                !["query", "accounts", "settings", "quests", "benefits"].includes(section) ? (
                 <div className="glass content-panel">
                   <Empty title="选择一位角色开始管理" />
                   <button className="primary" onClick={() => go("query")}>
@@ -493,6 +496,8 @@ export function App() {
                     <MailPage {...props} />
                   ) : section === "quests" ? (
                     <QuestPage {...props} />
+                  ) : section === "benefits" ? (
+                    <BenefitsPage {...props} />
                   ) : section === "gm" ? (
                     <GmPage {...props} />
                   ) : (

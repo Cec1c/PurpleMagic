@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { KeyRound, ArrowRight, RefreshCw, CheckCircle2, Eye, EyeOff, Upload } from "lucide-react";
 import { useLive } from "./context";
 import type { Pending } from "./model";
@@ -186,34 +186,39 @@ export function TaskDetail({
     [next, setNext] = useState(""),
     [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const readController = useRef<AbortController | undefined>(undefined);
   async function read(more = false) {
+    readController.current?.abort();
+    const controller = new AbortController();
+    readController.current = controller;
     setBusy(true);
     setError("");
     try {
-      const taskId =
-        campaignId && !more
-          ? await api.benefitProgress(campaignId)
-          : task?.id || id;
-      const root = `/api/v1/tasks/${segment(taskId)}`;
-      const t = await api.http.get(root);
+      const root = campaignId
+        ? `/api/v1/benefits/${segment(campaignId)}`
+        : `/api/v1/tasks/${segment(id)}`;
+      const t = campaignId ? null : await api.http.get(root, controller.signal);
       const r = await api.http.get<DTO[]>(
         query(root + "/recipients", {
           limit: 100,
           cursor: more ? next : undefined,
         }),
+        controller.signal,
       );
-      setTask(t.data);
+      setTask(t?.data);
       setRows(more ? [...rows, ...r.data] : r.data);
       setNext(r.page?.nextCursor || "");
     } catch (e) {
+      if (controller.signal.aborted) return;
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
     }
   }
   useEffect(() => {
     void read();
-  }, [id]);
+    return () => readController.current?.abort();
+  }, [id, campaignId]);
   function act(action: "pause" | "retry" | "resume") {
     onClose();
     request({ kind: "task-control", id: task?.id || id, action });
@@ -268,6 +273,9 @@ export function TaskDetail({
           {task.failed}
         </p>
       )}
+      {campaignId && <p>已加载 {rows.length} 项 · 已发 {rows.filter(r => r.state === "sent").length} · 待发 {rows.filter(r => r.state === "pending").length}{next ? " · 还有更多" : ""}</p>}
+      {busy && <p role="status">正在读取发放记录…</p>}
+      {!busy && !error && !rows.length && <p>暂无收件角色</p>}
       <div className="table-scroll">
         <table>
           <thead>
@@ -290,6 +298,7 @@ export function TaskDetail({
                     ? "已发送"
                     : r.state === "failed"
                       ? "失败"
+                      : r.state === "ineligible" ? "不在发放范围"
                       : "待发送"}
                 </td>
                 <td>
@@ -302,7 +311,7 @@ export function TaskDetail({
           </tbody>
         </table>
       </div>
-      <LoadMore show={!!next} onClick={() => void read(true)} />
+      <LoadMore show={!!next && !busy} onClick={() => void read(true)} />
       {error && (
         <p role="alert" className="inline-error">
           {error}

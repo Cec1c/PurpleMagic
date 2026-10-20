@@ -63,6 +63,25 @@ func TestV1BenefitRewardsBrowserMySQL(t *testing.T) {
 	check(err)
 	server := httptest.NewServer(s.ManagementHandler(root))
 	defer server.Close()
+	// Exercise the same resumable worker used by the external GM, with a short
+	// fixture-only schedule. Viewing status itself never sends rewards.
+	worker, stop := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		timer := time.NewTicker(100 * time.Millisecond)
+		defer timer.Stop()
+		var position benefitScanPosition
+		for {
+			select {
+			case <-worker.Done():
+				return
+			case <-timer.C:
+				position, _ = s.scanBenefitDeliveries(worker, position)
+			}
+		}
+	}()
+	defer func() { stop(); <-done }()
 	cmd := exec.Command("python", script, "--url", server.URL, "--output-dir", os.Getenv("DNF90GM_BENEFIT_REWARDS_BROWSER_OUTPUT"))
 	if out, e := cmd.CombinedOutput(); e != nil {
 		t.Fatalf("benefit browser: %v\n%s", e, out)
@@ -93,5 +112,10 @@ func TestV1BenefitRewardsBrowserMySQL(t *testing.T) {
 		if found != 1 || equipment != 1 {
 			t.Fatal("browser item delivery", id, found, equipment)
 		}
+	}
+	jobs, err := store.Jobs(ctx)
+	check(err)
+	if len(jobs) != 0 {
+		t.Fatal("browser status generated a delivery job")
 	}
 }

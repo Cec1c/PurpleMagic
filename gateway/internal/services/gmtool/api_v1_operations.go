@@ -25,6 +25,7 @@ func (s *Server) v1OperationRoutes(read, write *http.ServeMux) {
 	read.HandleFunc("GET /api/v1/items/{itemId}/grant-options", s.v1MailGrantOptions)
 	read.HandleFunc("GET /api/v1/benefits", s.v1Campaigns)
 	read.HandleFunc("GET /api/v1/benefits/{id}", s.v1Campaign)
+	read.HandleFunc("GET /api/v1/benefits/{id}/recipients", s.v1CampaignRecipients)
 	read.HandleFunc("GET /api/v1/tasks", s.v1Tasks)
 	read.HandleFunc("GET /api/v1/tasks/{id}", s.v1Task)
 	read.HandleFunc("GET /api/v1/tasks/{id}/confirmation", s.v1Task)

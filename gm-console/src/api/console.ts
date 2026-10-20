@@ -577,9 +577,10 @@ export class ConsoleAPI {
       await this.quests(this.meta.questFilter.status, this.meta.questFilter.q);
     else if (refresh && section === "gm")
       await this.partial([
-        () => this.growth(), () => this.benefits(),
+        () => this.growth(),
         () => this.tasks(), () => this.history(),
       ]);
+    else if (refresh && section === "benefits") await this.benefits();
     else if (refresh && section === "settings") await this.hub();
   }
   async inventory(tab: InventoryTab, more = false) {
@@ -972,19 +973,7 @@ export class ConsoleAPI {
       ),
     });
   }
-  async benefitProgress(id: string) {
-    const job = await this.http.post(
-      `/api/v1/benefits/${segment(id)}/preview`,
-      {},
-      crypto.randomUUID(),
-    );
-    this.patch({
-      benefits: this.state.benefits.map((b) =>
-        b.id === id ? { ...b, sent: job.sent } : b,
-      ),
-    });
-    return job.id as string;
-  }
+
   async tasks(more = false) {
     const signal = this.signal("tasks");
     if (!this.meta.features["tasks.read"]) return;
@@ -1179,7 +1168,7 @@ export class ConsoleAPI {
       this.publish();
     }
     await this.guard(async () => {
-      await this.character();
+      if (this.sectionId !== "benefits") await this.character();
       await this.enter(this.sectionId, true);
     });
   }

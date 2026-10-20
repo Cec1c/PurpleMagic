@@ -30,6 +30,32 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 	api := s.v1Routes()
 	var scan sync.Mutex
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/internal/gateway/v1/scan-v2", func(w http.ResponseWriter, r *http.Request) {
+		var in benefitScanPosition
+		if !v1Decode(w, r, &in) {
+			return
+		}
+		if in.Account < 0 || len(in.Character) > 128 || len(in.Campaign) > 32 || (in.Character == "") != (in.Campaign == "") {
+			http.Error(w, "scan position invalid", 400)
+			return
+		}
+		if !scan.TryLock() {
+			http.Error(w, "scan in progress", 409)
+			return
+		}
+		defer scan.Unlock()
+		ctx, stop := context.WithTimeout(r.Context(), 20*time.Second)
+		defer stop()
+		position, err := s.scanBenefitDeliveries(ctx, in)
+		if err != nil {
+			s.cfg.Logger("benefit-scan-retry", "account_cursor", position.Account, "cause", err.Error())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			Position benefitScanPosition `json:"position"`
+			Retry    bool                `json:"retry"`
+		}{position, err != nil})
+	})
 	mux.HandleFunc("POST /api/internal/gateway/v1/scan", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Cursor int64 `json:"cursor"`
@@ -198,7 +224,7 @@ func RunExternalScanner(ctx context.Context, peer *servicehttp.Client, interval 
 	}
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
-	var cursor int64
+	var position benefitScanPosition
 	for {
 		select {
 		case <-ctx.Done():
@@ -207,18 +233,21 @@ func RunExternalScanner(ctx context.Context, peer *servicehttp.Client, interval 
 		}
 		for i := 0; i < 10; i++ {
 			var out struct {
-				Cursor int64 `json:"cursor"`
-				Retry  bool  `json:"retry"`
+				Position benefitScanPosition `json:"position"`
+				Retry    bool                `json:"retry"`
 			}
-			e := peer.JSON(ctx, "/api/internal/gateway/v1/scan", map[string]any{"cursor": cursor, "limit": 5}, &out)
+			e := peer.JSON(ctx, "/api/internal/gateway/v1/scan-v2", position, &out)
 			if e != nil {
 				if ctx.Err() == nil {
 					log("external-benefit-scan-retry")
 				}
 				break
 			}
-			cursor = out.Cursor
-			if cursor == 0 || out.Retry {
+			position = out.Position
+			if out.Retry {
+				log("external-benefit-scan-retry", "account_cursor", position.Account, "character_id", position.Character, "campaign_id", position.Campaign)
+			}
+			if position.Account == 0 || out.Retry {
 				break
 			}
 		}

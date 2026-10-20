@@ -152,3 +152,13 @@ test('batch deletion resolves full write revisions from summary rows without req
  assert.deepEqual(body.items.map(x=>x.revision),['full-9','full-10']);api.cancel();
  api.state.items[0].id='2';await assert.rejects(api.prepare({kind:'delete-items',keys:[api.state.items[0].key]},{accounts:[],characters:[]}),/物品已变更/);
 });
+
+
+test('global benefit confirmation refreshes only benefits even when a character was selected', async()=>{
+ const api=new ConsoleAPI(()=>{});api.meta.authenticated=true;api.meta.features={'benefits.write':true};api.sectionId='benefits';api.current='10';
+ api.state.characters=[{id:'10',accountId:'a',name:'selected'}];
+ const calls=[];api.http.fetcher=async(path,opts)=>{calls.push([path.split('?')[0],opts.method]);assert.equal(path.split('?')[0],'/api/v1/benefits');return response(opts.method==='POST'?{id:'rule',revision:0}:[]);};
+ await api.prepare({kind:'benefit-create',name:'全局',gold:100,enabled:false,scope:'future'},{accounts:[],characters:[]});
+ assert.match(api.meta.pending.target,/全部现有角色/);await api.confirm();
+ assert.equal(api.meta.pending.completed,true);assert.deepEqual(calls,[['/api/v1/benefits','POST'],['/api/v1/benefits','GET']]);
+});

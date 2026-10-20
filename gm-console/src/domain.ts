@@ -1,5 +1,5 @@
 export type Section =
-  "query" | "inventory" | "mail" | "quests" | "gm" | "accounts" | "settings";
+  "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "accounts" | "settings";
 export type InventoryTab =
   | "bag"
   | "equipped"

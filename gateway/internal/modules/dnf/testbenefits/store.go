@@ -193,7 +193,7 @@ func (s *Store) freezeRecipients(ctx context.Context, group repository.Group, jo
 				continue
 			}
 		}
-		characters, err := group.Character.ListByAccount(ctx, accountID, repository.DefaultCharacterSlotLimit+1)
+		characters, err := CharactersForAccount(ctx, group, accountID)
 		if err != nil {
 			return Job{}, err
 		}
