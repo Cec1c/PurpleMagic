@@ -252,6 +252,9 @@ func RunExternalScanner(ctx context.Context, peer *servicehttp.Client, interval 
 			if out.Retry {
 				log("external-benefit-scan-retry", "account_cursor", position.Account, "character_id", position.Character, "campaign_id", position.Campaign)
 			}
+			if position.Account == 0 {
+				log("external-benefit-scan-cycle-complete")
+			}
 			if position.Account == 0 || out.Retry {
 				break
 			}
