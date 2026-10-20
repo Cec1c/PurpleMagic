@@ -1,3 +1,9 @@
+## 2026-10-20 用户简化需求与迁移暂停
+
+诊断界面仅保留开关、最近五次游戏启动日志、逐份导出。导出必须是真正 UTF-8 `.log` 文本，经 Windows 原生另存为选择完整路径；不要恢复问题类型、标记/倒计时/片段勾选。单文件入口 `PurpleMagic.exe`，内部更新文件名、产品标记和缓存兼容契约保持；发现 `.client/` 与 `client/` 时验证客户端文件。
+
+迁移期间暂停线上写入及旧 profile 打包。新服务器、频道、账号 API、签名更新源与最终资源哈希由 Syncer 私有文档提供，客户端基准 `C:/BDown/client/client`。本地构建使用隔离 fixture profile，不能作为玩家版发布。
+
 ## 2026-10-20 launcher diagnostics candidate
 
 Launcher 0.2.19 adds optional local enhanced diagnostics. Read `docs/LAUNCHER_DIAGNOSTICS.md` and `docs/diagnostics/VALIDATION.md` before changing collector layouts, lifecycle or export. Keep full EXE hash gating, read-only process permissions, separate sampling/writer/UI notifications, bounded buffers and the existing launcher UI. This candidate has not been published or deployed; native two-hour gameplay and frame-time acceptance remain open.

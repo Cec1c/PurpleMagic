@@ -41,7 +41,7 @@ catch (Exception error)
         using var stderr = Console.OpenStandardError();
         stderr.Write(System.Text.Encoding.UTF8.GetBytes(error.GetType().Name + ": " + message + "\n"));
     }
-    else Native.MessageBox(IntPtr.Zero, message, "DNF 90CN 便携登录器", 0x10);
+    else Native.MessageBox(IntPtr.Zero, message, "PurpleMagic", 0x10);
     return 2;
 }
 

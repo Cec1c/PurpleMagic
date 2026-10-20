@@ -333,11 +333,7 @@ public sealed class LauncherEngine : IDisposable
         try { if (processes.Length > 0) throw new InvalidOperationException("更新或恢复文件前请退出所有游戏客户端。"); }
         finally { foreach (var p in processes) p.Dispose(); }
     }
-    public Task DiagnosticSelect(string id) => diagnostics.Select(id);
-    public Task DiagnosticMark(string id) => diagnostics.Mark(id);
-    public Task DiagnosticReproduce(string id) => diagnostics.Reproduce(id);
-    public Task DiagnosticStop(string id) => diagnostics.Stop(id);
-    public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string[] incidents, string directory) => diagnostics.Export(sessionId, incidents, directory);
+    public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string target) => diagnostics.Export(sessionId, target);
     public void RecordDiagnosticError(int code) => diagnostics.Event("operation_error", number: code);
     public void Dispose() { download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
 }

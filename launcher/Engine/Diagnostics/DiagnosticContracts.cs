@@ -11,9 +11,6 @@ internal sealed record ProcessIdentity(int Pid, long Created, int WindowsSession
 internal sealed record DiagnosticField(double? Value, string Status = "ok", string? Reason = null);
 internal sealed record DiagnosticRecord(long Sequence, string Utc, double MonotonicMs, string Type, string Module, string SessionId,
     double ReadMs, string Quality, Dictionary<string, DiagnosticField> Fields, string? Reason = null, long? BaseSequence = null);
-internal sealed record DiagnosticFile(string Path, long Bytes, string Sha256);
-internal sealed record DiagnosticManifest(int SchemaVersion, string CollectorVersion, string ModuleVersion, string SessionId,
-    string IncidentId, string StartedUtc, string EndedUtc, string EndReason, DiagnosticFile[] Files);
 internal sealed record DiagnosticSummary(string SessionId, string IncidentId, string ExeSha256, string PvfSha256,
     long PublicationSequence, string ExeVersion, string EndReason, long Records, long Errors, long Dropped,
     long Overwritten, bool Truncated, string[] Missing, string[] Categories, int TargetIntervalMs,
@@ -21,12 +18,10 @@ internal sealed record DiagnosticSummary(string SessionId, string IncidentId, st
     string ObservationKind = "client_polling", string CounterScope = "session_cumulative",
     string? CorrelationId = null, string ExpectedPvfSha256 = "");
 
-internal sealed record DiagnosticExportSummary(string SessionId, DiagnosticSummary[] Incidents, string[] OmittedCompleteIncidents, string EndReason);
-
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true)]
-[JsonSerializable(typeof(DiagnosticExportSummary))]
+[JsonSerializable(typeof(DiagnosticLogIndex))]
+[JsonSerializable(typeof(DiagnosticLogEnvelope))]
 [JsonSerializable(typeof(DiagnosticRecord))]
-[JsonSerializable(typeof(DiagnosticManifest))]
 [JsonSerializable(typeof(DiagnosticSummary))]
 [JsonSerializable(typeof(ProcessIdentity[]))]
 [JsonSerializable(typeof(DiagnosticClip[]))]

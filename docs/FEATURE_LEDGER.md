@@ -1,6 +1,6 @@
 ## 2026-10-20 登录器增强诊断候选
 
-新增自动进程关联、基础日志、AT-5T 专项、标记/复现/导出与容量控制。见 [功能与接口](LAUNCHER_DIAGNOSTICS.md) 和 [验证范围](diagnostics/VALIDATION.md)；原生游戏两小时与帧时间验收仍待完成。
+新增自动进程关联、基础日志和 AT-5T 专项；一个开关按启动记录，保留最近五次，通过原生另存为导出 `.log`。便携入口为 `PurpleMagic.exe`，识别 `.client/` 与 `client/`，保持更新契约。见 [功能与接口](LAUNCHER_DIAGNOSTICS.md) 和 [验证范围](diagnostics/VALIDATION.md)；原生游戏两小时与帧时间验收仍待完成。
 
 <!-- orchid-live-20261019 -->
 ## 2026-10-19 兰紫 GM Console 真实接入

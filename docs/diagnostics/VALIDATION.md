@@ -1,3 +1,26 @@
+# 简化启动日志验证 · 2026-10-20
+
+当前 0.2.19 候选按用户后续要求改为一个开关、每次游戏启动一份日志、保留最近五次、原生另存为 `.log`。下面的 ZIP/标记/倒计时结果属于先前实现的历史记录。
+
+| 检查 | 本次结果 |
+| --- | --- |
+| Core / Engine / Portable | 155 / 340 / 14 项通过 |
+| Flutter | analyze 通过，21 项 widget 测试通过；已检查 1000×620 及导出状态截图 |
+| 生命周期 | 双实例自动分开；重开开关/登录器续写同一次游戏；重叠的异步哈希保留各自登录阶段；退出识别 |
+| 存储 | 完整 JSON 行追加；按启动时间保留五次；不按年龄删除；旧活跃会话不挤掉新启动；容量截断有汇总 |
+| 导出 | 实际 UTF-8 `.log`；运行中与退出后都可导出；取消不写入；覆盖成功；失败保持原文件；中断追加恢复 |
+| NativeAOT Host | 实际 stdin RPC、受控 DNF 子进程、默认关闭/开启/自动日志/导出/退出/EOF 通过；未调用生产网络 |
+| 便携 EXE | 实际 `PurpleMagic.exe` 两进程并发解包、全量摘要、原生核心初始化、重命名旧入口后共用缓存且保留较新 APP、损坏 bootstrap 拒绝，全部通过 |
+| 更新兼容 | Core/Engine 更新回归及真实 Go Hub ↔ .NET 签名下载互通通过；内部文件名、缓存标记与 autoCheck 保持 |
+| 网关 / GM | 两模块 go list/test/vet、Windows/Linux 构建；独立模块边界检查通过 |
+| 下载名称 | 新固定入口、旧版本链接、GET/HEAD/Range、PurpleMagic.exe 下载名与管理路由隔离通过 |
+
+构建使用隔离的 loopback profile，未发布、推送或部署。当前原生 Save As 窗口完成编译与 Flutter 调用/取消测试，实际桌面操作验收仍待完成。真实游戏两小时运行及帧时间对照继续保留为实机验收项。
+
+示例：[diagnostics-synthetic.log](diagnostics-synthetic.log)，分析结果：[synthetic-log-analysis.json](synthetic-log-analysis.json)。私有 NativeAOT、便携 EXE 与构建回执位于当前候选 `runtime/diagnostics-simple/`；完整路径见项目本地交接文档。
+
+---
+
 # 增强诊断验证记录
 
 2026-10-20，Windows 本地候选 0.2.19。基线是仓库提交 `a1ca94aba4a82d628796410e405ea6eff6f95fc3`；实现位于分支 `feature/launcher-diagnostics-20261020`。

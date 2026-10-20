@@ -15,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--exe', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--fixture-exe', type=Path, help='EngineTests apphost, for native process association')
+    parser.add_argument('--fixture-exe', required=True, type=Path, help='EngineTests apphost, for native process association')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -75,37 +75,34 @@ def main():
                  'autoCheck': False, 'reducedEffects': True,
                  'diagnostics': {'enabled': True, 'problemType': 'connection'}}
         call('preferences', prefs)
-        expected = 2 if fixture else 1
+        expected = 1
         status = diagnostic_when(lambda d: d['enabled'] and len(d['instances']) == expected and all(i['selected'] for i in d['instances']))
         instance = next((i for i in status['instances'] if i['pid'] != 0), status['instances'][0])
         if fixture:
             assert instance['pid'] == fixture.pid and instance['exeVersion'] == 'unsupported'
         session = instance['id']
-        call('diagnosticMark', {'sessionId': session})
-        call('diagnosticStop', {'sessionId': session})
-        status = diagnostic_when(lambda d: len(d['clips']) >= 1)
-        result = call('diagnosticExport', {'sessionId': session, 'incidentIds': [status['clips'][0]['id']], 'directory': str(exports)})['diagnosticExport']
+        status = diagnostic_when(lambda d: len(d['clips']) == 1)
+        result = call('diagnosticExport', {'sessionId': session, 'path': str(exports / 'active.log')})['diagnosticExport']
         report = analyze(Path(result['path']))
-        assert report['verified'] and len(report['incidents']) == 1
-        call('diagnosticReproduce', {'sessionId': session})
-        countdown = diagnostic_when(lambda d: d['countdown'] > 0)
-        assert countdown['countdown'] <= 5
-        call('diagnosticStop', {'sessionId': session})
+        assert report['verified'] and report['records'] > 0
+        assert Path(result['path']).suffix == '.log'
         if fixture:
             fixture.stdin.write('exit\n')
             fixture.stdin.flush()
             assert fixture.wait(timeout=10) == 259
             diagnostic_when(lambda d: all(i['pid'] != fixture.pid for i in d['instances']))
+        result = call('diagnosticExport', {'sessionId': session, 'path': str(exports / 'closed.log')})['diagnosticExport']
+        assert analyze(Path(result['path']))['verified']
         prefs['diagnostics']['enabled'] = False
         call('preferences', prefs)
         diagnostic_when(lambda d: not d['enabled'])
         process.stdin.close()
         assert process.wait(timeout=30) == 0
         receipt = {'native_aot_host': True, 'launcher_version': initial['launcherVersion'], 'default_off': True,
-                   'mark_stop_export': True, 'countdown_early_stop': True, 'disable_and_eof_flush': True,
-                   'manifest_and_jsonl_verified': True, 'production_network_calls': 0,
+                   'automatic_launch_log': True, 'active_log_export': True, 'disable_and_eof_flush': True,
+                   'plain_log_verified': True, 'production_network_calls': 0,
                    'native_process_binding_and_exit': fixture is not None,
-                   'native_gameplay': False, 'native_directory_picker': 'widget mocked; manual acceptance pending'}
+                   'native_gameplay': False, 'native_save_as_picker': 'widget mocked; manual acceptance pending'}
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
         print(json.dumps(receipt, indent=2))
     finally:

@@ -45,7 +45,7 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
         var pvf = Path.Combine(Path.GetDirectoryName(Identity.Path)!, "Script.pvf");
         try { using var asset = new FileStream(pvf, FileMode.Open, FileAccess.Read, FileShare.Read); PvfHash = Convert.ToHexString(SHA256.HashData(asset)).ToLowerInvariant(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* Missing digest is explicit in the summary. */ }
-        if (Exited(out _)) throw new InvalidDataException("游戏进程已结束。");
+        if (Exited(out _)) return; // Preserve the launch and exit log even when hashing outlives the game.
         using var snapshot = CreateToolhelp32Snapshot(0x18, Identity.Pid);
         var module = new ModuleEntry { Size = (uint)Marshal.SizeOf<ModuleEntry>() };
         var address = !snapshot.IsInvalid && Module32First(snapshot, ref module) ? module.Base.ToInt64() : 0;

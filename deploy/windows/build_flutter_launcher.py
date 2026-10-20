@@ -58,7 +58,7 @@ def main():
     for name in ("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"):
         shutil.copy2(crt / name, target / "app" / name)
     (target / "launcher.id").write_text("DNF90-Flutter-bundle-v1\n", encoding="utf-8")
-    (target / "使用说明.txt").write_text("PurpleMagic 登录器 0.2.19\n\n双击 DNF90Launcher.exe。只需保留整个目录；app 内为运行文件，请勿单独移动。\n选择包含 DNF.exe / Script.pvf 的配套客户端目录。账号与密码发送到本服，密码不保存。\n客户端更新和公告需部署配套网关后发布；未部署时会明确提示，登录仍使用内置的本服兼容配置。\n更新前退出游戏。登录器自身更新会整体替换 app，并在启动失败时尝试恢复旧版。\n账号/目录/界面设置保存在当前用户 LocalAppData/DNF90Launcher。\n设置 → 增强诊断日志：默认关闭。开启后可标记刚才的问题、倒计时复现，并选择会话片段导出 ZIP。日志仅保存在本机。\n频道配置过大时可进入设置，确认后备份并重置本机 DNF.cfg；游戏内账号记忆和个人设置可能重置，服务端角色与装备不受影响。\n", encoding="utf-8-sig")
+    (target / "使用说明.txt").write_text("PurpleMagic 登录器 0.2.19\n\n双击 DNF90Launcher.exe。只需保留整个目录；app 内为运行文件，请勿单独移动。\n选择包含 DNF.exe / Script.pvf 的配套客户端目录。账号与密码发送到本服，密码不保存。\n客户端更新和公告需部署配套网关后发布；未部署时会明确提示，登录仍使用内置的本服兼容配置。\n更新前退出游戏。登录器自身更新会整体替换 app，并在启动失败时尝试恢复旧版。\n账号/目录/界面设置保存在当前用户 LocalAppData/DNF90Launcher。\n设置 → 增强诊断日志：默认关闭。开启后按每次游戏启动自动记录，保留最近五次；每份日志旁边点击导出，另存为 .log 文件。\n频道配置过大时可进入设置，确认后备份并重置本机 DNF.cfg；游戏内账号记忆和个人设置可能重置，服务端角色与装备不受影响。\n", encoding="utf-8-sig")
     files = {}
     for path in sorted(target.rglob("*")):
         if path.is_file():

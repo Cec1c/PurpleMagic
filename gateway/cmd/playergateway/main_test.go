@@ -51,6 +51,19 @@ func TestPortableDistributionReadOnlyBoundary(t *testing.T) {
 	if w.Code != 206 || w.Body.String() != "MZ" {
 		t.Fatal("portable Range download failed", w.Code)
 	}
+	if got := w.Header().Get("Content-Disposition"); got != `attachment; filename="PurpleMagic.exe"` {
+		t.Fatal("legacy URL must download with PurpleMagic filename", got)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "PurpleMagic.exe"), []byte("MZ named fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{"GET", "HEAD"} {
+		named := httptest.NewRecorder()
+		h.ServeHTTP(named, httptest.NewRequest(method, "/launcher/PurpleMagic.exe", nil))
+		if named.Code != 200 || named.Header().Get("Cache-Control") != "no-store" || named.Header().Get("Content-Disposition") != `attachment; filename="PurpleMagic.exe"` {
+			t.Fatal("named distribution", method, named.Code)
+		}
+	}
 	for _, path := range []string{"/launcher/" + name + "?download=1", "/launcher/" + name + ".key", "/launcher/DNF90-Portable-../gateway.json", "/launcher/other.exe", "/admin/", "/gm/"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))

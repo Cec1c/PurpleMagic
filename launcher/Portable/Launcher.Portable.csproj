@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>DNF90-Portable</AssemblyName>
+    <AssemblyName>PurpleMagic</AssemblyName>
     <Version>0.2.19</Version>
     <Product>PurpleMagic</Product><AssemblyTitle>PurpleMagic</AssemblyTitle><Description>PurpleMagic</Description>
     <PublishAot>true</PublishAot>

@@ -45,10 +45,10 @@ openssl pkey -in signing-key.pem -pubout -out update-public.pem
 
 ```text
 BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.18
-BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.18.zip --output dist/PurpleMagic-0.2.18.exe --dotnet dotnet
+BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.18.zip --output dist/0.2.19/PurpleMagic.exe --dotnet dotnet
 ```
 
-`--output` 选择新路径。构建产生完整目录、完整 ZIP 和 `-app-update.zip`，便携脚本包装完整 ZIP。显示名、窗口名与产品属性为 PurpleMagic；内部 `DNF90.exe`、`DNF90Launcher.exe`、更新 Product ID 和缓存目录继续沿用既有兼容契约。
+`--output` 选择新路径，省略时生成 `dist/PurpleMagic.exe`。构建产生完整目录、完整 ZIP 和 `-app-update.zip`，便携脚本包装完整 ZIP。显示名、窗口名与产品属性为 PurpleMagic；内部 `DNF90.exe`、`DNF90Launcher.exe`、更新 Product ID 和缓存目录继续沿用既有兼容契约。
 
 只读连接检查（不启动游戏）：
 
@@ -60,7 +60,7 @@ dotnet run --project launcher/Probe -- runtime/launcher-input/profile.json --cha
 
 ## 发布到本服
 
-将完整便携 EXE 放入网关 `release_dir`，沿用白名单下载文件名 `DNF90-Portable-0.2.18.exe`。程序内显示名仍是 PurpleMagic。
+将完整便携 EXE 命名为 `PurpleMagic.exe`，部署至网关 `release_dir` 后通过 `/launcher/PurpleMagic.exe` 下载。旧的 `DNF90-Portable-x.y.z.exe` 链接继续支持，下载文件名同样为 `PurpleMagic.exe`。新版路由需要随网关部署；签名 APP 更新地址与内部文件名保持原契约。
 
 通过私有 Hub `POST /admin/api/bundle/0.2.18` 上传 `-app-update.zip`，使用管理 Bearer Token 或已登录会话及 CSRF。此接口完成校验后立即发布新签名序列；不要把完整便携 EXE 当作 APP 更新 ZIP 上传。管理员页面/脚本的实际请求地址在管理域名下，玩家从签名 bootstrap 获取下载 URL、长度和 SHA256。
 
@@ -73,3 +73,5 @@ dotnet run --project launcher/Probe -- runtime/launcher-input/profile.json --cha
 The existing generator is a command-line build pipeline, not a web build UI. Copy `launcher/server.example.json` into the ignored runtime directory, fill the player HTTPS origin, direct game IP/bootstrap port and actual channel server ID, then run `scripts/prepare_launcher_profile.py` with the approved client, TLS certificate and RSA **public** key. The tool computes all file/certificate hashes and preserves explicit channel compatibility fields.
 
 On Windows, supply your background/announcement artwork and run `BUILD_FLUTTER.bat`, then `BUILD_PORTABLE.bat` using the commands above. The same approved profile is used by the Hub and embedded launcher. Keep the matching PKCS8 signing private key exclusively in the Hub. The read-only `launcher/Probe --channel-only` checks TLS and game connectivity. Upload the APP ZIP through the private Hub bundle endpoint to publish a new signed update sequence; distribute the portable EXE separately.
+
+便携入口会在当前目录和入口目录检查 `.client/`、`client/`，要求存在非空 `DNF.exe`、`Script.pvf`；已有有效手选目录优先。完整版本哈希在更新与启动时继续校验。

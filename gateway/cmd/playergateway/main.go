@@ -39,7 +39,7 @@ type config struct {
 	Hub             *launcherhub.Config `json:"launcher_hub,omitempty"`
 }
 
-var releaseFile = regexp.MustCompile(`^/launcher/(settings\.json|release\.json|ServerS5A3-[0-9.]+\.zip|DNF90-Portable-[0-9]+\.[0-9]+\.[0-9]+\.exe(?:\.sha256)?)$`)
+var releaseFile = regexp.MustCompile(`^/launcher/(settings\.json|release\.json|ServerS5A3-[0-9.]+\.zip|PurpleMagic\.exe(?:\.sha256)?|DNF90-Portable-[0-9]+\.[0-9]+\.[0-9]+\.exe(?:\.sha256)?)$`)
 
 func handler(c config) http.Handler {
 	return handlerWithHub(c, nil)
@@ -86,6 +86,9 @@ func handlerWithHub(c config, hub *launcherhub.Hub) http.Handler {
 			if err != nil || !info.Mode().IsRegular() {
 				http.NotFound(w, r)
 				return
+			}
+			if strings.HasSuffix(r.URL.Path, ".exe") {
+				w.Header().Set("Content-Disposition", `attachment; filename="PurpleMagic.exe"`)
 			}
 			http.ServeFile(w, r, path)
 		default:

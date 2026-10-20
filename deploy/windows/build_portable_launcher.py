@@ -68,7 +68,7 @@ def prepare(source, target, version, icon):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--output", type=Path, default=ROOT / "dist/PurpleMagic.exe")
     parser.add_argument("--version", default="0.2.19")
     parser.add_argument("--icon", type=Path, default=ROOT / "launcher/Flutter/windows/runner/resources/app_icon.ico")
     parser.add_argument("--dotnet", type=Path, default=ROOT / ".cache/dotnet8/dotnet.exe")
@@ -85,7 +85,7 @@ def main():
     subprocess.run([str(args.dotnet), "publish", str(ROOT / "launcher/Portable/Launcher.Portable.csproj"), "-c", "Release", "-r", "win-x64", "-p:PortableInput=" + str(inputs), "-p:Version=" + args.version, "-o", str(build)], cwd=ROOT, check=True)
     output.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation also protects an output created while compilation runs.
-    with output.open("xb") as destination, (build / "DNF90-Portable.exe").open("rb") as source:
+    with output.open("xb") as destination, (build / "PurpleMagic.exe").open("rb") as source:
         shutil.copyfileobj(source, destination)
     digest = sha(output.read_bytes())
     with checksum.open("x", encoding="utf-8") as handle:

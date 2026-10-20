@@ -29,3 +29,5 @@ node_modules/
 /gm-console/.vite/
 /gm-console/.npm-cache/
 /gm-console/.npmrc
+
+!/docs/diagnostics/diagnostics-synthetic.log

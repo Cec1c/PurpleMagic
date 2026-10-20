@@ -1,4 +1,4 @@
-"""Validate a PurpleMagic diagnostic ZIP and emit a bounded evidence timeline."""
+"""Validate a PurpleMagic diagnostic log (or historical ZIP) and emit a bounded evidence timeline."""
 import argparse
 import hashlib
 import json
@@ -20,7 +20,49 @@ def inspect_keys(value):
             inspect_keys(item)
 
 
+def analyze_log(path):
+    raw = path.read_bytes()
+    if len(raw) > LIMIT or not raw.endswith(b'\n'):
+        raise ValueError('Log limit or incomplete line')
+    rows = [json.loads(line) for line in raw.splitlines()]
+    header, footer = rows[0], rows[-1]
+    if header['type'] != 'log_header' or footer['type'] != 'log_summary' or header['schema_version'] != 2:
+        raise ValueError('Missing log header/summary')
+    sid = header['log']['summary']['session_id']
+    if footer['log']['summary']['session_id'] != sid:
+        raise ValueError('Summary session mismatch')
+    sequence, observed, base = 0, -1, None
+    events, missing = [], set(footer['log']['summary']['missing'])
+    for row in rows:
+        inspect_keys(row)
+    for row in rows[1:-1]:
+        if row['session_id'] != sid or row['sequence'] <= sequence or row['monotonic_ms'] < observed:
+            raise ValueError('Session/sequence/time mismatch')
+        sequence, observed = row['sequence'], row['monotonic_ms']
+        if row['type'] == 'sample':
+            if row['reason'] == 'full':
+                base = sequence
+            elif base is None or row['base_sequence'] != base:
+                raise ValueError('Delta without retained full snapshot')
+        for key, field in row['fields'].items():
+            if field['status'] not in {'ok', 'not_applicable', 'unsupported', 'read_failed', 'unstable'}:
+                raise ValueError('Unknown field quality')
+            if field['status'] != 'ok' and field['value'] is not None:
+                raise ValueError('Unavailable field must be null')
+            if field['status'] in {'unsupported', 'read_failed'}:
+                missing.add(key + ':' + field['status'])
+        if row['type'] == 'event':
+            events.append({'sequence': sequence, 'utc': row['utc'], 'reason': row['reason']})
+    if len(rows) - 2 != footer['log']['summary']['records']:
+        raise ValueError('Record count mismatch')
+    return {'schema_version': 2, 'verified': True, 'session_id': sid, 'records': len(rows) - 2,
+            'missing': sorted(missing), 'timeline': events[:100], 'timeline_omitted': max(0, len(events) - 100),
+            'truncated': footer['log']['summary']['truncated'], 'sha256': hashlib.sha256(raw).hexdigest()}
+
+
 def analyze(path):
+    if path.suffix.lower() == ".log":
+        return analyze_log(path)
     if path.stat().st_size > LIMIT:
         raise ValueError('ZIP exceeds 10 MiB')
     with zipfile.ZipFile(path) as archive:

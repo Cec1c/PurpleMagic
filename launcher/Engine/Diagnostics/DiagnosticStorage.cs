@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -34,152 +33,127 @@ internal sealed class DiagnosticRing(int capacity = 3 * 1024 * 1024)
     }
 }
 
-internal sealed record DiagnosticSave(DiagnosticSummary Summary, DiagnosticLine[] Lines, string StartedUtc, string EndedUtc);
+internal sealed record DiagnosticSave(DiagnosticSummary Summary, DiagnosticLine[] Lines, string StartedUtc, string EndedUtc)
+{ internal TaskCompletionSource? Completion { get; init; } }
+
+internal sealed record DiagnosticLogIndex(DiagnosticSummary Summary, string StartedUtc, string EndedUtc, long LastSequence, double LastTime, long Bytes);
+internal sealed record DiagnosticLogEnvelope(string Type, int SchemaVersion, string CollectorVersion, string ModuleVersion, DiagnosticLogIndex Log);
 
 internal sealed class DiagnosticStorage
 {
-    public const int MaxZip = 10 * 1024 * 1024;
+    public const int MaxLog = 10 * 1024 * 1024;
     private readonly string root;
     private readonly object gate = new();
-    public DiagnosticStorage(string directory) { root = directory; }
+    public DiagnosticStorage(string directory) { root = Path.GetFullPath(directory); }
     private void EnsureRoot() { SafeFiles.NoLinks(root); Directory.CreateDirectory(root); }
-    private string FileFor(string id)
+    private string FileFor(string id, string extension = ".log")
     {
-        if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("诊断片段编号无效。");
-        return Path.Combine(root, id + ".zip");
+        if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("日志编号无效。");
+        var path = Path.Combine(root, id + extension); SafeFiles.NoLinks(path); return path;
+    }
+    public DiagnosticLogIndex? ReadIndex(string id)
+    {
+        lock (gate) {
+            var path = FileFor(id, ".json");
+            if (!File.Exists(path)) return null;
+            if (new FileInfo(path).Length > 65536) throw new InvalidDataException("日志索引无效。");
+            var index = JsonSerializer.Deserialize(File.ReadAllBytes(path), DiagnosticJson.Default.DiagnosticLogIndex);
+            if (index is null || index.Summary.SessionId != id) throw new InvalidDataException("日志索引无效。");
+            return index;
+        }
+    }
+    private DiagnosticLogIndex[] Indexes()
+    {
+        EnsureRoot(); var rows = new List<DiagnosticLogIndex>();
+        foreach (var path in Directory.EnumerateFiles(root, "*.json")) {
+            var id = Path.GetFileNameWithoutExtension(path);
+            if (!Guid.TryParseExact(id, "N", out _)) continue;
+            try { var item = ReadIndex(id); if (item is not null && File.Exists(FileFor(id))) rows.Add(item); }
+            catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { }
+        }
+        return [.. rows.OrderByDescending(r => r.StartedUtc).ThenByDescending(r => r.Summary.SessionId)];
     }
     internal void Cleanup()
     {
-        EnsureRoot();
-        foreach (var partial in new DirectoryInfo(root).EnumerateFiles("*.zip.writing"))
-            if (Guid.TryParseExact(partial.Name[..^12], "N", out _) && (partial.Attributes & FileAttributes.ReparsePoint) == 0) partial.Delete();
-        var files = new DirectoryInfo(root).EnumerateFiles("*.zip").Where(f => Guid.TryParseExact(Path.GetFileNameWithoutExtension(f.Name), "N", out _) && (f.Attributes & FileAttributes.ReparsePoint) == 0).OrderByDescending(f => f.LastWriteTimeUtc).ToArray();
-        long size = 0;
-        for (var i = 0; i < files.Length; i++) { size += files[i].Length; if (i >= 10 || size > 100L * 1024 * 1024 || files[i].LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)) files[i].Delete(); }
+        lock (gate) foreach (var row in Indexes().Skip(5)) {
+            File.Delete(FileFor(row.Summary.SessionId)); File.Delete(FileFor(row.Summary.SessionId, ".json"));
+        }
     }
     public DiagnosticClip[] List()
     {
-        lock (gate)
-        {
-            Cleanup(); var result = new List<DiagnosticClip>();
-            foreach (var path in Directory.EnumerateFiles(root, "*.zip").Take(20))
-            {
-                try
-                {
-                    SafeFiles.NoLinks(path); using var z = ZipFile.OpenRead(path); var entry = z.GetEntry("manifest.json");
-                    if (entry is null || entry.Length > 32768) continue;
-                    using var source = entry.Open(); var m = JsonSerializer.Deserialize(source, DiagnosticJson.Default.DiagnosticManifest);
-                    if (m is null || Path.GetFileNameWithoutExtension(path) != m.IncidentId) continue;
-                    var summaryEntry = z.GetEntry("summary.json");
-                    if (summaryEntry is null || summaryEntry.Length > 32768) continue;
-                    using var summaryStream = summaryEntry.Open();
-                    var summary = JsonSerializer.Deserialize(summaryStream, DiagnosticJson.Default.DiagnosticSummary);
-                    result.Add(new(m.IncidentId, m.SessionId, m.StartedUtc, m.EndedUtc, m.EndReason, new FileInfo(path).Length, summary?.Categories ?? []));
-                }
-                catch (Exception e) when (e is IOException or JsonException or InvalidDataException or UnauthorizedAccessException) { }
-            }
-            return [.. result.OrderByDescending(x => x.StartedUtc)];
+        lock (gate) {
+            Cleanup();
+            return [.. Indexes().Take(5).Select(r => new DiagnosticClip(r.Summary.SessionId, r.Summary.SessionId, r.StartedUtc, r.EndedUtc,
+                r.Summary.EndReason, new FileInfo(FileFor(r.Summary.SessionId)).Length, r.Summary.Categories))];
         }
     }
+    private static byte[] Envelope(string type, DiagnosticLogIndex index) =>
+        [.. JsonSerializer.SerializeToUtf8Bytes(new DiagnosticLogEnvelope(type, 2, LauncherEngine.VersionText, At5tModule.ModuleVersion, index), DiagnosticJson.Default.DiagnosticLogEnvelope), 10];
     public void Save(DiagnosticSave job)
     {
-        lock (gate)
-        {
-            EnsureRoot();
-            var path = FileFor(job.Summary.IncidentId); var temp = path + ".writing"; SafeFiles.NoLinks(temp);
-            if (File.Exists(temp)) File.Delete(temp); // Complete retry of this GUID after an interrupted save.
-            try
-            {
-                using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
-                using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
-                {
-                    var entries = new List<DiagnosticFile>();
-                    Add(zip, "summary.json", JsonSerializer.SerializeToUtf8Bytes(job.Summary, DiagnosticJson.Default.DiagnosticSummary), entries);
-                    AddLines(zip, "session.jsonl", job.Lines.Where(x => x.Type == "identity"), entries);
-                    var prefix = "incidents/" + job.Summary.IncidentId + "/";
-                    AddLines(zip, prefix + "events.jsonl", job.Lines.Where(x => x.Type != "sample" && x.Type != "identity"), entries);
-                    AddLines(zip, prefix + "samples.jsonl", job.Lines.Where(x => x.Type == "sample"), entries);
-                    var manifest = new DiagnosticManifest(1, LauncherEngine.VersionText, At5tModule.ModuleVersion, job.Summary.SessionId, job.Summary.IncidentId, job.StartedUtc, job.EndedUtc, job.Summary.EndReason, [.. entries]);
-                    Add(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, DiagnosticJson.Default.DiagnosticManifest), []);
+        lock (gate) {
+            EnsureRoot(); var id = job.Summary.SessionId; var previous = ReadIndex(id);
+            var rows = Indexes();
+            // A still-running old instance must not displace a newer launch.
+            if (previous is null && rows.Length >= 5 && string.CompareOrdinal(job.StartedUtc, rows[4].StartedUtc) < 0) return;
+            var index = previous ?? new(job.Summary, job.StartedUtc, job.EndedUtc, 0, 0, 0);
+            var path = FileFor(id);
+            using (var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read)) {
+                // Roll back a failed append to the last durable index. No partial JSON line survives.
+                if (file.Length < index.Bytes) throw new InvalidDataException("日志文件长度不匹配。");
+                file.SetLength(index.Bytes); file.Position = index.Bytes;
+                if (index.Bytes == 0) file.Write(Envelope("log_header", index));
+                var truncated = index.Summary.Truncated; var records = index.Summary.Records;
+                if (previous is null) records = 0;
+                foreach (var line in job.Lines) {
+                    var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord) ?? throw new InvalidDataException("日志记录无效。");
+                    if (record.SessionId != id) throw new InvalidDataException("日志会话不匹配。");
+                    if (record.Sequence <= index.LastSequence) continue;
+                    if (truncated || file.Position + line.Bytes.Length > MaxLog - 65536) { truncated = true; continue; }
+                    file.Write(line.Bytes); records++;
+                    index = index with { LastSequence = record.Sequence, LastTime = record.MonotonicMs };
                 }
-                if (new FileInfo(temp).Length > MaxZip) throw new IOException("diagnostic_zip_budget");
-                File.Move(temp, path, false); Cleanup();
+                file.Flush(true);
+                index = index with { Summary = job.Summary with { Records = records, Truncated = truncated || job.Summary.Truncated }, EndedUtc = job.EndedUtc, Bytes = file.Length };
             }
-            finally { if (File.Exists(temp)) File.Delete(temp); }
+            SafeFiles.Atomic(FileFor(id, ".json"), JsonSerializer.SerializeToUtf8Bytes(index, DiagnosticJson.Default.DiagnosticLogIndex));
+            Cleanup();
         }
     }
-    private static void Add(ZipArchive z, string name, byte[] bytes, List<DiagnosticFile> files)
-    { using var dest = z.CreateEntry(name, CompressionLevel.Fastest).Open(); dest.Write(bytes); files.Add(new(name, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant())); }
-    private static void AddLines(ZipArchive z, string name, IEnumerable<DiagnosticLine> lines, List<DiagnosticFile> files)
+    public DiagnosticExport Export(string sessionId, string target)
     {
-        using var dest = z.CreateEntry(name, CompressionLevel.Fastest).Open(); using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256); long size = 0;
-        foreach (var line in lines) { dest.Write(line.Bytes); hash.AppendData(line.Bytes); size += line.Bytes.Length; }
-        files.Add(new(name, size, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant()));
-    }
-    public DiagnosticExport Export(string sessionId, string[] ids, string directory)
-    {
-        lock (gate)
-        {
-            if (ids.Length is < 1 or > 10 || ids.Distinct().Count() != ids.Length) throw new InvalidDataException("请选择1至10个诊断片段。");
-            var clips = List().Where(x => ids.Contains(x.Id)).ToArray();
-            if (clips.Length != ids.Length || clips.Any(x => x.SessionId != sessionId)) throw new InvalidDataException("所选片段需属于同一游戏会话。");
-            directory = Path.GetFullPath(directory); SafeFiles.NoLinks(directory);
-            if (!Directory.Exists(directory) || directory.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("请选择独立导出目录。");
-            var target = Path.Combine(directory, "PurpleMagic-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..8] + ".zip");
-            // Use uncompressed entry sizes for a conservative, deterministic cap.
-            var keep = new List<(DiagnosticClip Clip, DiagnosticManifest Manifest)>(); var skipped = new List<string>(); long bytes = 0;
-            foreach (var c in clips.OrderByDescending(x => x.StartedUtc)) {
-                SafeFiles.NoLinks(FileFor(c.Id));
-                using var source = ZipFile.OpenRead(FileFor(c.Id));
-                var e = source.GetEntry("manifest.json") ?? throw new InvalidDataException("片段缺少清单。");
-                if (e.Length > 32768) throw new InvalidDataException("诊断清单过大。");
-                using var stream = e.Open();
-                var m = JsonSerializer.Deserialize(stream, DiagnosticJson.Default.DiagnosticManifest) ?? throw new InvalidDataException();
-                var names = new[] { "summary.json", "session.jsonl", "incidents/" + c.Id + "/events.jsonl", "incidents/" + c.Id + "/samples.jsonl" };
-                if (m.SessionId != sessionId || m.IncidentId != c.Id || m.Files.Length != 4 || m.Files.Select(f => f.Path).Distinct().Count() != 4 || m.Files.Any(f => !names.Contains(f.Path) || f.Bytes < 0 || f.Bytes > 4 * 1024 * 1024)) throw new InvalidDataException("诊断清单格式无效。");
-                var size = m.Files.Sum(f => f.Bytes);
-                if (bytes + size <= MaxZip - 128 * 1024) { keep.Add((c, m)); bytes += size; } else skipped.Add(c.Id);
-            }
-            if (keep.Count == 0) throw new InvalidDataException("片段超过导出预算。");
-            var temp = target + ".writing";
-            try
-            {
-                using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
-                using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
-                {
-                    var index = new List<DiagnosticFile>();
-                    var summaries = new List<DiagnosticSummary>();
-                    foreach (var (c, m) in keep)
-                    {
-                        using var source = ZipFile.OpenRead(FileFor(c.Id));
-                        foreach (var entry in m.Files)
-                        {
-                            var sourceEntry = source.GetEntry(entry.Path) ?? throw new InvalidDataException("诊断包缺少记录。");
-                            if (sourceEntry.Length != entry.Bytes) throw new InvalidDataException("诊断文件大小不匹配。");
-                            var name = entry.Path == "summary.json" ? "incidents/" + c.Id + "/summary.json" : entry.Path;
-                            var duplicate = name == "session.jsonl" && index.Any(f => f.Path == name);
-                            using var input = sourceEntry.Open();
-                            using var output = duplicate ? Stream.Null : zip.CreateEntry(name, CompressionLevel.Fastest).Open();
-                            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                            var buffer = new byte[8192]; int read; long actual = 0;
-                            while ((read = input.Read(buffer)) > 0) { actual += read; if (actual > entry.Bytes) throw new InvalidDataException("诊断文件过大。"); hash.AppendData(buffer, 0, read); output.Write(buffer, 0, read); }
-                            if (actual != entry.Bytes || Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant() != entry.Sha256) throw new InvalidDataException("诊断文件校验失败。");
-                            if (!duplicate) index.Add(entry with { Path = name });
-                        }
-                        var se = source.GetEntry("summary.json")!;
-                        if (se.Length > 32768) throw new InvalidDataException("诊断摘要过大。");
-                        using var summaryStream = se.Open(); summaries.Add(JsonSerializer.Deserialize(summaryStream, DiagnosticJson.Default.DiagnosticSummary)!);
+        lock (gate) {
+            var index = ReadIndex(sessionId) ?? throw new InvalidDataException("这份日志已清理，请选择最近的日志。");
+            target = Path.GetFullPath(target);
+            if (!Path.GetExtension(target).Equals(".log", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("请保存为 .log 文件。");
+            SafeFiles.NoLinks(target);
+            var parent = Path.GetDirectoryName(target)!;
+            var relative = Path.GetRelativePath(root, target);
+            if (!Directory.Exists(parent) || !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) && !Path.IsPathRooted(relative))
+                throw new InvalidDataException("请选择日志存储区以外的保存位置。");
+            var temporary = Path.Combine(parent, ".purplemagic-" + Guid.NewGuid().ToString("N") + ".writing");
+            try {
+                using (var source = new FileStream(FileFor(sessionId), FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var dest = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                    if (source.Length < index.Bytes || source.Length > MaxLog || index.Bytes > MaxLog) throw new InvalidDataException("日志文件长度不匹配。");
+                    // Validate complete UTF-8 JSON lines before replacing a Save As destination.
+                    using var reader = new StreamReader(source, new UTF8Encoding(false, true), false, 65536, true);
+                    long bytes = 0;
+                    while (reader.ReadLine() is { } line) {
+                        var raw = Encoding.UTF8.GetBytes(line + "\n");
+                        if (bytes + raw.Length > index.Bytes) break;
+                        using var parsed = JsonDocument.Parse(line);
+                        dest.Write(raw); bytes += raw.Length;
+                        if (bytes == index.Bytes) break;
                     }
-                    var summary = new DiagnosticExportSummary(sessionId, [.. summaries], [.. skipped], skipped.Count > 0 ? "export_budget" : "user_export");
-                    Add(zip, "summary.json", JsonSerializer.SerializeToUtf8Bytes(summary, DiagnosticJson.Default.DiagnosticExportSummary), index);
-                    var manifest = new DiagnosticManifest(1, LauncherEngine.VersionText, At5tModule.ModuleVersion, sessionId, "export", keep.Min(x => x.Clip.StartedUtc)!, keep.Max(x => x.Clip.EndedUtc)!, summary.EndReason, [.. index]);
-                    Add(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, DiagnosticJson.Default.DiagnosticManifest), []);
+                    if (bytes != index.Bytes) throw new InvalidDataException("日志记录不完整。");
+                    dest.Write(Envelope("log_summary", index)); dest.Flush(true);
                 }
-                if (new FileInfo(temp).Length > MaxZip) throw new IOException("diagnostic_zip_budget");
-                File.Move(temp, target, false);
-                using var result = File.OpenRead(target); return new(target, result.Length, Convert.ToHexString(SHA256.HashData(result)).ToLowerInvariant(), keep.Count);
-            }
-            finally { if (File.Exists(temp)) File.Delete(temp); }
+                using var input = File.OpenRead(temporary);
+                var bytesWritten = input.Length; var hash = Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant(); input.Close();
+                SafeFiles.NoLinks(target); File.Move(temporary, target, true);
+                return new(target, bytesWritten, hash, 1);
+            } finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
     }
 }

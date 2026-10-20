@@ -43,13 +43,8 @@ async Task Dispatch(Request request)
             case "preferences": await engine.SavePreferences(request.Args.Deserialize(WireJson.Default.Preferences) ?? throw new InvalidDataException()); break;
             case "register": await engine.Register(request.Args.Deserialize(WireJson.Default.Credentials) ?? throw new InvalidDataException()); break;
             case "login": await engine.Login(request.Args.Deserialize(WireJson.Default.Credentials) ?? throw new InvalidDataException()); break;
-            case "diagnosticSelect": await engine.DiagnosticSelect(request.Args.GetProperty("sessionId").GetString()!); break;
-            case "diagnosticMark": await engine.DiagnosticMark(request.Args.GetProperty("sessionId").GetString()!); break;
-            case "diagnosticReproduce": await engine.DiagnosticReproduce(request.Args.GetProperty("sessionId").GetString()!); break;
-            case "diagnosticStop": await engine.DiagnosticStop(request.Args.GetProperty("sessionId").GetString()!); break;
             case "diagnosticExport":
-                if (request.Args.GetProperty("incidentIds").GetArrayLength() is < 1 or > 10) throw new InvalidDataException("请选择1至10个诊断片段。");
-                var export = await engine.ExportDiagnostics(request.Args.GetProperty("sessionId").GetString()!, request.Args.GetProperty("incidentIds").EnumerateArray().Select(x => x.GetString()!).ToArray(), request.Args.GetProperty("directory").GetString()!);
+                var export = await engine.ExportDiagnostics(request.Args.GetProperty("sessionId").GetString()!, request.Args.GetProperty("path").GetString()!);
                 Respond(new(request.Id, true, State: engine.State, DiagnosticExport: export)); return;
             case "resetGameConfiguration":
                 var confirmed = request.Args.TryGetProperty("confirmed", out var confirmation) && confirmation.ValueKind == JsonValueKind.True;

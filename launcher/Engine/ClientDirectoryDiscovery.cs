@@ -17,8 +17,10 @@ internal static class ClientDirectoryDiscovery
             selected = Inspect(root);
             if (selected != "") return selected;
             if (string.IsNullOrWhiteSpace(root)) continue;
-            selected = Inspect(Path.Combine(root, "client"));
-            if (selected != "") return selected;
+            foreach (var child in new[] { ".client", "client" }) {
+                selected = Inspect(Path.Combine(root, child));
+                if (selected != "") return selected;
+            }
         }
         return "";
     }

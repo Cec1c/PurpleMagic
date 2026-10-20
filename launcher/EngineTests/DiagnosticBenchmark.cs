@@ -50,10 +50,10 @@ internal static class DiagnosticBenchmark
         var fullFields = new At5tModule(DiagnosticChecks.Fixture(), 0x400000).Sample(0, true);
         var lines = new[] { job.Lines[0], DiagnosticChecks.Line(session, 2, 10, true, "sample", fullFields), DiagnosticChecks.Line(session, 3, 15, false, "sample", new() { ["descriptor.state"] = new(1), ["logical4.0.fresh"] = new(0) }, 2) };
         // The example is explicitly synthetic and has no real installation paths.
-        storage.Save(job with { Lines = lines }); var exported = storage.Export(session, [job.Summary.IncidentId], output);
-        File.Move(exported.Path, Path.Combine(output, "diagnostics-synthetic.zip"), true);
+        storage.Save(job with { Lines = lines }); var exported = storage.Export(session, Path.Combine(output, "diagnostics-synthetic.log"));
+
         if (OperatingSystem.IsWindows()) await Native(output);
-        Console.WriteLine("Diagnostics benchmark and synthetic ZIP: " + output);
+        Console.WriteLine("Diagnostics benchmark and synthetic log: " + output);
     }
     private static async Task Native(string output)
     {

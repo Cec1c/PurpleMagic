@@ -1,39 +1,22 @@
 # 登录器增强诊断 · 0.2.19 候选
 
-设置 → **增强诊断日志**。默认关闭，开启后主界面右上角显示“诊断已开启”。
-选择问题类型和游戏窗口，标记刚才的问题或开始复现；在已保存片段中选择同一会话的片段，导出到所选目录。
+设置 → **增强诊断日志** → 打开开关。随后正常启动游戏即可。
 
-本轮实现客户端首期：自动进程关联、启动/更新/登录阶段、性能摘要、AT-5T、标记/复现、ZIP 导出与保留策略。
-游戏实机两小时连续运行及帧时间对照仍待验收。代码、构建和受控 Windows 子进程验证见 [验证记录](diagnostics/VALIDATION.md)。
+- 每次游戏启动独立记录，双开分别显示；只保留最近 **5 次**。
+- 每份日志旁边点击 **导出**，Windows 弹出 **另存为**，选择位置和文件名后保存为 **`.log`**。
+- 运行中的日志也能导出。取消另存为不会写文件，关闭诊断后仍能导出已有记录。
+- 同一个游戏进程重新开启诊断或重开登录器，会续写原启动日志；游戏重新启动则创建新日志。
+- 默认关闭。主界面开启状态可见，偏好随其他设置一起持久化。
 
-## 采集与操作
+日志是 UTF-8 文本，每行一个 JSON 对象，包含版本头、事件/采样和末尾汇总。可以直接用文本编辑器打开，也可交给分析工具。取消问题类型、窗口选择、标记、倒计时、片段勾选等玩家操作；专项采样自动识别适配场景。
 
-| 操作或模式 | 行为 |
-| --- | --- |
-| 基础记录 | 启动、签名清单验证、更新完成/错误、客户端验证、频道检查、账号验证及 HTTP 状态码、进程创建/退出；游戏 CPU 累计时间、工作集、私有内存与窗口响应每秒一次 |
-| 自动 | 已适配布局读到同一场景中的 AT-5T（对象标记 61235）后开始一次最长 30 秒专项；离开该场景或对象消失时结束 |
-| 交互与载具 | 主动复现可在未识别场景时采集已支持的角色、描述符及游戏输入字段 |
-| 标记刚才的问题 | 保留最近至多 120 秒的实际缓存，继续 10 秒；与正在采集的片段合并，合并后的尾部最长 60 秒 |
-| 开始复现采集 | EXE 核验完成、窗口关联后，倒计时 5 秒，再记录 20 秒；可以提前停止并保存 |
-| 重复触发 | 自动触发及采集异常重试冷却 30 秒；连续 fresh 状态只取上升沿。同场景不会在 30 秒专项结束后反复开启 |
-| 任务与副本 | 首期保留基础事件和性能摘要；任务、房间、结算专项后续接入 |
-| 登录与频道 | 当前覆盖登录器连接阶段及频道检查；游戏内切换频道与网络收发事件后续接入 |
-| 卡顿与退出 | CPU/内存趋势、窗口响应与退出码；帧时间及异常模块事件后续接入 |
+## 自动采集
 
-“候选输入变化”是定位片段的条件。最终是否存在故障由输入、描述符、动作、占用和距离证据共同分析。
-只有基础记录的历史窗口保留基础数据；专项开始前的高频样本不会补造。
+基础记录覆盖更新结果、客户端与频道检查、账号 API 状态码、进程创建/退出、每秒性能摘要。启动失败也记录对应启动尝试。AT-5T 场景命中后自动开始最长 30 秒的专项采样，默认目标间隔 5 ms，记录实际间隔及读取耗时；离开场景结束专项。
 
-## 进程身份与后台执行
+进程关联核对 PID、创建时间、EXE 路径和 Windows 用户会话。最多自动关联本客户端目录的两个游戏实例；私有进程登记文件用于恢复关联，路径和窗口标题不进入导出。
 
-- `Process.Start` 返回的进程立即登记：PID、创建 FILETIME、规范 EXE 路径、Windows 用户会话和随机诊断会话号。
-- 开关开启时发现本客户端目录的 `DNF.exe`。恢复登记须完整匹配路径、创建时间和 Windows 会话；多个新窗口先选择。
-- 两个游戏各有缓存、序号及片段。重开登录器生成新诊断会话号；退出码为 259 的已退出进程也能正确结束。
-- 私有 `processes.json` 仅用于本机关联；窗口标题也仅用于选择。两者均不进入导出包。
-- 后台核验实际 EXE 完整 SHA256、PE32 与模块基址，再启用专项。PVF 单独读取完整 SHA256；缺失时摘要标明 `pvf_hash_unavailable`，期望摘要另列 `expected_pvf_sha256`。
-- 采样线程使用进程内高精度 waitable timer；系统不支持时使用普通等待并记录实际间隔、丢样和降频。连续五次迟到会逐步放慢采样，最高 100 ms。
-- 采样、哈希、压缩写入和 UI 通知分开执行。UI 标准输出管道阻塞不会卡住采样；导出不占用登录/更新操作锁。
-- 游戏读取句柄权限为 `PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ`（`0x1010`）。模块枚举用 Toolhelp；采集器没有写内存、注入、调试提权或全局键盘钩子。
-- 登录器关闭通过 Host 的 stdin EOF 结束所有会话并等待后台队列写完。UI 不等待压缩线程退出。
+采样、哈希、后台落盘、UI 通知分离。每秒提交一批完整记录，游戏退出、关闭开关、关闭登录器和导出时刷新。未知 EXE 只记录基础项目，完整 SHA256 匹配后才启用内存布局。
 
 ## 字段与版本
 
@@ -64,56 +47,33 @@
 
 来源：ServerS5A3 已审阅只读采样器 `87861a0`（上游合并 `8ead65a`）；V135 原生规则/physics 契约与 V141 代码窗口对照。新增位置 getter、虚表和舍入函数窗口另外完成 V135/V141 逐字节比对。字段端口实现自包含于 `launcher/Engine/Diagnostics/`，构建不读取相邻游戏源码。
 
-## 预算与保留
+## 存储与导出
 
-| 对象 | 上限 |
+| 项目 | 行为 |
 | --- | --- |
-| 每游戏环形缓存 | 2 MiB（低于需求的 8 MiB 上限），最近至多 120 秒 |
-| 每游戏正在保存的片段 | 3 MiB，达到上限时完整结束并标记 `capture_budget` |
-| 登录器未启动游戏的会话 | 环 256 KiB、片段 512 KiB |
-| 写入队列 | 2 个等待片段 + 1 个写入中的片段；普通采样不等待队列 |
-| 总保留缓存 | 最坏计账 19.75 MiB；其余空间留给解析、序列化及有界命令，共受 32 MiB 设计预算约束 |
-| 单行 | 65535 字节；过大时写入完整 dropped 事件并要求下一次完整快照 |
-| 导出 ZIP | 10 MiB；按完整片段的未压缩长度保守选取，优先较新片段，在 summary 列出省略片段 |
-| 本地保存 | 最多 10 份、100 MiB、7 天；写入后与每 30 秒清理一次 |
+| 每游戏缓存 | 环形缓存 2 MiB，待写批次 512 KiB |
+| 写入队列 | 2 个等待批次 + 1 个写入批次；每批最多 512 KiB |
+| 单份日志 | 10 MiB；达到上限保留完整行，汇总标明截断 |
+| 本地保留 | 按游戏启动时间保留最近 5 次；不按导出时间或 7 天删除 |
+| 导出 | 选定一份启动日志，刷新后原子写入用户选择的 `.log` 路径 |
+| 覆盖 | 原生窗口确认覆盖；写入完成后替换，失败保留原目标 |
 
-计账包含行对象与引用预留。32 MiB 是诊断缓存预算，区别于整个 .NET/Flutter 进程工作集。
-磁盘失败和队列满有状态与原因，已导出到其他目录的副本不参与清理。临时 ZIP 写完且关闭后才改为最终名称。
+日志位于用户状态目录的 `diagnostics/logs/`，每份配套一个本地索引。中断写入恢复到最后持久化索引对应的完整记录。导出副本不参与自动清理。旧候选的 `clips/*.zip` 保留为历史文件，当前界面只使用启动日志。
 
-## ZIP / JSONL v1
+每份 `.log` 的第一行 `type=log_header`，最后一行 `type=log_summary`，`schema_version=2`。中间沿用 [record-v1.schema.json](diagnostics/record-v1.schema.json) 的事件/采样行；同一次启动序号和单调时间递增。专项完整快照至少每秒一次，差量通过 `base_sequence` 关联。
 
-```text
-manifest.json
-summary.json
-session.jsonl
-incidents/<incident-id>/summary.json
-incidents/<incident-id>/events.jsonl
-incidents/<incident-id>/samples.jsonl
-```
-
-本地单片段包的摘要直接位于根目录，导出多片段包将每份摘要放入其 incident 目录，根摘要汇总。
-manifest 覆盖除自身以外的全部文件，记录大小、SHA256、schema/collector/module 版本、会话、时间和结束原因。导出前逐文件验证本地摘要。
-
-JSONL [机器可读 schema](diagnostics/record-v1.schema.json)：
-
-- `sequence`：会话内递增；`utc` 和 `monotonic_ms` 同时记录。
-- `type` / `module` / `session_id`：事件、身份、性能或样本及来源。
-- `read_ms`、`quality` 和 `timing.interval_ms`：实际读取耗时、质量、实际间隔；目标间隔独立记录。
-- `fields.<name> = {value, status, reason}`：正常 0 是 `ok`；不适用、不支持、读取失败、不稳定分别使用不同 status，数值为 null。
-- 样本 `reason=full` 重置状态；后续 `delta` 的 `base_sequence` 指向最近的完整快照，差量依次应用。删除字段表示为 `not_applicable / field_removed`。至少每秒补全量；覆盖环缓存时丢掉失去基准的差量链。
-- summary 的错误/丢样/覆盖计数为会话累计，`counter_scope=session_cumulative`。片段实际记录数、起止范围、截断与缺失字段单列。
-- `correlation_id` 预留诊断会话号；服务器时钟估计和误差为 null，`server_events_connected=false`。状态采样的 `observation_kind=client_polling` 与函数执行事件分开。
-
-仅输出结构化字段白名单。账号不写入，以会话编号定位；密码、Token、完整启动参数、聊天、安装路径、原始异常文本和请求对象都不导出。
+汇总包括 EXE/PVF 实际完整哈希、预期 PVF 哈希、签名序号、已保存行数、丢样/读取失败/截断与未接入字段。只输出白名单字段；密码、Token、完整启动参数、聊天、账号和安装路径不进入日志。服务端事件尚未接入，汇总记录 `server_events_connected=false`。
 
 ```powershell
-python scripts/analyze_diagnostics.py docs/diagnostics/diagnostics-synthetic.zip
+python scripts/analyze_diagnostics.py docs/diagnostics/diagnostics-synthetic.log
 ```
 
-分析器验证清单、完整 JSONL、会话/序号、差量基准与敏感字段，输出关键时间线和缺失清单。[示例包](diagnostics/diagnostics-synthetic.zip) 全部由合成数据生成。
+分析器也支持历史 ZIP。新的 [合成日志](diagnostics/diagnostics-synthetic.log) 不包含玩家数据。
 
-## 扩展接线
+## 接口与兼容
 
-Flutter 设置保存 `diagnostics: {enabled, problemType}`。Host 通过现有 stdin RPC 提供 `diagnosticSelect`、`diagnosticMark`、`diagnosticReproduce`、`diagnosticStop`（`sessionId`），以及 `diagnosticExport`（`sessionId`、1–10 个 `incidentIds`、native picker 返回的 `directory`）。
+Flutter 保存 `diagnostics.enabled`；旧 `problemType` 偏好可继续读入，采样统一按自动模式。Host 仅保留 `diagnosticExport`：参数是 `sessionId` 和原生另存为返回的完整 `path`。导出独立于更新/登录操作锁。
 
-新增模块须声明摘要白名单、字段来源/边界、稳定性保护、采样频率、触发/冷却/停止条件及测试。诊断模块和布局随登录器一起发行。服务器事件后续按会话/请求关联编号接入，不从客户端相邻快照推导同一帧的调用顺序或奖励落库事实。
+便携外层程序名为 **PurpleMagic.exe**。内部 bootstrap、Flutter/Core 文件名、产品标记、缓存目录和签名更新契约继续沿用。自动目录发现新增 `.client/`，并保留 `client/`、直接客户端根目录及手选目录优先级；候选须包含非空 `DNF.exe` 和 `Script.pvf`，版本哈希由更新与启动校验。
+
+本轮使用隔离 profile 完成构建和验证，迁移配置及实际交付记录见私有交接。验证范围见 [验证记录](diagnostics/VALIDATION.md)。

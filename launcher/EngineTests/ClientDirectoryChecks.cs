@@ -43,6 +43,17 @@ internal static class ClientDirectoryChecks
         File.Copy(Path.Combine(client, "DNF.exe"), Path.Combine(nested, "DNF.exe"));
         File.Copy(Path.Combine(client, "Script.pvf"), Path.Combine(nested, "Script.pvf"));
         check(ClientDirectoryDiscovery.Find("", "", cache, Path.GetDirectoryName(nested), temp) == nested, "portable entry also discovers its client subdirectory");
+        var hidden = Path.Combine(temp, "hidden-root", ".client"); Directory.CreateDirectory(hidden);
+        File.Copy(Path.Combine(client, "DNF.exe"), Path.Combine(hidden, "DNF.exe"));
+        File.Copy(Path.Combine(client, "Script.pvf"), Path.Combine(hidden, "Script.pvf"));
+        check(ClientDirectoryDiscovery.Find("", "", cache, Path.GetDirectoryName(hidden), temp) == hidden, "portable root discovers .client");
+        check(ClientDirectoryDiscovery.Find("", "", cache, null, Path.GetDirectoryName(hidden)!) == hidden, "working directory discovers .client");
+        check(ClientDirectoryDiscovery.Find(client, "", cache, Path.GetDirectoryName(hidden), temp) == client, "explicit valid choice wins over discovered .client");
+        var fallback = Path.Combine(Path.GetDirectoryName(hidden)!, "client"); Directory.CreateDirectory(fallback);
+        File.Copy(Path.Combine(client, "DNF.exe"), Path.Combine(fallback, "DNF.exe"));
+        File.Copy(Path.Combine(client, "Script.pvf"), Path.Combine(fallback, "Script.pvf"));
+        File.WriteAllBytes(Path.Combine(hidden, "Script.pvf"), []);
+        check(ClientDirectoryDiscovery.Find("", "", cache, Path.GetDirectoryName(hidden), temp) == fallback, "invalid .client falls through to valid client");
         var empty = Path.Combine(temp, "incomplete-client");
         Directory.CreateDirectory(empty);
         File.WriteAllBytes(Path.Combine(empty, "DNF.exe"), []);

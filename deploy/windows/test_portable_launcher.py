@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import struct
+import shutil
 import subprocess
 import uuid
 
@@ -44,6 +45,13 @@ def run(executable, metadata_file, evidence_root):
     result = subprocess.run(args, capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
     assert result.returncode == 0 and json.loads(result.stdout)["reused"]
     assert app.read_bytes() == newer
+    # Outer executable names share the same payload/cache and preserve installed updates.
+    renamed = work / "DNF90-Portable-legacy.exe"
+    shutil.copy2(executable, renamed)
+    legacy_args = [str(renamed), "--prepare-only", "--cache-root", str(work / "cache")]
+    legacy = subprocess.run(legacy_args, capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+    assert legacy.returncode == 0 and json.loads(legacy.stdout)["reused"]
+    assert Path(json.loads(legacy.stdout)["directory"]) == install and app.read_bytes() == newer
     bootstrap = install / "DNF90Launcher.exe"
     bootstrap.write_bytes(b"isolated-corrupt-root")
     result = subprocess.run(args, capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -54,7 +62,7 @@ def run(executable, metadata_file, evidence_root):
     assert struct.unpack_from("<H", raw, pe + 24 + 68)[0] == 2, "GUI subsystem required"
     receipt = {"passed": True, "portable_sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw),
                "checks": ["two native processes, one extraction", "all embedded file hashes", "real extracted NativeAOT core initialize",
-                          "repeated entry preserves updated app", "corrupt bootstrap rejected", "GUI PE subsystem", "redirected UTF-8 diagnostics"],
+                          "repeated entry preserves updated app", "old and PurpleMagic filenames share update cache", "corrupt bootstrap rejected", "GUI PE subsystem", "redirected UTF-8 diagnostics"],
                "gui_started": False, "game_started": False, "network_called": False,
                "production_state_touched": False, "fixture_root": str(work)}
     (evidence_root / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")

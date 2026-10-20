@@ -60,7 +60,10 @@ void main() {
     const channel = MethodChannel('dnf90.preview/window');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-          if (call.method == 'chooseDirectory') return selected;
+          if ((call.method == 'chooseDirectory' ||
+              call.method == 'saveDiagnosticLog')) {
+            return selected;
+          }
           return null;
         });
     addTearDown(
@@ -108,81 +111,91 @@ void main() {
     await screenshot(tester, 'diagnostics-waiting');
   });
 
-  testWidgets('diagnostic session actions and explicit export selection', (
-    tester,
-  ) async {
-    final fake = FakeCore();
-    (fake.state['preferences'] as Map)['diagnostics'] = {
-      'enabled': true,
-      'problemType': 'interaction',
-    };
-    fake.state['diagnostics'] = {
-      'enabled': true,
-      'phase': 'basic',
-      'message': '基础记录中',
-      'instances': [
-        {
-          'id': 'session-a',
-          'pid': 10,
-          'window': 'DNF · 14:20:00',
-          'status': 'basic',
-          'exeVersion': 'V141',
-          'selected': true,
-        },
-        {
-          'id': 'session-b',
-          'pid': 11,
-          'window': 'DNF · 14:21:00',
-          'status': 'basic',
-          'exeVersion': 'V141',
-          'selected': true,
-        },
-      ],
-      'clips': [
-        {
-          'id': 'clip-a',
-          'sessionId': 'session-a',
-          'startedUtc': '2026-10-20T06:20:00Z',
-          'endedUtc': '2026-10-20T06:20:30Z',
-          'bytes': 24680,
-          'categories': ['basic', 'at5t'],
-        },
-        {
-          'id': 'clip-b',
-          'sessionId': 'session-b',
-          'startedUtc': '2026-10-20T06:21:00Z',
-          'endedUtc': '2026-10-20T06:21:30Z',
-          'bytes': 13579,
-          'categories': ['basic'],
-        },
-      ],
-    };
-    mockDirectoryPicker(r'C:\Fixture\Exports');
-    final model = LauncherController(client: fake);
-    await start(tester, controller: model);
-    await tester.tap(find.byKey(const Key('diagnostics-active')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('diagnostic-mark')));
-    await tester.pumpAndSettle();
-    expect(fake.diagnosticArguments?['sessionId'], 'session-a');
-    expect(model.busy, isFalse);
-    expect(find.byKey(const Key('clip-b')), findsNothing);
-    await tester.ensureVisible(find.byKey(const Key('clip-clip-a')));
-    await tester.tap(find.byKey(const Key('clip-clip-a')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('diagnostic-export')));
-    await tester.tap(find.byKey(const Key('diagnostic-export')));
-    await tester.pumpAndSettle();
-    expect(fake.diagnosticArguments?['incidentIds'], ['clip-a']);
-    expect(find.textContaining('已导出 1 个片段'), findsOneWidget);
-    await screenshot(tester, 'diagnostics-export');
-    fake.diagnosticFailure = true;
-    await model.diagnosticAction('diagnosticMark', {'sessionId': 'session-a'});
-    await tester.pumpAndSettle();
-    expect(model.phase, UpdatePhase.ready);
-    expect(model.diagnosticError, '诊断写入失败');
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'diagnostic launch rows export directly as log with cancel and failure',
+    (tester) async {
+      final fake = FakeCore();
+      (fake.state['preferences'] as Map)['diagnostics'] = {
+        'enabled': true,
+        'problemType': 'interaction',
+      };
+      fake.state['diagnostics'] = {
+        'enabled': true,
+        'phase': 'basic',
+        'message': '基础记录中',
+        'instances': [
+          {
+            'id': 'session-a',
+            'pid': 10,
+            'window': 'DNF · 14:20:00',
+            'status': 'basic',
+            'exeVersion': 'V141',
+            'selected': true,
+          },
+          {
+            'id': 'session-b',
+            'pid': 11,
+            'window': 'DNF · 14:21:00',
+            'status': 'basic',
+            'exeVersion': 'V141',
+            'selected': true,
+          },
+        ],
+        'clips': [
+          {
+            'id': 'clip-a',
+            'sessionId': 'session-a',
+            'startedUtc': '2026-10-20T06:20:00Z',
+            'endedUtc': '2026-10-20T06:20:30Z',
+            'bytes': 24680,
+            'categories': ['basic', 'at5t'],
+          },
+          {
+            'id': 'clip-b',
+            'sessionId': 'session-b',
+            'startedUtc': '2026-10-20T06:21:00Z',
+            'endedUtc': '2026-10-20T06:21:30Z',
+            'bytes': 13579,
+            'categories': ['basic'],
+          },
+        ],
+      };
+      mockDirectoryPicker(r'C:\Fixture\Exports\玩家日志.log');
+      final model = LauncherController(client: fake);
+      await start(tester, controller: model);
+      await tester.tap(find.byKey(const Key('diagnostics-active')));
+      await tester.pumpAndSettle();
+      expect(find.text('问题类型'), findsNothing);
+      expect(find.text('标记刚才的问题'), findsNothing);
+      expect(find.byKey(const Key('log-clip-a')), findsOneWidget);
+      expect(find.byKey(const Key('log-clip-b')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('export-clip-a')));
+      await tester.pumpAndSettle();
+      expect(fake.diagnosticArguments?['sessionId'], 'session-a');
+      expect(fake.diagnosticArguments?['path'], r'C:\Fixture\Exports\玩家日志.log');
+      expect(fake.diagnosticArguments?.containsKey('incidentIds'), isFalse);
+      expect(find.textContaining('已保存：'), findsOneWidget);
+      expect(model.busy, isFalse);
+      await screenshot(tester, 'diagnostics-export');
+      final beforeCancel = fake.calls
+          .where((m) => m == 'diagnosticExport')
+          .length;
+      mockDirectoryPicker(null);
+      await tester.tap(find.byKey(const Key('export-clip-b')));
+      await tester.pumpAndSettle();
+      expect(
+        fake.calls.where((m) => m == 'diagnosticExport').length,
+        beforeCancel,
+      );
+      mockDirectoryPicker(r'C:\Fixture\Exports\other.log');
+      fake.diagnosticFailure = true;
+      await tester.tap(find.byKey(const Key('export-clip-b')));
+      await tester.pumpAndSettle();
+      expect(model.phase, UpdatePhase.ready);
+      expect(model.diagnosticError, '诊断写入失败');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('footer shows the running core version, not content version', (
     tester,
@@ -715,10 +728,6 @@ class FakeCore extends CoreClient {
   ]) async {
     calls.add(method);
     switch (method) {
-      case 'diagnosticSelect':
-      case 'diagnosticMark':
-      case 'diagnosticReproduce':
-      case 'diagnosticStop':
       case 'diagnosticExport':
         diagnosticArguments = args;
         if (diagnosticFailure) throw StateError('诊断写入失败');
@@ -726,7 +735,7 @@ class FakeCore extends CoreClient {
         return {
           'ok': true,
           'diagnosticExport': {
-            'path': r'C:\Fixture\Exports\sample.zip',
+            'path': args?['path'],
             'bytes': 4096,
             'incidents': 1,
           },

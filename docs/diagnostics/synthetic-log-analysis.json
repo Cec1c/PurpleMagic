@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "verified": true,
+  "session_id": "ec2806920ef94720957279264d75b8a9",
+  "records": 3,
+  "missing": [
+    "synthetic_fixture_no_player_data",
+    "unavailable:unsupported",
+    "vehicle.0.native_distance_result:unsupported"
+  ],
+  "timeline": [],
+  "timeline_omitted": 0,
+  "truncated": false,
+  "sha256": "82dacf1deb99559fc953b09cfde558ba70e0f4507b4d947b36cc81a39d391859"
+}

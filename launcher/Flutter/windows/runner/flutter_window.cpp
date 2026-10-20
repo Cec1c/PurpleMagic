@@ -11,6 +11,44 @@
 #include "utils.h"
 
 namespace {
+HRESULT SaveDiagnosticLog(HWND owner, const flutter::EncodableValue* arguments,
+                          std::string* selected) {
+  Microsoft::WRL::ComPtr<IFileSaveDialog> dialog;
+  HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr,
+      CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+  if (FAILED(hr)) return hr;
+  DWORD options = 0;
+  if (FAILED(hr = dialog->GetOptions(&options))) return hr;
+  if (FAILED(hr = dialog->SetOptions(options | FOS_FORCEFILESYSTEM |
+      FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT | FOS_NOCHANGEDIR | FOS_STRICTFILETYPES))) return hr;
+  const COMDLG_FILTERSPEC types[] = {{L"诊断日志 (*.log)", L"*.log"}};
+  dialog->SetFileTypes(1, types);
+  dialog->SetDefaultExtension(L"log");
+  dialog->SetTitle(L"PurpleMagic — 日志另存为");
+  dialog->SetFileName(L"PurpleMagic.log");
+  const auto* fields = arguments ? std::get_if<flutter::EncodableMap>(arguments) : nullptr;
+  if (fields) {
+    const auto field = fields->find(flutter::EncodableValue("fileName"));
+    const auto* name = field != fields->end() ? std::get_if<std::string>(&field->second) : nullptr;
+    if (name && name->size() <= 200 && name->find_first_of("\\/:") == std::string::npos) {
+      const int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name->c_str(), -1, nullptr, 0);
+      if (length > 0) {
+        std::wstring wide(length, L'\0');
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name->c_str(), -1, wide.data(), length);
+        dialog->SetFileName(wide.c_str());
+      }
+    }
+  }
+  if (FAILED(hr = dialog->Show(owner))) return hr;
+  Microsoft::WRL::ComPtr<IShellItem> file;
+  if (FAILED(hr = dialog->GetResult(&file))) return hr;
+  PWSTR path = nullptr;
+  hr = file->GetDisplayName(SIGDN_FILESYSPATH, &path);
+  if (SUCCEEDED(hr)) *selected = Utf8FromUtf16(path);
+  CoTaskMemFree(path);
+  return hr;
+}
+
 HRESULT ChooseDirectory(HWND owner, const flutter::EncodableValue* arguments,
                         std::string* selected) {
   Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
@@ -27,9 +65,6 @@ HRESULT ChooseDirectory(HWND owner, const flutter::EncodableValue* arguments,
   dialog->SetOkButtonLabel(L"选择此目录");
   const auto* fields = arguments ? std::get_if<flutter::EncodableMap>(arguments) : nullptr;
   if (fields) {
-    const auto purpose = fields->find(flutter::EncodableValue("purpose"));
-    const auto* value = purpose != fields->end() ? std::get_if<std::string>(&purpose->second) : nullptr;
-    if (value && *value == "diagnosticExport") dialog->SetTitle(L"PurpleMagic — 选择诊断包导出目录");
     const auto field = fields->find(flutter::EncodableValue("initialDirectory"));
     const auto* initial = field != fields->end() ? std::get_if<std::string>(&field->second) : nullptr;
     if (initial && !initial->empty()) {
@@ -91,13 +126,15 @@ bool FlutterWindow::OnCreate() {
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
         const auto window = GetHandle();
         const auto& name = call.method_name();
-        if (name == "chooseDirectory") {
+        if (name == "chooseDirectory" || name == "saveDiagnosticLog") {
           std::string selected;
-          const HRESULT hr = ChooseDirectory(window, call.arguments(), &selected);
+          const HRESULT hr = name == "saveDiagnosticLog"
+              ? SaveDiagnosticLog(window, call.arguments(), &selected)
+              : ChooseDirectory(window, call.arguments(), &selected);
           if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
             result->Success();
           } else if (FAILED(hr) || selected.empty()) {
-            result->Error("directory_picker_failed", "无法读取所选目录，请重试。");
+            result->Error("picker_failed", "无法读取所选位置，请重试。");
           } else {
             result->Success(flutter::EncodableValue(selected));
           }

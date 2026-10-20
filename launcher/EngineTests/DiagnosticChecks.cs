@@ -58,16 +58,15 @@ internal static class DiagnosticChecks
         return new(new(session, id, new string('a', 64), new string('b', 64), 0, "synthetic", "fixture_complete", records, 0, 0, 0, false, ["synthetic_fixture_no_player_data"], ["basic", "at5t"], 5),
             Enumerable.Range(1, records).Select(i => Line(session, i, i * 5, true, i == 1 ? "identity" : "sample", new() { ["actor.action"] = new(0), ["unavailable"] = new(null, "unsupported", "fixture") })).ToArray(), time.AddMilliseconds(5).ToString("O"), time.AddMilliseconds(records * 5).ToString("O"));
     }
-    internal static void VerifyArchive(string path, Action<bool, string> check)
+    internal static void VerifyLog(string path, Action<bool, string> check)
     {
-        using var zip = ZipFile.OpenRead(path); using var input = zip.GetEntry("manifest.json")!.Open();
-        var manifest = JsonSerializer.Deserialize(input, DiagnosticJson.Default.DiagnosticManifest)!;
-        foreach (var item in manifest.Files)
-        {
-            var e = zip.GetEntry(item.Path)!; using var source = e.Open(); using var bytes = new MemoryStream(); source.CopyTo(bytes);
-            check(e.Length == item.Bytes && Convert.ToHexString(SHA256.HashData(bytes.ToArray())).ToLowerInvariant() == item.Sha256, "diagnostic manifest " + item.Path);
-            if (item.Path.EndsWith(".jsonl")) foreach (var line in Encoding.UTF8.GetString(bytes.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries)) using (JsonDocument.Parse(line)) { }
+        var lines = File.ReadAllLines(path); var sequence = 0L; double time = -1;
+        check(JsonDocument.Parse(lines[0]).RootElement.GetProperty("type").GetString() == "log_header", "plain text log header");
+        foreach (var line in lines.Skip(1).SkipLast(1)) {
+            var row = JsonSerializer.Deserialize(line, DiagnosticJson.Default.DiagnosticRecord)!;
+            check(row.Sequence > sequence && row.MonotonicMs >= time, "log sequence and time remain ordered"); sequence = row.Sequence; time = row.MonotonicMs;
         }
+        check(JsonDocument.Parse(lines[^1]).RootElement.GetProperty("type").GetString() == "log_summary", "log includes final summary");
     }
     internal static async Task Run(string temp, Action<bool, string> check)
     {
@@ -96,37 +95,41 @@ internal static class DiagnosticChecks
         var ring = new DiagnosticRing(1800); var sid = Guid.NewGuid().ToString("N");
         for (var i = 0; i < 1000; i++) ring.Add(Line(sid, i, i * 500, i % 10 == 0));
         var retained = ring.Snapshot(); check(ring.Bytes <= 1800 && ring.Overwritten > 0 && (retained.Length == 0 || retained.First().Full), "bounded ring retains complete delta base");
-        var storageRoot = Path.Combine(temp, "diagnostics-storage"); var storage = new DiagnosticStorage(storageRoot); var exportRoot = Path.Combine(temp, "exports"); Directory.CreateDirectory(exportRoot);
-        var job = Job(sid); storage.Save(job); var clip = storage.List().Single();
-        var export = storage.Export(sid, [clip.Id], exportRoot); VerifyArchive(export.Path, check);
-        using (var flat = ZipFile.OpenRead(export.Path)) check(export.Bytes < DiagnosticStorage.MaxZip && flat.Entries.All(e => !e.FullName.EndsWith(".zip")), "flattened export complete incidents");
-        var refused = false; try { storage.Export(Guid.NewGuid().ToString("N"), [clip.Id], exportRoot); } catch (InvalidDataException) { refused = true; }
-        check(refused, "export cannot mix sessions");
-        using (var damaged = ZipFile.Open(Path.Combine(storageRoot, clip.Id + ".zip"), ZipArchiveMode.Update)) {
-            var entry = damaged.GetEntry("incidents/" + clip.Id + "/samples.jsonl")!; entry.Delete();
-            using var replacement = new StreamWriter(damaged.CreateEntry("incidents/" + clip.Id + "/samples.jsonl").Open()); replacement.Write("{}\n");
+        var storageRoot = Path.Combine(temp, "diagnostics-storage"); var storage = new DiagnosticStorage(storageRoot);
+        var exportRoot = Path.Combine(temp, "exports"); Directory.CreateDirectory(exportRoot);
+        var job = Job(sid); storage.Save(job);
+        var target = Path.Combine(exportRoot, "玩家日志.log");
+        var export = storage.Export(sid, target); VerifyLog(export.Path, check);
+        check(export.Bytes <= DiagnosticStorage.MaxLog && export.Path == target && File.ReadAllText(target).StartsWith("{"), "Save As exports real UTF8 .log to exact path");
+        storage.Save(job with { Lines = [Line(sid, 4, 20)], EndedUtc = DateTime.UtcNow.ToString("O") });
+        storage.Save(job with { Lines = [Line(sid, 4, 20)] });
+        check(storage.List().Length == 1 && storage.ReadIndex(sid)!.Summary.Records == 4, "one launch accumulates batches without duplicate records");
+        storage.Export(sid, target); VerifyLog(target, check);
+        check(File.ReadAllLines(target).Length == 6, "Save As overwrite replaces complete file");
+        var refused = false; try { storage.Export(sid, Path.ChangeExtension(target, ".zip")); } catch (InvalidDataException) { refused = true; }
+        check(refused, "export requires log extension");
+        var previous = File.ReadAllBytes(target); var local = Path.Combine(storageRoot, sid + ".log");
+        var original = File.ReadAllBytes(local); var damaged = original.ToArray(); damaged[0] = (byte)'!'; File.WriteAllBytes(local, damaged);
+        refused = false; try { storage.Export(sid, target); } catch (JsonException) { refused = true; }
+        check(refused && File.ReadAllBytes(target).SequenceEqual(previous) && !Directory.EnumerateFiles(exportRoot, "*.writing").Any(), "failed export preserves old destination and removes partial file");
+        File.WriteAllBytes(local, original); File.AppendAllText(local, "{partial crash");
+        storage.Save(job with { Lines = [Line(sid, 5, 25)] });
+        storage.Export(sid, target); VerifyLog(target, check);
+        var expected = new List<string>();
+        for (var i = 0; i < 7; i++) {
+            var next = Job(Guid.NewGuid().ToString("N")) with { StartedUtc = DateTime.UtcNow.AddMinutes(i).ToString("O") };
+            storage.Save(next); expected.Add(next.Summary.SessionId);
         }
-        refused = false; try { storage.Export(sid, [clip.Id], exportRoot); } catch (InvalidDataException) { refused = true; }
-        check(refused && !Directory.EnumerateFiles(exportRoot, "*.writing").Any(), "tampered incident rejected without partial export");
-        var stale = Path.Combine(storageRoot, Guid.NewGuid().ToString("N") + ".zip.writing"); File.WriteAllText(stale, "partial"); storage.Cleanup();
-        check(!File.Exists(stale), "interrupted local ZIP cleaned");
-        for (var i = 0; i < 12; i++) storage.Save(Job(sid));
-        check(storage.List().Length == 10 && File.Exists(export.Path), "10 clip retention preserves exported copies");
-        foreach (var path in Directory.GetFiles(storageRoot, "*.zip")) File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-8));
-        check(storage.List().Length == 0, "seven day cleanup");
-        var oversized = Path.Combine(temp, "export-budget"); var largeStore = new DiagnosticStorage(oversized);
-        var random = new Random(11); var largeIds = new List<string>();
-        for (var k = 0; k < 4; k++) {
-            var large = Job(sid); var lines = new List<DiagnosticLine> { large.Lines[0] };
-            for (var n = 0; n < 1200; n++) {
-                var fields = Enumerable.Range(0, 32).ToDictionary(i => "fixture." + i, _ => new DiagnosticField(random.NextDouble()));
-                lines.Add(Line(sid, n + 2, n * 5, true, "sample", fields));
-            }
-            largeStore.Save(large with { Lines = [.. lines] }); largeIds.Add(large.Summary.IncidentId);
-        }
-        var budgetExport = largeStore.Export(sid, [.. largeIds], exportRoot);
-        check(budgetExport.Incidents < 4 && budgetExport.Incidents > 0 && budgetExport.Bytes <= DiagnosticStorage.MaxZip, "export cap selects whole incidents");
-        VerifyArchive(budgetExport.Path, check);
+        check(storage.List().Select(c => c.SessionId).SequenceEqual(expected.TakeLast(5).Reverse()) && File.Exists(export.Path), "exactly latest five launches retained, export untouched");
+        storage.Save(job);
+        check(storage.List().Length == 5 && storage.List().All(c => c.SessionId != sid), "old active launch cannot reenter latest five");
+        foreach (var path in Directory.GetFiles(storageRoot, "*.log")) File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-8));
+        check(storage.List().Length == 5, "five latest launches retained regardless of age");
+        var largeStore = new DiagnosticStorage(Path.Combine(temp, "log-budget")); var largeId = Guid.NewGuid().ToString("N");
+        var large = Job(largeId); var fields = Enumerable.Range(0, 300).ToDictionary(i => "fixture." + i, i => new DiagnosticField(i));
+        for (var batch = 0; batch < 20; batch++) largeStore.Save(large with { Lines = Enumerable.Range(batch * 100 + 1, 100).Select(n => Line(largeId, n, n * 5, fields: fields)).ToArray() });
+        var largeExport = largeStore.Export(largeId, Path.Combine(exportRoot, "large.log"));
+        check(largeExport.Bytes <= DiagnosticStorage.MaxLog && largeStore.ReadIndex(largeId)!.Summary.Truncated, "log budget retains complete lines and explicit truncation summary");
         var broken = Path.Combine(temp, "disk-error"); File.WriteAllText(broken, "occupied");
         using (var failure = new DiagnosticService(broken)) { failure.Configure(new(true), "", "", 0); await Task.Delay(250); check(failure.Status.Enabled, "disk failure does not break service construction or configuration"); }
         var serviceRoot = Path.Combine(temp, "diagnostic-lifecycle");
@@ -134,15 +137,14 @@ internal static class DiagnosticChecks
         {
             service.Configure(new(true, "connection"), "", new string('a', 64), 73); await Task.Delay(250);
             service.Event("login_started"); service.Event("login_error", 42, -1);
-            await Task.Delay(200); var id = service.Status.Instances.Single().Id;
-            await service.Mark(id); await service.Mark(id); await service.Stop(id);
+            await Task.Delay(400);
             service.Configure(new(false), "", "", 0); await Task.Delay(500);
             check(!service.Status.Enabled, "disable stops capture");
             var timer = Stopwatch.StartNew();
             for (var i = 0; i < 2000; i++) service.Event("operation_error", number: -1);
             check(timer.ElapsedMilliseconds < 1000, "bounded event saturation never blocks login caller");
         }
-        var saved = new DiagnosticStorage(Path.Combine(serviceRoot, "diagnostics", "clips")).List();
+        var saved = new DiagnosticStorage(Path.Combine(serviceRoot, "diagnostics", "logs")).List();
         check(saved.Length >= 1 && saved.All(c => c.Categories.SequenceEqual(new[] { "basic" })), "prelaunch login failure exportable without game");
         if (OperatingSystem.IsWindows()) { await Native(temp, check); await MultipleGames(temp, check); }
     }
@@ -179,24 +181,33 @@ internal static class DiagnosticChecks
             var root = Path.Combine(temp, "multiple-games"); string[] ids;
             using (var service = new DiagnosticService(root)) {
                 service.Configure(new(true, "connection"), client, "", 0);
-                await Until(() => service.Status.Instances.Count(i => i.Status == "choose") == 2, "two ambiguous windows");
-                ids = service.Status.Instances.Where(i => i.Pid != 0).Select(i => i.Id).ToArray();
-                await Task.Delay(2200);
-                check(ids.SequenceEqual(service.Status.Instances.Where(i => i.Pid != 0).Select(i => i.Id)), "window choices keep stable identity across discovery");
-                await service.Select(ids[0]);
-                await Until(() => service.Status.Instances.Count(i => i.Pid != 0 && i.Selected) == 2, "both bound");
-                ids = service.Status.Instances.Where(i => i.Pid != 0).Select(i => i.Id).ToArray();
-                foreach (var id in ids) { await service.Mark(id); await service.Mark(id); await service.Stop(id); }
-                await Until(() => service.Status.Clips.Count(c => ids.Contains(c.SessionId)) == 2, "independent game clips");
-                check(service.Status.Clips.Count(c => ids.Contains(c.SessionId)) == 2, "double mark merges and instances save separately");
+                service.Event("login_started"); service.Event("account_verified"); service.Track(a, executable); service.Event("process_started");
+                service.Event("login_started"); service.Event("account_verified"); service.Track(b, executable); service.Event("process_started");
+                await Until(() => service.Status.Instances.Count(i => i.Pid != 0 && i.Selected) == 2, "both automatically bound");
+                ids = service.Status.Instances.Select(i => i.Id).ToArray();
+                await Until(() => service.Status.Clips.Length == 2, "automatic per launch logs");
+                check(service.Status.Clips.Length == 2, "dual instances save separately without any manual action");
+                foreach (var id in ids) {
+                    var exported = await service.Export(id, Path.Combine(temp, id + ".log")); VerifyLog(exported.Path, check);
+                    var rows = File.ReadAllLines(exported.Path).Skip(1).SkipLast(1).Select(l => JsonSerializer.Deserialize(l, DiagnosticJson.Default.DiagnosticRecord)!);
+                    check(rows.All(r => r.SessionId == id), "active export contains only selected launch");
+                    var attempts = rows.Where(r => r.Fields.ContainsKey("attempt")).Select(r => r.Fields["attempt"].Value).Distinct().ToArray();
+                    check(attempts.Length == 1 && rows.Any(r => r.Reason == "account_verified"), "overlapping hash work preserves each launch connection events");
+                }
+                service.Configure(new(false), client, "", 0);
+                await Until(() => !service.Status.Enabled, "disable ends collection");
+                service.Configure(new(true), client, "", 0);
+                await Until(() => service.Status.Instances.Length == 2, "reenable same games");
+                check(service.Status.Instances.All(i => ids.Contains(i.Id)) && service.Status.Clips.Length == 2, "toggle resumes existing launch logs");
             }
             using (var recovered = new DiagnosticService(root)) {
                 recovered.Configure(new(true, "connection"), client, "", 0);
                 await Until(() => recovered.Status.Instances.Count(i => i.Pid != 0 && i.Selected) == 2, "registry recovery");
-                check(recovered.Status.Instances.Where(i => i.Pid != 0).All(i => !ids.Contains(i.Id)), "launcher restart recovers identity with new diagnostic sessions");
+                check(recovered.Status.Instances.Where(i => i.Pid != 0).All(i => ids.Contains(i.Id)), "launcher restart resumes same game launch logs");
                 a.StandardInput.WriteLine("exit"); await a.WaitForExitAsync();
                 await Until(() => recovered.Status.Instances.Count(i => i.Pid != 0) == 1, "exit detach");
                 check(recovered.Status.Instances.Single(i => i.Pid != 0).Pid == b.Id, "exited game removed and surviving instance unaffected");
+                foreach (var id in ids) { var exported = await recovered.Export(id, Path.Combine(temp, "recovered-" + id + ".log")); VerifyLog(exported.Path, check); }
             }
         } finally { foreach (var p in new[] { a, b }) if (!p.HasExited) { p.StandardInput.WriteLine("exit"); await p.WaitForExitAsync(); } }
     }
