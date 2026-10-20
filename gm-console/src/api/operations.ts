@@ -1,4 +1,5 @@
 import type { Command, Selection } from "../domain";
+import { benefitReward } from "../domain";
 import type { ConsoleAPI } from "./console";
 import type { DTO, Pending, Step } from "./model";
 import { segment, ApiError } from "./http";
@@ -382,18 +383,27 @@ export async function prepareOperation(
     }
     p.summary = p.steps.map((s) => s.label).join("；");
   } else if (command.kind === "benefit-create") {
-    integer(command.gold, 1);
-    if (!command.name.trim()) throw new Error("请填写规则名称");
+    const reward = benefitReward(command);
+    let itemFields: DTO = {};
+    if (reward.item) {
+      const { data } = await api.http.get(`/api/v1/items/${segment(reward.item.id)}/grant-options`);
+      if (data.kind === "equipment" && reward.item.count !== 1)
+        throw new Error("装备每封邮件数量为 1");
+      reward.summary = `${data.name}（${reward.item.id}）× ${reward.item.count.toLocaleString()}`;
+      itemFields = { itemId: reward.item.id, count: reward.item.count, pvfChecksum: data.pvfChecksum,
+        options: { reinforce: 0, amplifyType: 0, forgingLevel: 0, expireDays: 0, equipmentQuality: "default" } };
+    }
     p.target =
-      "全部现有角色" + (command.scope === "future" ? "及未来角色" : "");
-    p.summary = `${command.name} · 每角色一次 · 金币 ${command.gold.toLocaleString()}${command.enabled ? " · 创建后立即启用" : ""}`;
+      "全部现有角色" + (command.scope === "future" ? "及未来角色" : "") +
+      (reward.grantScope === "account" ? "，同账号仅发一次" : "");
+    p.summary = `${command.name} · ${reward.grantScope === "account" ? "每账号一次" : "每角色一次"} · ${reward.summary}${reward.cera ? " · 直接存入账号" : ""}${command.enabled ? " · 创建后立即启用" : ""}`;
     add("创建福利规则", "/api/v1/benefits", {
       title: command.name,
       body: command.name,
-      gold: command.gold,
-      itemId: "",
-      count: 0,
-      scope: "character",
+      gold: reward.gold,
+      ...(reward.cera ? { cera: reward.cera } : {}),
+      ...itemFields,
+      scope: reward.grantScope,
       autoNewCharacters: command.scope === "future",
     });
     if (command.enabled)

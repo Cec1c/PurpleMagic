@@ -89,7 +89,7 @@ func (s *Store) CreateCampaignOnce(ctx context.Context, key string, reward Job, 
 	if err := reward.Validate(); err != nil {
 		return Campaign{}, err
 	}
-	reward = Job{Scope: reward.Scope.Effective(), Gold: reward.Gold, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments}
+	reward = Job{Scope: reward.Scope.Effective(), Gold: reward.Gold, Cera: reward.Cera, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments}
 	input := struct {
 		Reward    Job
 		Automatic bool
@@ -136,7 +136,7 @@ func (s *Store) PreviewMailOnce(ctx context.Context, group repository.Group, key
 	if err := reward.Validate(); err != nil {
 		return Job{}, err
 	}
-	reward = Job{Scope: ScopeCharacter, Gold: reward.Gold, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments}
+	reward = Job{Scope: ScopeCharacter, Gold: reward.Gold, Cera: reward.Cera, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments}
 	input := struct {
 		AccountID, CharacterID string
 		Reward                 Job
@@ -187,6 +187,7 @@ type JobSummary struct {
 	Title           string                      `json:"title"`
 	Body            string                      `json:"body"`
 	Gold            int64                       `json:"gold"`
+	Cera            int64                       `json:"cera,omitempty"`
 	Attachments     []repository.MailAttachment `json:"attachments"`
 	CreatedAt       time.Time                   `json:"createdAt"`
 	State           string                      `json:"state"`
@@ -197,7 +198,7 @@ type JobSummary struct {
 }
 
 func Summarize(j Job) JobSummary {
-	s := JobSummary{ID: j.ID, Revision: j.Revision, CampaignID: j.CampaignID, Scope: j.Scope.Effective(), Title: j.Title, Body: j.Body, Gold: j.Gold, Attachments: j.Attachments, CreatedAt: j.CreatedAt, Total: len(j.Recipients), State: "preview"}
+	s := JobSummary{ID: j.ID, Revision: j.Revision, CampaignID: j.CampaignID, Scope: j.Scope.Effective(), Title: j.Title, Body: j.Body, Gold: j.Gold, Cera: j.Cera, Attachments: j.Attachments, CreatedAt: j.CreatedAt, Total: len(j.Recipients), State: "preview"}
 	for _, r := range j.Recipients {
 		if r.MailID != "" {
 			s.Sent++

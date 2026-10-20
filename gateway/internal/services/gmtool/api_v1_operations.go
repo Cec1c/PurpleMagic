@@ -230,10 +230,10 @@ func v1RewardDTO(j testbenefits.Job) map[string]any {
 	for _, a := range j.Attachments {
 		attachments = append(attachments, v1MailAttachmentDTO(a))
 	}
-	return map[string]any{"title": j.Title, "body": j.Body, "gold": j.Gold, "attachments": attachments, "deliveryPlan": j.RewardPlan}
+	return map[string]any{"title": j.Title, "body": j.Body, "gold": j.Gold, "cera": j.Cera, "attachments": attachments, "deliveryPlan": j.RewardPlan}
 }
 func v1JobDTO(j testbenefits.JobSummary) map[string]any {
-	return map[string]any{"id": j.ID, "revision": j.Revision, "campaignId": j.CampaignID, "scope": j.Scope, "createdAt": j.CreatedAt, "state": j.State, "total": j.Total, "sent": j.Sent, "failed": j.Failed, "pending": j.Pending, "pvfChecksum": j.PVFChecksum, "recipientSource": j.RecipientSource, "reward": v1RewardDTO(testbenefits.Job{Title: j.Title, Body: j.Body, Gold: j.Gold, Attachments: j.Attachments, RewardPlan: j.RewardPlan})}
+	return map[string]any{"id": j.ID, "revision": j.Revision, "campaignId": j.CampaignID, "scope": j.Scope, "createdAt": j.CreatedAt, "state": j.State, "total": j.Total, "sent": j.Sent, "failed": j.Failed, "pending": j.Pending, "pvfChecksum": j.PVFChecksum, "recipientSource": j.RecipientSource, "reward": v1RewardDTO(testbenefits.Job{Title: j.Title, Body: j.Body, Gold: j.Gold, Cera: j.Cera, Attachments: j.Attachments, RewardPlan: j.RewardPlan})}
 }
 func v1CampaignDTO(c testbenefits.Campaign) map[string]any {
 	return map[string]any{"id": c.ID, "revision": c.Revision, "scope": c.Reward.Scope.Effective(), "createdAt": c.CreatedAt, "firstEnabledAt": c.FirstEnabledAt, "enabled": c.Enabled, "autoNewCharacters": c.AutoNewCharacters, "autoExistingCharacters": c.AutoExistingCharacters, "itemName": c.ItemName, "pvfChecksum": c.Reward.PVFChecksum, "reward": v1RewardDTO(c.Reward)}
@@ -241,6 +241,7 @@ func v1CampaignDTO(c testbenefits.Campaign) map[string]any {
 func (s *Server) v1CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		v1RewardInput
+		Cera              int64                     `json:"cera"`
 		Scope             testbenefits.GrantScope   `json:"scope"`
 		AutoNewCharacters bool                      `json:"autoNewCharacters"`
 		Options           *testbenefits.MailOptions `json:"options"`
@@ -255,6 +256,24 @@ func (s *Server) v1CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Scope != testbenefits.ScopeAccount && in.Scope != testbenefits.ScopeCharacter {
 		v1Fail(w, r, 422, "invalid_scope", "请选择每账号一次或每角色一次", false)
+		return
+	}
+	if in.Cera != 0 {
+		j := testbenefits.Job{Title: strings.TrimSpace(in.Title), Body: in.Body, Cera: in.Cera, Scope: in.Scope}
+		if in.Gold != 0 || in.ItemID != "" || in.Count != 0 || in.Options != nil || in.PVFChecksum != "" {
+			v1Fail(w, r, 422, "invalid_reward", "点券请单独创建福利规则", false)
+			return
+		}
+		if err := j.Validate(); err != nil {
+			v1Fail(w, r, 422, "invalid_reward", err.Error(), false)
+			return
+		}
+		c, err := s.deps.Benefits.CreateCampaignOnce(r.Context(), key, j, "", in.AutoNewCharacters)
+		if err != nil {
+			s.v1OperationError(w, r, err)
+			return
+		}
+		s.v1OperationReply(w, r, v1CampaignDTO(c))
 		return
 	}
 	if in.Options != nil || in.PVFChecksum != "" {
@@ -547,7 +566,7 @@ func (s *Server) v1Recipients(w http.ResponseWriter, r *http.Request) {
 		}
 		var delivered any
 		if rec.Delivery != nil {
-			delivered = map[string]any{"grantedAt": rec.Delivery.GrantedAt, "pvfChecksum": rec.Delivery.PVFChecksum, "reward": v1RewardDTO(testbenefits.Job{Attachments: rec.Delivery.Attachments})}
+			delivered = map[string]any{"grantedAt": rec.Delivery.GrantedAt, "pvfChecksum": rec.Delivery.PVFChecksum, "before": rec.Delivery.Before, "after": rec.Delivery.After, "reward": v1RewardDTO(testbenefits.Job{Cera: rec.Delivery.Cera, Attachments: rec.Delivery.Attachments})}
 		}
 		out = append(out, map[string]any{"delivery": delivered, "accountId": rec.AccountID, "characterId": rec.CharacterID, "name": rec.Name, "mailId": rec.MailID, "deliveredCharacterId": rec.DeliveredCharacterID, "state": status, "failure": v1DeliveryFailure(rec.Error)})
 	}

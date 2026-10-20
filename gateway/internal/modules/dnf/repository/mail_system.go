@@ -29,8 +29,21 @@ type SystemMailDelivery struct {
 // mailbox. It is safe to call only through the transaction supplied by the
 // relevant asset owner; this helper owns no transaction itself.
 func AppendSystemMail(ctx context.Context, repo MailboxRepository, delivery SystemMailDelivery) (string, error) {
+	return appendSystemMail(ctx, repo, delivery, false)
+}
+
+// AppendSystemNotification records a text-only notice for an already credited
+// account reward. The caller commits the wallet and notice in one transaction.
+func AppendSystemNotification(ctx context.Context, repo MailboxRepository, delivery SystemMailDelivery) (string, error) {
+	if delivery.Gold != 0 || len(delivery.Attachments) != 0 {
+		return "", ErrSystemMailInvalid
+	}
+	return appendSystemMail(ctx, repo, delivery, true)
+}
+
+func appendSystemMail(ctx context.Context, repo MailboxRepository, delivery SystemMailDelivery, notification bool) (string, error) {
 	recipientID := strings.TrimSpace(delivery.RecipientCharacterID)
-	if repo == nil || recipientID == "" || strings.TrimSpace(delivery.Source) == "" || (len(delivery.Attachments) == 0 && delivery.Gold == 0) || delivery.Gold < 0 || delivery.Gold > math.MaxInt32 {
+	if repo == nil || recipientID == "" || strings.TrimSpace(delivery.Source) == "" || (!notification && len(delivery.Attachments) == 0 && delivery.Gold == 0) || delivery.Gold < 0 || delivery.Gold > math.MaxInt32 {
 		return "", ErrSystemMailInvalid
 	}
 	attachments := cloneMailAttachments(delivery.Attachments)

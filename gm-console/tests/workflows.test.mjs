@@ -3,6 +3,24 @@ import assert from "node:assert/strict";
 import { initialState } from "../src/fixtures.ts";
 import { applyCommand, resolveRecipients } from "../src/domain.ts";
 const date = "2026-10-19T03:00:00.000Z";
+
+test('cera benefits credit each account once across siblings and pause/resume',()=>{
+ const s=initialState();s.benefits=[];
+ const cmd={kind:'benefit-create',name:'点券',gold:0,rewardKind:'cera',cera:500,scope:'future',enabled:true};
+ let next=applyCommand(s,cmd,date,'cera-rule');
+ for(const a of s.accounts) assert.equal(next.accounts.find(v=>v.id===a.id).points,a.points+500);
+ assert.equal(next.benefits[0].recipients.length,s.accounts.length);
+ next=applyCommand(next,{kind:'benefit-toggle',id:'cera-rule'},date,'pause');
+ next=applyCommand(next,{kind:'benefit-toggle',id:'cera-rule'},date,'resume');
+ for(const a of s.accounts) assert.equal(next.accounts.find(v=>v.id===a.id).points,a.points+500);
+});
+
+test('item benefit keeps selected ID and quantity in delivered attachments',()=>{
+ const s=initialState();s.benefits=[];s.mails=[];
+ const next=applyCommand(s,{kind:'benefit-create',name:'补给',gold:0,rewardKind:'item',item:{id:'7002',name:'药水',count:12,enhance:0},scope:'existing',enabled:true},date,'item-rule');
+ assert.equal(next.mails.length,s.characters.length);
+ for(const m of next.mails) assert.deepEqual(m.items,[{id:'7002',name:'药水',count:12,enhance:0}]);
+});
 test("account selection includes every current character and deduplicates explicit roles", () => {
   assert.deepEqual(
     resolveRecipients(initialState(), {

@@ -76,13 +76,13 @@ func (s *Store) CreateCampaign(ctx context.Context, reward Job, name string, aut
 	key := hex.EncodeToString(id[:])
 	// Only approved content survives; never accept IDs, recipients or prior run
 	// status supplied by a caller as part of a new rule.
-	reward = Job{ID: key, CampaignID: key, Scope: reward.Scope.Effective(), Gold: reward.Gold, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments, CreatedAt: now}
+	reward = Job{ID: key, CampaignID: key, Scope: reward.Scope.Effective(), Gold: reward.Gold, Cera: reward.Cera, Title: reward.Title, Body: reward.Body, Attachments: reward.Attachments, CreatedAt: now}
 	c := Campaign{ID: key, CreatedAt: now, AutoNewCharacters: automatic, ItemName: name, Reward: reward}
 	raw, err := json.Marshal(c)
 	if err != nil {
 		return Campaign{}, err
 	}
-	_, err = s.db.ExecContext(ctx, "INSERT INTO "+s.scopedTable("campaigns", reward.Scope)+" (id,created_at,payload) VALUES (?,?,?)", key, now, raw)
+	_, err = s.db.ExecContext(ctx, "INSERT INTO "+s.recordTable("campaigns", reward.Scope, raw)+" (id,created_at,payload) VALUES (?,?,?)", key, now, raw)
 	return c, err
 }
 

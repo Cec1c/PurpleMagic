@@ -293,7 +293,9 @@ export function TaskDetail({
                       : "待发送"}
                 </td>
                 <td>
-                  {r.failure?.message || (r.mailId ? `邮件 ${r.mailId}` : "—")}
+                  {r.failure?.message || (r.delivery?.reward?.cera
+                    ? `点券 +${Number(r.delivery.reward.cera).toLocaleString()} · 余额 ${r.delivery.before} → ${r.delivery.after}`
+                    : r.mailId ? `邮件 ${r.mailId}` : "—")}
                 </td>
               </tr>
             ))}

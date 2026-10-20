@@ -85,16 +85,21 @@ func (s *Store) CreateCampaignDraftOnce(ctx context.Context, key string, scope G
 // Separate tables prevent old game/GM readers from treating a dynamic reward
 // plan as a completed static attachment. Legacy records keep their tables.
 func (s *Store) payloadTables(kind string) []string {
-	return []string{s.scopedTable(kind, ScopeCharacter), s.scopedTable(kind, ScopeAccount), s.prefix + "_benefit_v2_" + kind}
+	return []string{s.scopedTable(kind, ScopeCharacter), s.scopedTable(kind, ScopeAccount), s.prefix + "_benefit_v2_" + kind, s.prefix + "_benefit_v3_" + kind}
 }
 
 func (s *Store) recordTable(kind string, scope GrantScope, raw []byte) string {
 	var record struct {
+		Cera       int64       `json:"cera"`
 		RewardPlan *RewardPlan `json:"rewardPlan"`
 		Reward     Job         `json:"reward"`
 	}
 	// raw was just marshaled by the owning operation.
 	_ = json.Unmarshal(raw, &record)
+	// Currency rules stay invisible to older scanners that only deliver mail.
+	if record.Cera != 0 || record.Reward.Cera != 0 {
+		return s.prefix + "_benefit_v3_" + kind
+	}
 	if record.RewardPlan != nil || record.Reward.RewardPlan != nil {
 		return s.prefix + "_benefit_v2_" + kind
 	}

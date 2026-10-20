@@ -94,6 +94,9 @@ export type Receipt = {
   details?: Record<string, any>;
 };
 export type Benefit = {
+  cera?: number;
+  item?: Attachment;
+  grantScope?: "character" | "account";
   id: string;
   name: string;
   gold: number;
@@ -172,6 +175,10 @@ export type Command =
     }
   | {
       kind: "benefit-create";
+      rewardKind?: "gold" | "cera" | "item";
+      cera?: number;
+      item?: Attachment;
+      grantScope?: "character" | "account";
       name: string;
       gold: number;
       enabled: boolean;
@@ -227,6 +234,23 @@ function requireCharacter(s: State, id: string) {
   const c = s.characters.find((c) => c.id === id);
   if (!c) throw new Error("角色不存在");
   return c;
+}
+
+export function benefitReward(command: Extract<Command, { kind: "benefit-create" }>) {
+  if (!command.name.trim()) throw new Error("请填写规则名称");
+  const kind = command.rewardKind || "gold";
+  const grantScope = kind === "cera" ? "account" : command.grantScope || "character";
+  const gold = kind === "gold" ? command.gold : 0;
+  const cera = kind === "cera" ? command.cera || 0 : 0;
+  const item = kind === "item" ? command.item : undefined;
+  if (kind === "item") {
+    if (!item || !/^[1-9]\d*$/.test(item.id)) throw new Error("请输入有效的物品 ID");
+    integer(Number(item.id), 1);
+    integer(item.count, 1);
+  } else integer(kind === "cera" ? cera : gold, 1);
+  const summary = item ? `${item.name || item.id}（${item.id}）× ${item.count.toLocaleString()}` :
+    cera ? `点券 ${cera.toLocaleString()}` : `金币 ${gold.toLocaleString()}`;
+  return { gold, cera, item, grantScope, summary };
 }
 
 export function applyCommand(
@@ -363,12 +387,16 @@ export function applyCommand(
       break;
     }
     case "benefit-create": {
-      integer(command.gold, 1);
-      if (!command.name.trim()) throw new Error("请填写规则名称");
+      const reward = benefitReward(command);
       const b: Benefit = {
         id: requestId,
         name: command.name,
-        gold: command.gold,
+        gold: reward.gold,
+        cera: reward.cera,
+        item: reward.item,
+        grantScope: reward.grantScope,
+        scopeLabel: reward.grantScope === "account" ? "每账号一次" : "每角色一次",
+        rewardSummary: reward.summary,
         enabled: command.enabled,
         scope: command.scope,
         recipients: [],
@@ -433,18 +461,30 @@ export function applyCommand(
   // The local fixture simulates the server scheduler when a rule is created/enabled.
   if (command.kind === "benefit-create" || command.kind === "benefit-toggle")
     for (const b of s.benefits.filter((b) => b.enabled)) {
-      const pending = s.characters.filter(
+      let pending = s.characters.filter(
         (c) =>
           !b.recipients.includes(c.id) &&
           (b.scope === "future" || b.eligibleIds?.includes(c.id)),
       );
+      if (b.grantScope === "account") {
+        const accounts = new Set(b.recipients.map((id) => s.characters.find((c) => c.id === id)?.accountId));
+        pending = pending.filter((c) => {
+          if (accounts.has(c.accountId)) return false;
+          accounts.add(c.accountId);
+          return true;
+        });
+      }
       if (pending.length) {
+        if (b.cera) for (const c of pending) {
+          const account = s.accounts.find((a) => a.id === c.accountId)!;
+          account.points += b.cera;
+        }
         deliver(
           pending.map((c) => c.id),
           b.name,
-          "福利奖励已送达。",
+          b.cera ? `点券 ${b.cera} 已存入账号。` : "福利奖励已送达。",
           b.gold,
-          [],
+          b.item ? [b.item] : [],
           `${requestId}-${b.id}`,
         );
         b.recipients.push(...pending.map((c) => c.id));

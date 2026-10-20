@@ -182,3 +182,6 @@
 .item-replacement .secondary, .delete-single, .reset-points { width:100%; justify-content:center; margin-top:12px; }
 .skill-balances dd { text-align:right; }
 .field-hint { font-size:12px; margin:8px 0; }
+.benefit-create .benefit-reward-hint {
+  margin: 12px 0 16px;
+}

@@ -81,8 +81,8 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
 			return err
 		}
 	}
-	for _, kind := range []string{"campaigns", "jobs"} {
-		if _, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS "+s.prefix+"_benefit_v2_"+kind+" (id CHAR(32) PRIMARY KEY, created_at DATETIME(6) NOT NULL, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); err != nil {
+	for _, kind := range []string{"v2_campaigns", "v2_jobs", "v3_campaigns", "v3_jobs"} {
+		if _, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS "+s.prefix+"_benefit_"+kind+" (id CHAR(32) PRIMARY KEY, created_at DATETIME(6) NOT NULL, payload LONGTEXT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); err != nil {
 			return err
 		}
 	}
@@ -227,7 +227,7 @@ func (s *Store) freezeRecipients(ctx context.Context, group repository.Group, jo
 					return Job{}, err
 				}
 				r.MailID, r.DeliveredCharacterID = receipt.MailID, receipt.CharacterID
-				if job.RewardPlan != nil && receipt.MailID != "" {
+				if (job.RewardPlan != nil || job.Cera > 0) && receipt.MailID != "" {
 					r.Delivery = &receipt
 				}
 			}
@@ -343,7 +343,7 @@ func (s *Store) runProjected(ctx context.Context, group repository.Group, id str
 		} else {
 			r.MailID = receipt.MailID
 			r.DeliveredCharacterID = receipt.CharacterID
-			if j.RewardPlan != nil {
+			if j.RewardPlan != nil || j.Cera > 0 {
 				r.Delivery = &receipt
 			}
 			r.Error = ""

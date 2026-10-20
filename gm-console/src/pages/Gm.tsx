@@ -2,6 +2,7 @@ import { numberDraft, draftNumber } from "../numeric";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import { useLive } from "../api/context";
+import { catalog as demoCatalog } from "../fixtures";
 import { LoadMore, TaskDetail } from "../api/controls";
 import {
   Save,
@@ -48,6 +49,18 @@ export function GmPage({ state, character, request }: PageProps) {
     [benefitGold, setBenefitGold] = useState(2000000),
     [enabled, setEnabled] = useState(true),
     [future, setFuture] = useState(true);
+  const [rewardKind, setRewardKind] = useState<"gold" | "cera" | "item">("gold");
+  const [benefitCera, setBenefitCera] = useState(1000);
+  const [grantScope, setGrantScope] = useState<"character" | "account">("character");
+  const [itemId, setItemId] = useState("");
+  const [itemCount, setItemCount] = useState(1);
+  const [itemQuery, setItemQuery] = useState("");
+  const catalog = state.api?.catalog || demoCatalog;
+  useEffect(() => {
+    if (!live || !create || tab !== "benefits" || rewardKind !== "item") return;
+    const timer = setTimeout(() => void live.guard(() => live.catalog(itemQuery)), 250);
+    return () => clearTimeout(timer);
+  }, [live, create, tab, rewardKind, itemQuery]);
   useEffect(() => {
     if (live) {
       setLevel(numberDraft(character.level));
@@ -318,6 +331,13 @@ export function GmPage({ state, character, request }: PageProps) {
                   kind: "benefit-create",
                   name,
                   gold: benefitGold,
+                  rewardKind,
+                  cera: benefitCera,
+                  grantScope,
+                  item: rewardKind === "item" ? {
+                    id: itemId.trim(), name: catalog.find((i) => i.id === itemId.trim())?.name || itemId.trim(),
+                    count: itemCount, enhance: 0,
+                  } : undefined,
                   enabled,
                   scope: future ? "future" : "existing",
                 });
@@ -331,16 +351,52 @@ export function GmPage({ state, character, request }: PageProps) {
                     onChange={(e) => setName(e.target.value)}
                   />
                 </Field>
-                <Field label="每个角色获得金币">
+                <Field label="奖励类型">
+                  <select aria-label="奖励类型" value={rewardKind} onChange={(e) => setRewardKind(e.target.value as typeof rewardKind)}>
+                    <option value="gold">金币</option>
+                    <option value="cera">点券</option>
+                    <option value="item">指定道具</option>
+                  </select>
+                </Field>
+                <Field label="领取次数">
+                  <select aria-label="领取次数" value={rewardKind === "cera" ? "account" : grantScope}
+                    disabled={rewardKind === "cera"} onChange={(e) => setGrantScope(e.target.value as typeof grantScope)}>
+                    <option value="character">每角色一次</option>
+                    <option value="account">每账号一次</option>
+                  </select>
+                </Field>
+                {rewardKind !== "item" && <Field label={rewardKind === "cera" ? "每个账号获得点券" : "每次发放金币"}>
                   <input
                     type="number"
+                    required
                     min="1"
                     max="2147483647"
-                    value={benefitGold}
-                    onChange={(e) => setBenefitGold(Number(e.target.value))}
+                    step="1"
+                    value={rewardKind === "cera" ? benefitCera : benefitGold}
+                    onChange={(e) => (rewardKind === "cera" ? setBenefitCera : setBenefitGold)(Number(e.target.value))}
                   />
-                </Field>
+                </Field>}
+                {rewardKind === "item" && <>
+                  <Field label="查找道具">
+                    <input placeholder="输入物品名称或 ID" value={itemQuery} onChange={(e) => setItemQuery(e.target.value)} />
+                  </Field>
+                  <Field label="搜索结果">
+                    <select aria-label="搜索结果" value={catalog.some((i) => i.id === itemId) ? itemId : ""} onChange={(e) => setItemId(e.target.value)}>
+                      <option value="">选择道具</option>
+                      {catalog.filter((i) => live || !itemQuery || i.name.includes(itemQuery) || i.id.includes(itemQuery)).map((i) =>
+                        <option key={i.id} value={i.id}>{i.name} · {i.id}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="物品 ID">
+                    <input required inputMode="numeric" pattern="[1-9][0-9]*" value={itemId} onChange={(e) => setItemId(e.target.value)} />
+                  </Field>
+                  <Field label="每次发放数量">
+                    <input required type="number" min="1" max="2147483647" step="1" value={itemCount} onChange={(e) => setItemCount(Number(e.target.value))} />
+                  </Field>
+                </>}
               </div>
+              {rewardKind === "cera" && <p className="muted benefit-reward-hint">点券直接存入账号，所有角色共享；收件角色收到到账通知。每账号仅发放一次。</p>}
+              {rewardKind === "item" && <p className="muted benefit-reward-hint">道具通过邮件发放，装备每封数量为 1。每条规则发放一种道具。</p>}
               <div className="check-options">
                 <label className="checkline">
                   <CheckBox
@@ -404,10 +460,10 @@ export function GmPage({ state, character, request }: PageProps) {
                           >
                             {b.sent === undefined
                               ? "查看发放情况"
-                              : `${b.sent} 位角色 · 查看`}
+                              : `${b.sent} ${b.grantScope === "account" ? "个账号" : "位角色"} · 查看`}
                           </button>
                         ) : (
-                          `${b.recipients.length} 位角色`
+                          `${b.recipients.length} ${b.grantScope === "account" ? "个账号" : "位角色"}`
                         )}
                       </td>
                       <td>

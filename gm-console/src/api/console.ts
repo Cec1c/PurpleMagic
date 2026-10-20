@@ -797,6 +797,8 @@ export class ConsoleAPI {
           id: v.id,
           name: v.reward.title,
           gold: v.reward.gold,
+          cera: v.reward.cera,
+          grantScope: v.scope,
           enabled: v.enabled,
           scope: v.autoNewCharacters
             ? ("future" as const)
@@ -805,6 +807,7 @@ export class ConsoleAPI {
           revision: v.revision,
           scopeLabel: v.scope === "account" ? "每账号一次" : "每角色一次",
           rewardSummary: [
+            v.reward.cera ? `点券 ${Number(v.reward.cera).toLocaleString()}` : "",
             v.reward.gold
               ? `金币 ${Number(v.reward.gold).toLocaleString()}`
               : "",

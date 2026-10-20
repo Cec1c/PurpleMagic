@@ -7,6 +7,32 @@ const storage=new Map();
 globalThis.sessionStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
 const response=(data,status=200)=>new Response(JSON.stringify(status===200?{data}:{error:{code:'conflict',message:'revision changed'}}),{status});
 
+test('cera benefit prepares an account-only credit without a PVF lookup or write', async()=>{
+ const api=new ConsoleAPI(()=>{});api.http.fetcher=async()=>{throw Error('unexpected request')};
+ await api.prepare({kind:'benefit-create',name:'账号福利',gold:2000,rewardKind:'cera',cera:500,grantScope:'character',enabled:true,scope:'future'},{accounts:[],characters:[]});
+ const p=api.meta.pending;assert.equal(p.steps.length,2);assert.equal(p.steps[1].kind,'benefit-enable');
+ assert.deepEqual(p.steps[0].body,{title:'账号福利',body:'账号福利',gold:0,cera:500,scope:'account',autoNewCharacters:true});
+ assert.match(p.summary,/直接存入账号/);api.cancel();
+ await assert.rejects(api.prepare({kind:'benefit-create',name:'bad',gold:0,rewardKind:'cera',cera:0,enabled:false,scope:'existing'},{accounts:[],characters:[]}),/整数/);
+});
+
+test('specific-item benefit binds the approved PVF and canonical item name before confirmation',async()=>{
+ const api=new ConsoleAPI(()=>{});let reads=0;
+ api.http.fetcher=async(path,opts)=>{assert.equal(opts.method,'GET');assert.equal(path,'/api/v1/items/7001/grant-options');reads++;return response({itemId:'7001',name:'权威短剑',kind:'equipment',pvfChecksum:'a'.repeat(64)});};
+ const cmd={kind:'benefit-create',name:'道具福利',gold:900,rewardKind:'item',item:{id:'7001',name:'stale',count:1,enhance:0},enabled:false,scope:'existing',grantScope:'character'};
+ await api.prepare(cmd,{accounts:[],characters:[]});const p=api.meta.pending;
+ assert.equal(reads,1);assert.equal(p.steps.length,1);assert.equal(p.steps[0].body.gold,0);
+ assert.equal(p.steps[0].body.itemId,'7001');assert.equal(p.steps[0].body.count,1);assert.equal(p.steps[0].body.pvfChecksum,'a'.repeat(64));
+ assert.match(p.summary,/权威短剑/);assert.doesNotMatch(p.summary,/stale/);api.cancel();
+ await assert.rejects(api.prepare({...cmd,item:{...cmd.item,count:2}},{accounts:[],characters:[]}),/数量为 1/);
+});
+
+test('benefit list preserves currency values and account scope on reload',async()=>{
+ const api=new ConsoleAPI(()=>{});api.meta.features={'benefits.write':true};
+ api.http.fetcher=async()=>response([{id:'rule',scope:'account',reward:{title:'点券',gold:0,cera:500},autoNewCharacters:true}]);
+ await api.benefits();assert.equal(api.state.benefits[0].cera,500);assert.equal(api.state.benefits[0].grantScope,'account');assert.equal(api.state.benefits[0].rewardSummary,'点券 500');
+});
+
 test('token login requests 30-day memory by default and honors opting out',async()=>{
  const api=new ConsoleAPI(()=>{});const bodies=[];
  api.http.fetcher=async(path,init)=>{

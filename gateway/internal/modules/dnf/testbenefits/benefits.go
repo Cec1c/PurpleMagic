@@ -36,6 +36,9 @@ func (s GrantScope) Effective() GrantScope {
 }
 
 type DeliveryReceipt struct {
+	Cera        int64                       `json:"cera,omitempty"`
+	Before      string                      `json:"before,omitempty"`
+	After       string                      `json:"after,omitempty"`
 	PVFChecksum string                      `json:"pvfChecksum,omitempty"`
 	GrantedAt   time.Time                   `json:"grantedAt,omitempty"`
 	Attachments []repository.MailAttachment `json:"attachments,omitempty"`
@@ -98,6 +101,7 @@ type Recipient struct {
 }
 
 type Job struct {
+	Cera               int64                       `json:"cera,omitempty"`
 	ReceiptBasis       *ReceiptBasis               `json:"receiptBasis,omitempty"`
 	Definition         *ItemDefinition             `json:"definition,omitempty"`
 	RewardPlan         *RewardPlan                 `json:"rewardPlan,omitempty"`
@@ -125,8 +129,11 @@ func (j Job) Validate() error {
 		return errors.New("福利范围必须为每账号一次或每角色一次")
 	}
 	// Conservative UTF-8 byte limits also fit the current GBK mail fields.
-	if j.Gold < 0 || j.Gold > MaxAmount || (j.Gold == 0 && len(j.Attachments) == 0) {
-		return errors.New("邮件需要金币或物品；金币范围为 0 至 2147483647")
+	if j.Cera < 0 || j.Cera > MaxAmount || (j.Cera > 0 && (j.Scope != ScopeAccount || j.Gold != 0 || len(j.Attachments) != 0 || j.RewardPlan != nil)) {
+		return errors.New("点券福利必须为每账号一次，金额为 1 至 2147483647，单独建规则")
+	}
+	if j.Gold < 0 || j.Gold > MaxAmount || (j.Cera == 0 && j.Gold == 0 && len(j.Attachments) == 0) {
+		return errors.New("福利需要金币、点券或物品；金额范围为 0 至 2147483647")
 	}
 	if len(j.Attachments) > 1 {
 		return errors.New("每条福利规则只支持一种物品，请分别建规则")
@@ -196,6 +203,13 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 			return errors.New("角色已重新创建，请重新预览")
 		}
 		at := time.Now().UTC().Truncate(time.Second)
+		if job.Cera > 0 {
+			account = repository.CloneAccount(account)
+			result, err = creditCampaignCera(&account, job.Cera)
+			if err != nil {
+				return err
+			}
+		}
 		attachments := job.Attachments
 		if job.RewardPlan != nil {
 			if project == nil {
@@ -209,13 +223,22 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 				return ErrRewardProjection
 			}
 		}
-		mailID, err := repository.AppendSystemMail(ctx, mailboxes, repository.SystemMailDelivery{
-			RecipientCharacterID: recipient.CharacterID, Title: job.Title, Body: job.Body, Source: "test-benefits:" + deliveryID(job), Gold: job.Gold, Attachments: attachments, CreatedAt: at,
+		deliver := repository.AppendSystemMail
+		body := job.Body
+		if job.Cera > 0 {
+			deliver = repository.AppendSystemNotification
+			body = "点券 " + strconv.FormatInt(job.Cera, 10) + " 已存入账号，账号下所有角色共享。"
+		}
+		mailID, err := deliver(ctx, mailboxes, repository.SystemMailDelivery{
+			RecipientCharacterID: recipient.CharacterID, Title: job.Title, Body: body, Source: "test-benefits:" + deliveryID(job), Gold: job.Gold, Attachments: attachments, CreatedAt: at,
 		})
 		if err != nil {
 			return err
 		}
-		result = DeliveryReceipt{MailID: mailID, CharacterID: recipient.CharacterID, CreatedAt: character.CreatedAt}
+		result.MailID, result.CharacterID, result.CreatedAt = mailID, recipient.CharacterID, character.CreatedAt
+		if job.Cera > 0 {
+			result.GrantedAt = at
+		}
 		if job.RewardPlan != nil {
 			result.GrantedAt, result.Attachments = at, attachments
 			result.PVFChecksum = job.PVFChecksum
@@ -227,6 +250,11 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 				return err
 			}
 			payload = string(raw)
+		}
+		if job.Cera > 0 {
+			account.Metadata[key] = prefix + payload
+			account.UpdatedAt = time.Now().UTC()
+			return accounts.Save(ctx, account)
 		}
 		return repository.SaveAccountMetadataEntry(ctx, accounts, account, key, prefix+payload, time.Now().UTC())
 	})
@@ -268,6 +296,10 @@ func receiptIdentity(j Job, r Recipient) (string, string) {
 	if len(j.Attachments) != 0 {
 		values = append(values, j.Attachments)
 	}
+	if j.Cera > 0 {
+		key = "test_benefits_account_cera_v1_" + deliveryID(j)
+		values = append(values, "cera", j.Cera)
+	}
 	if j.RewardPlan != nil {
 		values = append(values, j.RewardPlan, j.PVFChecksum)
 	}
@@ -298,6 +330,9 @@ func PreviousDeliveryReceipt(account repository.AccountRecord, job Job, recipien
 			}
 			if job.RewardPlan != nil && (result.GrantedAt.IsZero() || len(result.Attachments) != 1 || result.Attachments[0].ItemID != job.Attachments[0].ItemID || result.Attachments[0].Count != job.Attachments[0].Count) {
 				return DeliveryReceipt{}, ErrRewardProjection
+			}
+			if job.Cera > 0 && !validCeraReceipt(result, job.Cera) {
+				return DeliveryReceipt{}, errors.New("点券福利回执无效，未重新发放")
 			}
 			return result, nil
 		}
