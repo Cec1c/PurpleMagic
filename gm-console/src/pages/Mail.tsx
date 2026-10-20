@@ -41,14 +41,6 @@ export function MailPage({
   const [taskId, setTaskId] = useState("");
   const catalog = state.api?.catalog || demoCatalog;
   const [catalogQuery, setCatalogQuery] = useState("");
-  useEffect(() => {
-    if (!live) return;
-    const timer = setTimeout(
-      () => void live.guard(() => live.catalog(catalogQuery)),
-      250,
-    );
-    return () => clearTimeout(timer);
-  }, [live, catalogQuery]);
   const [tab, setTab] = useState<"compose" | "inbox" | "history">("compose"),
     [picker, setPicker] = useState(false),
     [title, setTitle] = useState("冒险补给"),
@@ -59,6 +51,19 @@ export function MailPage({
     [count, setCount] = useState(100),
     [checked, setChecked] = useState<string[]>([]),
     [viewMail, setViewMail] = useState("");
+  useEffect(() => {
+    if (!live || tab !== "compose") return;
+    const timer = setTimeout(
+      () => void live.guard(() => live.catalog(catalogQuery)),
+      250,
+    );
+    return () => { clearTimeout(timer); live.cancelScope("catalog"); };
+  }, [live, catalogQuery, tab]);
+  useEffect(() => {
+    if (!live || tab === "compose") return;
+    void live.guard(() => tab === "inbox" ? live.mailbox() : live.tasks());
+    return () => live.cancelScope(tab === "inbox" ? "mailbox" : "tasks");
+  }, [live, tab, character.id]);
   const recipients = resolveRecipients(state, selection),
     mails = state.mails.filter((m) => m.characterId === character.id),
     opened = mails.find((m) => m.id === viewMail);
@@ -92,7 +97,7 @@ export function MailPage({
             { id: "history", label: "发放记录" },
           ]}
           value={tab}
-          onChange={setTab}
+          onChange={value => { live?.navigate("mail", true); setTab(value); }}
         />
       </div>
       {tab === "compose" ? (

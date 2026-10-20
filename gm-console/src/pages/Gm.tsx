@@ -33,13 +33,23 @@ export function GmPage({ state, character, request }: PageProps) {
   const [tab, setTab] = useState<
     "growth" | "currency" | "benefits" | "history"
   >("growth");
+  useEffect(() => {
+    if (!live) return;
+    void live.guard(async () => {
+      if (tab === "growth") await live.growth();
+      else if (tab === "currency") await live.character();
+      else if (tab === "benefits") await live.benefits();
+      else await Promise.all([live.history(), live.tasks()]);
+    });
+    return () => { live.cancelScope(tab); if (tab === "history") live.cancelScope("tasks"); if (tab === "currency") live.cancelScope("character"); };
+  }, [live, tab, character.id]);
   const [level, setLevel] = useState(numberDraft(character.level)),
     [job, setJob] = useState(
       live ? `${character.jobCode}:${character.growType}` : character.job,
     ),
     [sp, setSp] = useState(numberDraft(character.sp)),
     [tp, setTp] = useState(numberDraft(character.tp));
-  const a = state.accounts.find((a) => a.id === character.accountId)!;
+  const a = state.accounts.find((a) => a.id === character.accountId) || { points: NaN, tokens: NaN, rawPoints: "", name: character.accountId, id: character.accountId };
   const [gold, setGold] = useState(character.gold),
     [points, setPoints] = useState(a.points),
     [tokens, setTokens] = useState(a.tokens);
@@ -100,7 +110,7 @@ export function GmPage({ state, character, request }: PageProps) {
             { id: "history", label: "操作记录" },
           ]}
           value={tab}
-          onChange={setTab}
+          onChange={value => { live?.navigate("gm", true); setTab(value); }}
         />
       </div>
       {tab === "growth" ? (

@@ -1,5 +1,8 @@
 ## 2026-10-20 登录器增强诊断候选
 
+2026-10-20：GM 查询加入并发上限、切页取消与超时重试；新增活动查询、独立 PVF 物品库、多角色任务库和 PVF 数据模式。详见 [实现与验证入口](GM_QUERY_PERFORMANCE.md)。
+
+
 新增自动进程关联、基础日志和 AT-5T 专项；一个开关按启动记录，保留最近五次，通过原生另存为导出 `.log`。便携入口为 `PurpleMagic.exe`，识别 `.client/` 与 `client/`，保持更新契约。见 [功能与接口](LAUNCHER_DIAGNOSTICS.md) 和 [验证范围](diagnostics/VALIDATION.md)；原生游戏两小时与帧时间验收仍待完成。
 
 <!-- orchid-live-20261019 -->

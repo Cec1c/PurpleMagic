@@ -36,7 +36,7 @@ export function PlayerPicker({
       () => void live.guard(() => live.directory("characters", q)),
       250,
     );
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); live.cancelScope("directory"); };
   }, [live, q]);
   const rows = state.characters.filter((c) =>
     `${c.name} ${c.id} ${state.accounts.find((a) => a.id === c.accountId)?.name}`
@@ -181,7 +181,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
       () => void live.guard(() => live.directory(mode, q, false, accountScope, online)),
       250,
     );
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); live.cancelScope("directory"); };
   }, [live, mode, q, accountScope, online]);
   const rows = state.characters.filter(
     (c) =>
@@ -200,8 +200,8 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
   );
   const selected = resolveRecipients(state, selection);
   function open(id: string) {
-    selectCharacter(id);
     go("inventory");
+    selectCharacter(id);
   }
   const listIds =
       mode === "accounts" ? accounts.map((a) => a.id) : rows.map((c) => c.id),
@@ -302,8 +302,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                       </td>
                       <td>
                         {
-                          state.characters.filter((c) => c.accountId === a.id)
-                            .length
+                          (a.characterCount ?? state.characters.filter((c) => c.accountId === a.id).length)
                         }{" "}
                         个
                       </td>

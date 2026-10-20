@@ -3,6 +3,23 @@ package pvf
 import "fmt"
 
 func (a *Archive) readTextIndex(idx int) (string, error) {
+	if c := a.limited; c != nil {
+		c.mu.Lock()
+		text, ok := c.texts.get(idx)
+		c.mu.Unlock()
+		if ok {
+			return text, nil
+		}
+		raw, err := a.readRawIndex(idx)
+		if err != nil {
+			return "", err
+		}
+		text = a.decodeText(a.items[idx].dataType, raw)
+		c.mu.Lock()
+		c.texts.put(idx, text, len(text))
+		c.mu.Unlock()
+		return text, nil
+	}
 	if cached, ok := a.texts.Load(idx); ok {
 		return cached.(string), nil
 	}
@@ -49,6 +66,20 @@ func (a *Archive) readRawIndex(idx int) ([]byte, error) {
 }
 
 func (a *Archive) chunk(idx int) ([]byte, error) {
+	if c := a.limited; c != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock() // bound simultaneous decompression on cache misses
+		chunk, ok := c.chunks.get(idx)
+		if ok {
+			return chunk, nil
+		}
+		chunk, err := a.decodeChunkIndex(idx)
+		if err != nil {
+			return nil, err
+		}
+		c.chunks.put(idx, chunk, cap(chunk))
+		return chunk, nil
+	}
 	if cached, ok := a.chunks.Load(idx); ok {
 		return cached.([]byte), nil
 	}

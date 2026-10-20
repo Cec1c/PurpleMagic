@@ -20,6 +20,10 @@ func staticCatalogRoute(path string) bool {
 	return path == "/api/v1/items" || strings.HasPrefix(path, "/api/v1/items/") || path == "/api/v1/quests" || strings.HasPrefix(path, "/api/v1/quests/")
 }
 
+func localGMRoute(path string) bool {
+	return staticCatalogRoute(path) || path == "/api/v1/settings/pvf"
+}
+
 // GatewayHandler is mounted only on the private management listener. Browser
 // credentials and legacy routes are absent in this deployment mode.
 func (s *Server) GatewayHandler(token, hash string) http.Handler {
@@ -54,7 +58,7 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 		json.NewEncoder(w).Encode(out)
 	})
 	mux.Handle("/api/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if staticCatalogRoute(r.URL.Path) {
+		if localGMRoute(r.URL.Path) {
 			http.NotFound(w, r)
 			return
 		}
@@ -107,7 +111,7 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			v1Fail(w, r, 403, "origin_required", "来源验证失败", false)
 			return
 		}
-		if staticCatalogRoute(r.URL.Path) {
+		if localGMRoute(r.URL.Path) {
 			catalog.ServeHTTP(w, r)
 			return
 		}
@@ -162,6 +166,9 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			data["csrfToken"] = s.v1CSRF(r)
 			data["deployment"] = "external-gm-v1"
 			data["backgroundMail"] = queue != nil
+			if features, ok := data["features"].(map[string]any); ok {
+				features["pvf.mode"] = s.pvfModeControl() != nil
+			}
 			raw, _ = json.Marshal(v)
 		}
 		if queue != nil && res.StatusCode == 200 && r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/api/v1/tasks/") {

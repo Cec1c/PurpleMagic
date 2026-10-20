@@ -200,7 +200,12 @@ func (s *Server) v1ItemDetail(w http.ResponseWriter, r *http.Request) {
 		s.v1Unavailable(w, r, err)
 		return
 	}
-	result, err := readItemDetailIndex(r.Context(), itemDetailIndexPath(s.items.cachePath, itemIndexSourceChecksum(source)), itemIndexSourceChecksum(source), entry.ID)
+	var result *itemProjection
+	if mode, ok := source.(pvfModeControl); ok && mode.ModeStatus().Mode == "memory" {
+		result, err = s.projectItem(r.Context(), source, entry)
+	} else {
+		result, err = readItemDetailIndex(r.Context(), itemDetailIndexPath(s.items.cachePath, itemIndexSourceChecksum(source)), itemIndexSourceChecksum(source), entry.ID)
+	}
 	if err != nil {
 		result, err = s.projectItem(r.Context(), source, entry)
 	}

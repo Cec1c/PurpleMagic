@@ -153,6 +153,7 @@ export type Command =
   | { kind: "delete-mail"; ids: string[] }
   | {
       kind: "quest";
+      selectedTargets?: boolean;
       characterId: string;
       ids: string[];
       status: "completed" | "active";

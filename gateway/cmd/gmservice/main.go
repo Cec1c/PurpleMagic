@@ -33,6 +33,7 @@ type config struct {
 	WebRoot          string             `json:"webRoot"`
 	PVFPath          string             `json:"pvfPath"`
 	PVFIndexPath     string             `json:"pvfIndexPath"`
+	PVFModeStatePath string             `json:"pvfModeStatePath,omitempty"`
 	ItemIndexPath    string             `json:"itemIndexPath"`
 	CatalogToken     string             `json:"catalogToken"`
 	Gateway          servicehttp.Config `json:"gateway"`
@@ -84,7 +85,10 @@ func run(ctx context.Context, path string) error {
 	if e != nil {
 		return e
 	}
-	source, e := dnfpvf.OpenDisk(c.PVFPath, c.PVFIndexPath, c.Gateway.PVFSHA256)
+	if c.PVFModeStatePath == "" {
+		c.PVFModeStatePath = c.QueuePath + ".pvf-mode.json"
+	}
+	source, e := dnfpvf.OpenModeSource(ctx, c.PVFPath, c.PVFIndexPath, c.Gateway.PVFSHA256, c.PVFModeStatePath)
 	if e != nil {
 		return e
 	}

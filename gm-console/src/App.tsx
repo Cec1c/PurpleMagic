@@ -35,6 +35,7 @@ import {
   type PageProps,
 } from "./ui";
 import { Inventory } from "./pages/Inventory";
+import { QueryPage } from "./pages/Query";
 import { Players, PlayerPicker } from "./pages/Players";
 import { MailPage } from "./pages/Mail";
 import { QuestPage } from "./pages/Quests";
@@ -43,7 +44,7 @@ import { Settings } from "./pages/Settings";
 import { ConsoleAPI } from "./api/console";
 import { emptyState } from "./api/model";
 import { LiveContext } from "./api/context";
-import { LoginPanel, LiveConfirmation, HubLogin } from "./api/controls";
+import { LoginPanel, LiveConfirmation } from "./api/controls";
 import { Empty } from "./ui";
 const demo =
   import.meta.env.VITE_CONSOLE_MODE === "demo" ||
@@ -54,8 +55,8 @@ const navigation = [
     id: "query",
     label: "查询",
     icon: Search,
-    title: "查询冒险家",
-    sub: "快速找到账号与角色，开始处理玩家问题。",
+    title: "查询资料",
+    sub: "查询账号、角色、PVF 物品和服务器活动。",
   },
   {
     id: "inventory",
@@ -165,7 +166,7 @@ export function App() {
     nav = navigation.find((n) => n.id === section)!;
   useEffect(() => {
     document.title = "PurpleMagic · GM 工作台";
-    const onHash = () => setSection(readSection());
+    const onHash = () => { live?.navigate(readSection()); setSection(readSection()); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -190,18 +191,20 @@ export function App() {
   }, [live]);
   useEffect(() => {
     if (live?.meta.authenticated) void live.guard(() => live.enter(section));
-  }, [live, section, state.api?.authenticated, characterId]);
+  }, [live, section, state.api?.authenticated, characterId, character.id]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
   function go(id: Section) {
+    live?.navigate(id);
     setSection(id);
     location.hash = id;
     setMobileNav(false);
   }
   function selectCharacter(id: string) {
+    if (live) live.navigate(live.sectionId, true);
     if (live)
       void live.guard(async () => {
         await live.select(id);
@@ -271,7 +274,7 @@ export function App() {
             pending.command.recipients.includes(c.id),
         )
       : [];
-  const noIdentity = ["query", "accounts", "settings"].includes(section);
+  const noIdentity = ["query", "accounts", "settings", "quests"].includes(section);
   if (live && !state.api?.authenticated) {
     return <LiveContext.Provider value={live}>
       <div className="app-shell auth-shell">
@@ -458,8 +461,7 @@ export function App() {
                   className="secondary"
                   onClick={() =>
                     void live?.guard(async () => {
-                      await live.character();
-                      await live.enter(section);
+                      await live.retry();
                     })
                   }
                 >
@@ -472,7 +474,7 @@ export function App() {
                 <LoginPanel />
               ) : live &&
                 !live.current &&
-                !["query", "accounts", "settings"].includes(section) ? (
+                !["query", "accounts", "settings", "quests"].includes(section) ? (
                 <div className="glass content-panel">
                   <Empty title="选择一位角色开始管理" />
                   <button className="primary" onClick={() => go("query")}>
@@ -484,7 +486,7 @@ export function App() {
                   {section === "inventory" ? (
                     <Inventory {...props} />
                   ) : section === "query" ? (
-                    <Players {...props} />
+                    <QueryPage {...props} />
                   ) : section === "accounts" ? (
                     <Players {...props} accountMode />
                   ) : section === "mail" ? (
@@ -493,8 +495,6 @@ export function App() {
                     <QuestPage {...props} />
                   ) : section === "gm" ? (
                     <GmPage {...props} />
-                  ) : live && !state.api?.hub ? (
-                    <HubLogin />
                   ) : (
                     <Settings {...props} />
                   )}

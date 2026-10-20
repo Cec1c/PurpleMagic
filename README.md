@@ -19,6 +19,9 @@ One source repository with independently built components, from player login and
 
 </div>
 
+
+GM queries now show base rows before bounded parallel supplements, cancel reads when navigating, and support timeouts and retries. The Query area includes server activities and a PVF item library; the quest library supports selected characters. Settings can load the approved PVF into memory. See [query behavior and PVF modes](docs/GM_QUERY_PERFORMANCE.md).
+
 ## What it does
 
 | Workflow | Current capabilities |

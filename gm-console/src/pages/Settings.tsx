@@ -11,8 +11,13 @@ import {
   FileText,
 } from "lucide-react";
 import { Tabs, Field, Pill, type PageProps } from "../ui";
+import { HubLogin } from "../api/controls";
 import { useLive } from "../api/context";
-export function Settings({ state, request }: PageProps) {
+function HubSettings({
+  state,
+  request,
+  tab,
+}: PageProps & { tab: "news" | "source" }) {
   const live = useLive();
   const sources = state.api?.hub?.sources || [];
   const [sourceId, setSourceId] = useState(sources[0]?.id || "");
@@ -21,8 +26,7 @@ export function Settings({ state, request }: PageProps) {
     [publicKey, setPublicKey] = useState(source?.publicKey || ""),
     [certificate, setCertificate] = useState(source?.certificateSha256 || ""),
     [sourceEnabled, setSourceEnabled] = useState(source?.enabled ?? true);
-  const [tab, setTab] = useState<"news" | "source">("news"),
-    [newsId, setNewsId] = useState(state.news[0]?.id || ""),
+  const [newsId, setNewsId] = useState(state.news[0]?.id || ""),
     [title, setTitle] = useState(state.news[0]?.title || ""),
     [body, setBody] = useState(state.news[0]?.body || "");
   const [download, setDownload] = useState(state.sources.download),
@@ -55,17 +59,6 @@ export function Settings({ state, request }: PageProps) {
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
-      <div className="section-tabs">
-        <Tabs
-          label="公告与连接设置"
-          items={[
-            { id: "news", label: "公告管理" },
-            { id: "source", label: "下载源与游戏连接" },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </div>
       {tab === "news" ? (
         <div className="news-layout">
           <aside className="glass content-panel news-list">
@@ -317,5 +310,120 @@ export function Settings({ state, request }: PageProps) {
         </div>
       )}
     </div>
+  );
+}
+
+export function Settings(props: PageProps) {
+  const live = useLive();
+  const [tab, setTab] = useState<"news" | "source" | "pvf">("news");
+  useEffect(() => {
+    if (!live || tab === "pvf" || live.meta.hub) return;
+    void live.guard(() => live.hub());
+    return () => live.cancelScope("hub");
+  }, [live, tab]);
+  return (
+    <>
+      <div className="section-tabs">
+        <Tabs
+          label="公告与连接设置"
+          items={[
+            { id: "news", label: "公告管理" },
+            { id: "source", label: "下载源与游戏连接" },
+            ...(live ? [{ id: "pvf" as const, label: "PVF 数据模式" }] : []),
+          ]}
+          value={tab}
+          onChange={(value) => {
+            live?.navigate("settings", true);
+            setTab(value);
+          }}
+        />
+      </div>
+      {tab === "pvf" ? (
+        <PVFSettings {...props} />
+      ) : live && !props.state.api?.hub ? (
+        <HubLogin />
+      ) : (
+        <HubSettings {...props} tab={tab} />
+      )}
+    </>
+  );
+}
+function PVFSettings({ state }: PageProps) {
+  const live = useLive()!;
+  const mode = state.api?.resources.pvfMode;
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    void live.guard(() => live.pvfMode());
+    return () => live.cancelScope("pvfMode");
+  }, [live]);
+  useEffect(() => {
+    if (!mode?.loading) return;
+    const timer = setTimeout(() => void live.guard(() => live.pvfMode()), 1500);
+    return () => clearTimeout(timer);
+  }, [live, mode]);
+  const change = (value: "disk" | "memory") => {
+    setSaving(true);
+    void live.guard(async () => {
+      try {
+        await live.pvfMode(value);
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+  return (
+    <section className="glass content-panel">
+      <h3>PVF 数据模式</h3>
+      <p>
+        磁盘索引使用较少内存。直接加载 PVF
+        将完整文件与目录放入内存，加快物品、任务等定义的读取。
+      </p>
+      <p>
+        直接加载很快，但内存开销较高：完整文件约{" "}
+        {Math.ceil((mode?.archiveBytes || 0) / 1048576)} MiB，另需目录和最多 96
+        MiB 的解码缓存。
+      </p>
+      <div className="button-row">
+        <button
+          className={mode?.desired === "disk" ? "primary" : "secondary"}
+          disabled={saving || !mode}
+          onClick={() => change("disk")}
+        >
+          磁盘索引
+        </button>
+        <button
+          className={mode?.desired === "memory" ? "primary" : "secondary"}
+          disabled={saving || !mode || !!mode.loading}
+          onClick={() => change("memory")}
+        >
+          直接加载 PVF
+        </button>
+        <button
+          className="secondary"
+          onClick={() => void live.guard(() => live.pvfMode())}
+        >
+          刷新状态
+        </button>
+      </div>
+      {mode && (
+        <p role="status">
+          当前使用：{mode.mode === "memory" ? "内存 PVF" : "磁盘索引"}
+          {mode.loading ? " · 正在后台加载 PVF" : ""}
+        </p>
+      )}
+      {mode?.error && (
+        <p className="inline-error" role="alert">
+          {mode.error}
+        </p>
+      )}
+      <p className="muted">
+        设置自动保存。加载期间继续使用磁盘索引，切回后释放内存归档。
+      </p>
+      {mode && (
+        <small className="muted" style={{ overflowWrap: "anywhere" }}>
+          PVF {mode.pvfChecksum}
+        </small>
+      )}
+    </section>
   );
 }

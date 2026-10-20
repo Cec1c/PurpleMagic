@@ -1,10 +1,13 @@
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import { BookOpen, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
+import { PlayerPicker } from "./Players";
+import { resolveRecipients } from "../domain";
 import { quests as demoQuests } from "../fixtures";
 import { useLive } from "../api/context";
 import { LoadMore } from "../api/controls";
 import {
+  Modal,
   Tabs,
   SearchField,
   CheckBox,
@@ -13,19 +16,23 @@ import {
   toggle,
   type PageProps,
 } from "../ui";
-export function QuestPage({ state, character, request }: PageProps) {
+export function QuestPage({ state, character, request, selection, setSelection }: PageProps) {
   const live = useLive();
+  const [picker, setPicker] = useState(false);
+  const targets = resolveRecipients(state, selection);
   const quests = state.api?.quests || demoQuests;
   const [status, setStatus] = useState<
       "active" | "all" | "completed" | "catalog"
-    >("active"),
+    >(character.id ? "active" : "catalog"),
     [chapter, setChapter] = useState("全部章节"),
     [q, setQ] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [focus, setFocus] = useState("");
   useEffect(() => {
-    if (live) void live.guard(() => live.quests(status, q));
-  }, [live, status, status === "catalog" ? q : ""]);
+    if (!live) return;
+    const timer = setTimeout(() => void live.guard(() => live.quests(status, q)), status === "catalog" ? 250 : 0);
+    return () => { clearTimeout(timer); live.cancelScope("quests"); };
+  }, [live, character.id, status, status === "catalog" ? q : ""]);
   const states = state.questStates[character.id] || {},
     chapters = ["全部章节", ...new Set(quests.map((q) => q.chapter))];
   const rows = quests.filter(
@@ -56,11 +63,17 @@ export function QuestPage({ state, character, request }: PageProps) {
           ]}
           value={status}
           onChange={(v) => {
+            live?.navigate("quests", true);
             setStatus(v);
             setSelected([]);
           }}
         />
       </div>
+      {status === "catalog" && <div className="toolbar">
+        <button className="secondary" onClick={() => setPicker(true)}>选择操作角色（{targets.length}）</button>
+        <span className="muted">完成任务不发放任务奖励</span>
+      </div>}
+      {picker && <Modal title="选择任务操作角色" wide onClose={() => setPicker(false)}><PlayerPicker state={state} selection={selection} setSelection={setSelection} /></Modal>}
       <div ref={motion} className="quest-layout">
         <aside className="glass chapter-list">
           <h3>任务章节</h3>
@@ -170,10 +183,11 @@ export function QuestPage({ state, character, request }: PageProps) {
               <div className="button-row">
                 <button
                   className="secondary"
-                  disabled={!selectedVisible.length}
+                  disabled={!selectedVisible.length || (live ? !state.api?.features["quests.write"] : false) || (status === "catalog" ? !targets.length : !character.id)}
                   onClick={() =>
                     request({
                       kind: "quest",
+                      selectedTargets: status === "catalog",
                       characterId: character.id,
                       ids: selectedVisible,
                       status: "active",
@@ -185,10 +199,11 @@ export function QuestPage({ state, character, request }: PageProps) {
                 </button>
                 <button
                   className="primary"
-                  disabled={!selectedVisible.length}
+                  disabled={!selectedVisible.length || (live ? !state.api?.features["quests.write"] : false) || (status === "catalog" ? !targets.length : !character.id)}
                   onClick={() =>
                     request({
                       kind: "quest",
+                      selectedTargets: status === "catalog",
                       characterId: character.id,
                       ids: selectedVisible,
                       status: "completed",

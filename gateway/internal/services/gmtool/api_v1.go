@@ -112,6 +112,9 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/mailbox", s.v1Mailbox)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/mailbox/{mailId}", s.v1MailboxDetail)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/quests", s.v1CharacterQuests)
+	mux.HandleFunc("GET /api/v1/activities", s.v1Activities)
+	mux.HandleFunc("GET /api/v1/settings/pvf", s.v1PVFMode)
+	writes.HandleFunc("POST /api/v1/settings/pvf", s.v1PVFMode)
 	mux.HandleFunc("GET /api/v1/quests", s.v1Quests)
 	mux.HandleFunc("GET /api/v1/quests/{questId}", s.v1QuestDetail)
 	mux.HandleFunc("GET /api/v1/items", s.v1Items)
@@ -311,6 +314,8 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["mailbox.write"] = available && mailboxWrite && s.deps.Runtime != nil
 	_, questErr := s.questReadIndex(r.Context())
 	features["quests.read"] = available && resources && questErr == nil
+	features["activities.read"] = s.deps.Runtime != nil || s.deps.Activities != nil
+	features["pvf.mode"] = s.pvfModeControl() != nil
 	_, questWrites := group.Character.(repository.CharacterManagementUnitOfWork)
 	_, inventoryWrites := group.Character.(repository.InventoryManagementUnitOfWork)
 	features["inventory.write"] = available && inventoryWrites && s.items != nil && s.items.isReady() && s.deps.Runtime != nil

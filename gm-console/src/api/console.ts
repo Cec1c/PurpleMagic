@@ -112,9 +112,18 @@ export function itemDTO(v: DTO, c: Character, tab: InventoryTab): Item {
     rarity: rarities[v.rarity] || "普通",
     count: safeNumber(v.count),
     level: v.minimumLevel ?? 0,
-    enhance: /avatar/i.test(v.tag || "") || v.container === "avatars" ? NaN : safeNumber(a.reinforce),
-    amplify: /avatar/i.test(v.tag || "") || v.container === "avatars" ? NaN : safeNumber(a.amplifyType),
-    forge: /avatar/i.test(v.tag || "") || v.container === "avatars" ? NaN : safeNumber(a.forging),
+    enhance:
+      /avatar/i.test(v.tag || "") || v.container === "avatars"
+        ? NaN
+        : safeNumber(a.reinforce),
+    amplify:
+      /avatar/i.test(v.tag || "") || v.container === "avatars"
+        ? NaN
+        : safeNumber(a.amplifyType),
+    forge:
+      /avatar/i.test(v.tag || "") || v.container === "avatars"
+        ? NaN
+        : safeNumber(a.forging),
     bound: v.bound,
     version: 0,
     remote: {
@@ -140,6 +149,8 @@ export class ConsoleAPI {
   current = "";
   sectionId: Section = "query";
   http: HttpClient;
+  private epoch = 0;
+  private retries = new Set<() => Promise<void>>();
   private controllers = new Map<string, AbortController>();
   private selected: Selection = { accounts: [], characters: [] };
   constructor(
@@ -165,17 +176,51 @@ export class ConsoleAPI {
     this.meta.error = (e as Error).message;
     this.publish();
   }
-  async guard(f: () => Promise<void>) {
+  navigate(section: Section, force = false) {
+    if (this.sectionId === section && !force) return;
+    this.epoch++;
+    this.sectionId = section;
+    this.http.cancelReads();
+    this.controllers.forEach((c) => c.abort());
+    this.retries.clear();
+    this.meta.reading = 0;
+    this.meta.inventory.loading = false;
+    this.meta.error = "";
+    this.publish();
+  }
+  cancelScope(scope: string) {
+    this.controllers.get(scope)?.abort();
+  }
+  async retry() {
+    const jobs = [...this.retries];
+    this.retries.clear();
+    this.meta.error = "";
+    this.http.clearCache();
+    await Promise.all(jobs.map((job) => this.guard(job)));
+  }
+  async guard(f: () => Promise<void>, retry = f) {
+    const epoch = this.epoch;
     this.meta.reading++;
     this.publish();
     try {
       await f();
     } catch (e) {
-      this.error(e);
+      if (epoch === this.epoch && (e as Error).name !== "AbortError") {
+        this.retries.add(retry);
+        this.error(e);
+      }
     } finally {
-      this.meta.reading = Math.max(0, this.meta.reading - 1);
-      this.publish();
+      if (epoch === this.epoch) {
+        this.meta.reading = Math.max(0, this.meta.reading - 1);
+        this.publish();
+      }
     }
+  }
+  private async partial(
+    jobs: (() => Promise<void>)[],
+    retry?: () => Promise<void>,
+  ) {
+    await Promise.all(jobs.map((job) => this.guard(job, retry)));
   }
   signal(scope: string) {
     this.controllers.get(scope)?.abort();
@@ -193,7 +238,7 @@ export class ConsoleAPI {
       this.meta.authenticated = true;
       this.meta.error = "";
       this.restore();
-      await this.directory("characters", "");
+      this.publish();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         this.meta.authenticated = false;
@@ -214,11 +259,12 @@ export class ConsoleAPI {
     this.meta.authReady = true;
     this.meta.error = "";
     this.restore();
-    await this.directory("characters", "");
+    this.publish();
   }
   async logout() {
     await this.http.raw("/api/auth/logout", "POST", {});
-    this.controllers.forEach((c) => c.abort());
+    this.navigate("query", true);
+    this.http.clearCache();
     this.state = emptyState();
     this.meta.authReady = true;
     this.http.csrf = "";
@@ -253,15 +299,25 @@ export class ConsoleAPI {
   ) {
     const signal = this.signal("directory");
     const old = this.meta.directory;
-    const cursor = more && old.mode === mode && old.q === q && (old.online || "all") === online ? old.next : "";
-    this.meta.reading++;
+    const cursor =
+      more &&
+      old.mode === mode &&
+      old.q === q &&
+      (old.online || "all") === online
+        ? old.next
+        : "";
     this.meta.error = "";
     this.publish();
-    try {
+    {
       const r = await this.http.get<DTO[]>(
         accountId
           ? `/api/v1/accounts/${segment(accountId)}/characters`
-          : query(`/api/v1/${mode}`, { q, limit: 20, cursor, ...(mode === "characters" && online !== "all" ? { online } : {}) }),
+          : query(`/api/v1/${mode}`, {
+              q,
+              limit: 20,
+              cursor,
+              ...(mode === "characters" && online !== "all" ? { online } : {}),
+            }),
         signal,
       );
       let chars: Character[] = [],
@@ -281,16 +337,11 @@ export class ConsoleAPI {
               this.state.characters.find((c) => c.id === String(v.characterId)),
             ),
           );
-        for (const id of [...new Set(chars.map((c) => c.accountId))]) {
-          const known = this.state.accounts.find((a) => a.id === id);
-          acc.push(
-            known ||
-              accountDTO(
-                (await this.http.get(`/api/v1/accounts/${segment(id)}`, signal))
-                  .data,
-              ),
-          );
-        }
+        acc = [...new Set(chars.map((c) => c.accountId))].map(
+          (id) =>
+            this.state.accounts.find((a) => a.id === id) ||
+            accountDTO({ accountId: id, name: id }),
+        );
       } else {
         acc = (r.data || []).map((v) =>
           accountDTO(
@@ -298,31 +349,6 @@ export class ConsoleAPI {
             this.state.accounts.find((a) => a.id === v.accountId),
           ),
         );
-        // Only the visible account page is expanded, never the full directory.
-        for (const a of acc) {
-          if (this.meta.features["currency.read"]) {
-            const { data: wallet } = await this.http.get(
-              `/api/v1/accounts/${segment(a.id)}/currency`,
-              signal,
-            );
-            a.points = safeNumber(wallet.balance);
-            a.rawPoints = wallet.balance;
-          }
-          const r = await this.http.get<DTO[]>(
-            `/api/v1/accounts/${segment(a.id)}/characters`,
-            signal,
-          );
-          chars.push(
-            ...(r.data || []).map((v) =>
-              characterDTO(
-                v,
-                this.state.characters.find(
-                  (c) => c.id === String(v.characterId),
-                ),
-              ),
-            ),
-          );
-        }
       }
       if (signal.aborted) return;
       const keepChars = this.state.characters.filter(
@@ -357,10 +383,48 @@ export class ConsoleAPI {
         characters: allChars,
         accounts: merge(keepAcc, acc, (a) => a.id),
       });
-      await this.presence();
-    } finally {
-      this.meta.reading = Math.max(0, this.meta.reading - 1);
-      this.publish();
+      await this.partial([
+        ...(mode === "characters"
+          ? acc
+              .filter((a) => a.name === a.id)
+              .map((a) => async () => {
+                const { data } = await this.http.get(
+                  `/api/v1/accounts/${segment(a.id)}`,
+                  signal,
+                );
+                if (signal.aborted) return;
+                this.patch({
+                  accounts: merge(
+                    this.state.accounts,
+                    [accountDTO(data, a)],
+                    (x) => x.id,
+                  ),
+                });
+              })
+          : []),
+        // Counts come with the directory; only visible wallets need supplements.
+        ...(mode === "accounts" && this.meta.features["currency.read"]
+          ? acc.map((a) => async () => {
+              const { data } = await this.http.get(
+                `/api/v1/accounts/${segment(a.id)}/currency`,
+                signal,
+              );
+              if (signal.aborted) return;
+              this.patch({
+                accounts: this.state.accounts.map((x) =>
+                  x.id === a.id
+                    ? {
+                        ...x,
+                        points: safeNumber(data.balance),
+                        rawPoints: data.balance,
+                      }
+                    : x,
+                ),
+              });
+            })
+          : []),
+        ...(mode === "characters" ? [() => this.presence(signal)] : []),
+      ]);
     }
   }
   async resolveSelection(selection: Selection) {
@@ -399,9 +463,9 @@ export class ConsoleAPI {
         selection.characters.includes(c.id),
     );
   }
-  async presence() {
+  async presence(signal?: AbortSignal) {
     try {
-      const { data } = await this.http.get("/api/v1/presence");
+      const { data } = await this.http.get("/api/v1/presence", signal);
       const ids = new Set(data.characterIds);
       this.patch({
         characters: this.state.characters.map((c) => ({
@@ -409,14 +473,17 @@ export class ConsoleAPI {
           online: ids.has(c.id),
         })),
       });
-    } catch {
+    } catch (e) {
+      if ((e as Error).name === "AbortError") throw e;
       this.patch({
         characters: this.state.characters.map((c) => ({ ...c, online: null })),
       });
     }
   }
   async select(id: string) {
-    this.controllers.forEach((controller) => controller.abort());
+    this.http.cancelReads();
+    this.controllers.forEach((c) => c.abort());
+    const signal = this.signal("selection");
     this.current = id;
     this.state.items = [];
     this.state.mails = [];
@@ -426,7 +493,7 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.publish();
     await this.character(id);
-    await this.presence();
+    if (!signal.aborted && this.current === id) await this.presence(signal);
   }
   async character(id = this.current) {
     if (!id) return;
@@ -451,24 +518,33 @@ export class ConsoleAPI {
           )
         ).data,
       );
+    if (signal.aborted || id !== this.current) return;
+    this.patch({
+      characters: merge(this.state.characters, [c], (x) => x.id),
+      accounts: merge(this.state.accounts, [a], (x) => x.id),
+    });
     const reads: [string, string][] = [
       ["gold", `characters/${segment(id)}/gold`],
       ["currency", `accounts/${segment(c.accountId)}/currency`],
     ];
     const resources: Record<string, DTO> = {};
-    for (const [name, path] of reads) {
-      if (this.meta.features[name + ".read"]) {
-        const { data } = await this.http.get(`/api/v1/${path}`, signal);
-        resources[name] = data;
-        if (name === "gold") c.gold = safeNumber(data.balance);
-        else
-          a = {
-            ...a,
-            points: safeNumber(data.balance),
-            rawPoints: data.balance,
-          };
-      }
-    }
+    await this.partial(
+      reads.map(([name, path]) => async () => {
+        if (this.meta.features[name + ".read"]) {
+          const { data } = await this.http.get(`/api/v1/${path}`, signal);
+          if (signal.aborted || id !== this.current) return;
+          resources[name] = data;
+          if (name === "gold") c.gold = safeNumber(data.balance);
+          else
+            a = {
+              ...a,
+              points: safeNumber(data.balance),
+              rawPoints: data.balance,
+            };
+        }
+      }),
+      () => this.character(id),
+    );
     if (signal.aborted || id !== this.current) return;
     const latest = this.state.characters.find((x) => x.id === id);
     c = {
@@ -495,25 +571,22 @@ export class ConsoleAPI {
       await this.inventory(
         refresh ? (this.meta.inventory.tab as InventoryTab) : "bag",
       );
-    else if (section === "mail") {
-      await this.mailbox();
-      await this.tasks();
-    } else if (section === "quests")
-      await this.quests(
-        refresh ? this.meta.questFilter.status : "active",
-        refresh ? this.meta.questFilter.q : "",
-      );
-    else if (section === "gm") {
-      await this.growth();
-      await this.benefits();
-      await this.tasks();
-      await this.history();
-    } else if (section === "settings") await this.hub();
+    else if (refresh && section === "mail")
+      await this.partial([() => this.mailbox(), () => this.tasks()]);
+    else if (refresh && section === "quests")
+      await this.quests(this.meta.questFilter.status, this.meta.questFilter.q);
+    else if (refresh && section === "gm")
+      await this.partial([
+        () => this.growth(), () => this.benefits(),
+        () => this.tasks(), () => this.history(),
+      ]);
+    else if (refresh && section === "settings") await this.hub();
   }
   async inventory(tab: InventoryTab, more = false) {
     if (!this.current) return;
     const id = this.current,
       c = this.state.characters.find((c) => c.id === id)!;
+    if (!c) return;
     const signal = this.signal("inventory");
     const same = this.meta.inventory.tab === tab;
     const previous = more && same ? this.state.items : [];
@@ -525,32 +598,37 @@ export class ConsoleAPI {
       let items: Item[] = [...previous],
         next: Record<string, string> = {},
         pvf = "";
-      for (const container of containers[tab]) {
-        if (more && !cursors[container]) continue;
-        const { data, page } = await this.http.get(
-          query(`/api/v1/characters/${segment(id)}/inventory`, {
-            container,
-            limit: 100,
-            cursor: cursors[container],
-          }),
-          signal,
-        );
-        if (pvf && pvf !== data.pvfChecksum)
-          throw new Error("PVF 已更新，请刷新背包");
-        pvf = data.pvfChecksum;
-        const rows = (data.items || []).filter(
-          (v: DTO) =>
-            tab !== "emblems" ||
-            /emblem/i.test(v.tag || "") ||
-            v.category === "徽章",
-        );
-        items = merge(
-          items,
-          rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)),
-          (i) => i.key,
-        );
-        if (page?.nextCursor) next[container] = page.nextCursor;
-      }
+      await this.partial(
+        containers[tab].map((container) => async () => {
+          if (more && !cursors[container]) return;
+          const { data, page } = await this.http.get(
+            query(`/api/v1/characters/${segment(id)}/inventory`, {
+              container,
+              limit: 100,
+              cursor: cursors[container],
+            }),
+            signal,
+          );
+          if (signal.aborted || id !== this.current) return;
+          if (pvf && pvf !== data.pvfChecksum)
+            throw new Error("PVF 已更新，请刷新背包");
+          pvf = data.pvfChecksum;
+          const rows = (data.items || []).filter(
+            (v: DTO) =>
+              tab !== "emblems" ||
+              /emblem/i.test(v.tag || "") ||
+              v.category === "徽章",
+          );
+          items = merge(
+            items,
+            rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)),
+            (i) => i.key,
+          );
+          if (page?.nextCursor) next[container] = page.nextCursor;
+          this.patch({ items: [...items] });
+        }),
+        () => this.inventory(tab),
+      );
       if (signal.aborted || id !== this.current) return;
       this.meta.inventory = { tab, next, pvf, loading: false };
       this.patch({ items });
@@ -647,7 +725,7 @@ export class ConsoleAPI {
     });
   }
   async quests(status = "active", q = "", more = false) {
-    if (!this.current) return;
+    if (!this.current && status !== "catalog") return;
     this.meta.questFilter = { status, q };
     const id = this.current,
       signal = this.signal("quests"),
@@ -725,46 +803,113 @@ export class ConsoleAPI {
     this.meta.catalogNext = page?.nextCursor || "";
     this.publish();
   }
+  async library(q: string, kind: string, more = false) {
+    const signal = this.signal("library");
+    const previous = this.meta.resources.library;
+    const { data, page } = await this.http.get(
+      query("/api/v1/items", {
+        q,
+        kind,
+        limit: 50,
+        cursor: more ? previous?.next : undefined,
+      }),
+      signal,
+    );
+    if (signal.aborted) return;
+    this.meta.resources.library = {
+      ...data,
+      q,
+      kind,
+      next: page?.nextCursor || "",
+      items: merge(
+        more ? previous?.items || [] : [],
+        data.items || [],
+        (v: DTO) => v.itemId,
+      ),
+    };
+    this.publish();
+  }
+  async libraryItem(id: string) {
+    const signal = this.signal("libraryItem");
+    this.meta.resources.libraryItem = { loading: true, id };
+    this.publish();
+    try {
+      const { data } = await this.http.get(
+        `/api/v1/items/${segment(id)}`,
+        signal,
+      );
+      if (signal.aborted) return;
+      this.meta.resources.libraryItem = { ...data, id };
+    } finally {
+      if (!signal.aborted) {
+        this.meta.resources.libraryItem.loading = false;
+        this.publish();
+      }
+    }
+  }
+  async activities() {
+    const signal = this.signal("activities");
+    const { data } = await this.http.get("/api/v1/activities", signal);
+    if (signal.aborted) return;
+    this.meta.resources.activities = data;
+    this.publish();
+  }
+  async pvfMode(mode?: "disk" | "memory") {
+    const signal = this.signal("pvfMode");
+    const data = mode
+      ? await this.http.post("/api/v1/settings/pvf", { mode })
+      : (await this.http.get("/api/v1/settings/pvf", signal)).data;
+    if (signal.aborted) return;
+    this.meta.resources.pvfMode = data;
+    this.publish();
+  }
   async growth() {
     if (!this.current) return;
     const id = this.current,
       signal = this.signal("growth");
     let c = this.state.characters.find((c) => c.id === id)!;
-    for (const [name, path] of [
-      ["level", "level"],
-      ["skillPoints", "skill-points"],
-      ["profession", "profession"],
-    ]) {
-      if (!this.meta.features[name + ".read"]) continue;
-      const { data } = await this.http.get(
-        `/api/v1/characters/${segment(id)}/${path}`,
-        signal,
-      );
-      if (signal.aborted || id !== this.current) return;
-      this.meta.resources[name] = data;
-      if (name === "skillPoints") {
-        c = { ...c, sp: data.balance.bonusSp, tp: data.balance.bonusTp };
-        this.patch({ characters: this.state.characters.map(x => x.id === id ? {...x, sp:c.sp, tp:c.tp} : x) });
-      }
-      if (name === "profession") {
-        this.meta.jobsRaw = data.jobs;
-        this.meta.jobs = (data.jobs || []).flatMap((j: DTO) =>
-          (j.choices || []).map((g: DTO) => ({
-            value: `${j.job}:${g.growType}`,
-            label: g.name || j.name,
-          })),
+    await this.partial(
+      [
+        ["level", "level"],
+        ["skillPoints", "skill-points"],
+        ["profession", "profession"],
+      ].map(([name, path]) => async () => {
+        if (!this.meta.features[name + ".read"]) return;
+        const { data } = await this.http.get(
+          `/api/v1/characters/${segment(id)}/${path}`,
+          signal,
         );
-        const choice = this.meta.jobs.find(
-          (j) => j.value === `${data.balance.job}:${data.balance.growType}`,
-        );
-        c = {
-          ...c,
-          job: choice?.label || c.job,
-          jobCode: String(data.balance.job),
-          growType: data.balance.growType,
-        };
-      }
-    }
+        if (signal.aborted || id !== this.current) return;
+        this.meta.resources[name] = data;
+        if (name === "skillPoints") {
+          c = { ...c, sp: data.balance.bonusSp, tp: data.balance.bonusTp };
+          this.patch({
+            characters: this.state.characters.map((x) =>
+              x.id === id ? { ...x, sp: c.sp, tp: c.tp } : x,
+            ),
+          });
+        }
+        if (name === "profession") {
+          this.meta.jobsRaw = data.jobs;
+          this.meta.jobs = (data.jobs || []).flatMap((j: DTO) =>
+            (j.choices || []).map((g: DTO) => ({
+              value: `${j.job}:${g.growType}`,
+              label: g.name || j.name,
+            })),
+          );
+          const choice = this.meta.jobs.find(
+            (j) => j.value === `${data.balance.job}:${data.balance.growType}`,
+          );
+          c = {
+            ...c,
+            job: choice?.label || c.job,
+            jobCode: String(data.balance.job),
+            growType: data.balance.growType,
+          };
+        }
+      }),
+      () => this.growth(),
+    );
     if (!signal.aborted && id === this.current)
       this.patch({
         characters: this.state.characters.map((x) =>
@@ -782,13 +927,16 @@ export class ConsoleAPI {
       });
   }
   async benefits(more = false) {
+    const signal = this.signal("benefits");
     if (!this.meta.features["benefits.write"]) return;
     const { data, page } = await this.http.get<DTO[]>(
       query("/api/v1/benefits", {
         limit: 30,
         cursor: more ? this.meta.benefitNext : undefined,
       }),
+      signal,
     );
+    if (signal.aborted) return;
     this.meta.benefitNext = page?.nextCursor || "";
     this.patch({
       benefits: merge(
@@ -807,7 +955,9 @@ export class ConsoleAPI {
           revision: v.revision,
           scopeLabel: v.scope === "account" ? "每账号一次" : "每角色一次",
           rewardSummary: [
-            v.reward.cera ? `点券 ${Number(v.reward.cera).toLocaleString()}` : "",
+            v.reward.cera
+              ? `点券 ${Number(v.reward.cera).toLocaleString()}`
+              : "",
             v.reward.gold
               ? `金币 ${Number(v.reward.gold).toLocaleString()}`
               : "",
@@ -836,13 +986,16 @@ export class ConsoleAPI {
     return job.id as string;
   }
   async tasks(more = false) {
+    const signal = this.signal("tasks");
     if (!this.meta.features["tasks.read"]) return;
     const { data, page } = await this.http.get<DTO[]>(
       query("/api/v1/tasks", {
         limit: 30,
         cursor: more ? this.meta.taskNext : undefined,
       }),
+      signal,
     );
+    if (signal.aborted) return;
     this.meta.taskNext = page?.nextCursor || "";
     this.meta.resources.tasks = {
       rows: merge(
@@ -887,31 +1040,34 @@ export class ConsoleAPI {
       ["mailbox.write", `${base}/mailbox-operations`, "邮箱"],
     ];
     const cursors: Record<string, string> = {};
-    const rows = [];
-    for (const [feature, path, label] of routes) {
-      if (
-        !this.meta.features[feature] ||
-        (more && !this.meta.historyNext[path])
-      )
-        continue;
-      const { data, page } = await this.http.get<DTO[]>(
-        query(path, {
-          limit: 20,
-          cursor: more ? this.meta.historyNext[path] : undefined,
-        }),
-        signal,
-      );
-      if (page?.nextCursor) cursors[path] = page.nextCursor;
-      for (const v of data || [])
-        rows.push({
-          id: `${label}:${v.requestId}`,
-          kind: v.kind || label,
-          target: label,
-          summary: `${label} · ${v.reason || "管理操作"}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : ""}`,
-          at: v.createdAt,
-          details: v,
-        });
-    }
+    const rows: State["receipts"] = [];
+    await this.partial(
+      routes.map(([feature, path, label]) => async () => {
+        if (
+          !this.meta.features[feature] ||
+          (more && !this.meta.historyNext[path])
+        )
+          return;
+        const { data, page } = await this.http.get<DTO[]>(
+          query(path, {
+            limit: 20,
+            cursor: more ? this.meta.historyNext[path] : undefined,
+          }),
+          signal,
+        );
+        if (page?.nextCursor) cursors[path] = page.nextCursor;
+        for (const v of data || [])
+          rows.push({
+            id: `${label}:${v.requestId}`,
+            kind: v.kind || label,
+            target: label,
+            summary: `${label} · ${v.reason || "管理操作"}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : ""}`,
+            at: v.createdAt,
+            details: v,
+          });
+      }),
+      () => this.history(),
+    );
     if (signal.aborted || this.current !== id) return;
     this.meta.historyNext = cursors;
     this.patch({
@@ -931,7 +1087,13 @@ export class ConsoleAPI {
           token,
           remember: false,
         });
-      const data = await this.http.raw<DTO>("/admin/api/state");
+      const data = await this.http.raw<DTO>(
+        "/admin/api/state",
+        "GET",
+        undefined,
+        undefined,
+        this.signal("hub"),
+      );
       this.http.hubCsrf = data.csrf;
       this.meta.hub = data;
       this.meta.hubError = "";
@@ -955,6 +1117,7 @@ export class ConsoleAPI {
         },
       });
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       this.meta.hubError = (e as Error).message;
       if (e instanceof ApiError && e.status === 401) this.meta.hub = undefined;
       this.publish();

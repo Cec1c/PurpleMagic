@@ -77,8 +77,9 @@ type Archive struct {
 	strW    []byte
 
 	// chunks 缓存已解密解压的 body chunk，texts 缓存已解码的脚本文本。
-	chunks sync.Map
-	texts  sync.Map
+	chunks  sync.Map
+	texts   sync.Map
+	limited *archiveCache // configured before publishing a memory-mode archive
 }
 
 func Open(path string) (*Archive, error) {

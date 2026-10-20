@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--gold-benefit-browser-script',type=Path)
     parser.add_argument('--feedback-browser-script',type=Path)
     parser.add_argument('--benefit-rewards-browser-script',type=Path)
+    parser.add_argument('--queries-browser-script',type=Path)
     parser.add_argument('--run',default='Benefits|ItemRule|Standalone|V1|Managed',help='Go test name filter')
     parser.add_argument('--output-dir',type=Path,default=ROOT/'runtime/tests')
     args=parser.parse_args()
@@ -29,6 +30,8 @@ def main():
         parser.error('Feedback browser script does not exist')
     if args.benefit_rewards_browser_script and not args.benefit_rewards_browser_script.is_file():
         parser.error('Benefit rewards browser script does not exist')
+    if args.queries_browser_script and not args.queries_browser_script.is_file():
+        parser.error("Queries browser script does not exist")
     out = args.output_dir.resolve()
     out.mkdir(parents=True, exist_ok=True)
     name = 'dnf90gm-test-' + secrets.token_hex(6)
@@ -56,6 +59,11 @@ def main():
         env.pop('DNF90GM_FEEDBACK_BROWSER_OUTPUT',None)
         env.pop('DNF90GM_BENEFIT_REWARDS_BROWSER_SCRIPT',None)
         env.pop('DNF90GM_BENEFIT_REWARDS_BROWSER_OUTPUT',None)
+        env.pop('DNF90GM_QUERIES_BROWSER_SCRIPT',None)
+        env.pop('DNF90GM_QUERIES_BROWSER_OUTPUT',None)
+        if args.queries_browser_script:
+            env['DNF90GM_QUERIES_BROWSER_SCRIPT']=str(args.queries_browser_script.resolve())
+            env['DNF90GM_QUERIES_BROWSER_OUTPUT']=str(out/'queries-browser')
         if args.benefit_rewards_browser_script:
             env['DNF90GM_BENEFIT_REWARDS_BROWSER_SCRIPT']=str(args.benefit_rewards_browser_script.resolve())
             env['DNF90GM_BENEFIT_REWARDS_BROWSER_OUTPUT']=str(out/'browser')

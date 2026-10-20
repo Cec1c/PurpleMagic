@@ -115,7 +115,7 @@ test('inventory loading covers every container and excludes an aborted previous 
  const read=api.inventory('bag');await new Promise(r=>setTimeout(r,20));assert.equal(count,6);assert.equal(api.meta.inventory.loading,true);
  release();await read;assert.equal(api.meta.inventory.loading,false);
  let done;api.http.fetcher=async()=>{await new Promise(r=>done=r);return response({items:[{itemId:'123',container:'avatars',slot:1}],pvfChecksum:'hash'});};
- const old=api.inventory('avatars');api.current='20';done();await old;assert.equal(api.state.items.length,0);
+ const old=api.inventory('avatars');await new Promise(r=>setTimeout(r,0));api.current='20';done();await old;assert.equal(api.state.items.length,0);
 });
 test('online selection sends the server filter before pagination',async()=>{
  const api=new ConsoleAPI(()=>{});const paths=[];api.http.fetcher=async path=>{paths.push(path);return response(path==='/api/v1/presence'?{characterIds:[]}:[]);};
