@@ -27,6 +27,9 @@ HRESULT ChooseDirectory(HWND owner, const flutter::EncodableValue* arguments,
   dialog->SetOkButtonLabel(L"选择此目录");
   const auto* fields = arguments ? std::get_if<flutter::EncodableMap>(arguments) : nullptr;
   if (fields) {
+    const auto purpose = fields->find(flutter::EncodableValue("purpose"));
+    const auto* value = purpose != fields->end() ? std::get_if<std::string>(&purpose->second) : nullptr;
+    if (value && *value == "diagnosticExport") dialog->SetTitle(L"PurpleMagic — 选择诊断包导出目录");
     const auto field = fields->find(flutter::EncodableValue("initialDirectory"));
     const auto* initial = field != fields->end() ? std::get_if<std::string>(&field->second) : nullptr;
     if (initial && !initial->empty()) {

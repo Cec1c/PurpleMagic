@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
+import 'diagnostics_panel.dart';
 export 'launcher_controller.dart';
 
 List<String> launchArguments = const [];
@@ -289,6 +290,13 @@ class _PreviewHomeState extends State<PreviewHome> {
         top: 17,
         child: Row(
           children: [
+            if (model.diagnosticsEnabled)
+              TextButton.icon(
+                key: const Key('diagnostics-active'),
+                onPressed: _diagnostics,
+                icon: const Icon(Icons.monitor_heart_outlined, size: 16),
+                label: const Text('诊断已开启', style: TextStyle(fontSize: 11)),
+              ),
             _icon(Icons.settings_outlined, '设置', _settings, key: 'settings'),
             const SizedBox(width: 10),
             _icon(Icons.remove_rounded, '最小化', () => windowAction('minimize')),
@@ -1224,6 +1232,18 @@ class _PreviewHomeState extends State<PreviewHome> {
     }
   }
 
+  Future<void> _diagnostics() => showDialog<void>(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Glass(
+        solid: model.reducedEffects,
+        color: const Color(0xe5221f30),
+        child: SizedBox(width: 600, child: DiagnosticsPanel(model: model)),
+      ),
+    ),
+  );
+
   Future<void> _settings() => showDialog<void>(
     context: context,
     builder: (context) => Dialog(
@@ -1302,6 +1322,30 @@ class _PreviewHomeState extends State<PreviewHome> {
                       activeThumbColor: gold,
                     ),
                     const Divider(height: 34, color: Color(0x22ffffff)),
+                    ListTile(
+                      key: const Key('diagnostics-settings'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.monitor_heart_outlined,
+                        color: violet,
+                      ),
+                      title: const Text(
+                        '增强诊断日志',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      subtitle: Text(
+                        model.diagnosticsEnabled
+                            ? '已开启 · 标记问题与导出片段'
+                            : '自动关联游戏，收集问题前后记录',
+                        style: const TextStyle(fontSize: 11, color: muted),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _diagnostics();
+                      },
+                    ),
+                    const Divider(height: 26, color: Color(0x22ffffff)),
                     const Text(
                       '本机游戏配置',
                       style: TextStyle(color: gold, fontSize: 12),

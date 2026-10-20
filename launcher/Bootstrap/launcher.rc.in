@@ -2,8 +2,8 @@
 1 ICON "@LAUNCHER_ICON@"
 #include <winver.h>
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,2,18,0
- PRODUCTVERSION 0,2,18,0
+ FILEVERSION 0,2,19,0
+ PRODUCTVERSION 0,2,19,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0
  FILEOS VOS_NT_WINDOWS32
@@ -15,8 +15,8 @@ BEGIN
   BEGIN
    VALUE "FileDescription", "PurpleMagic\0"
    VALUE "ProductName", "PurpleMagic\0"
-   VALUE "FileVersion", "0.2.18\0"
-   VALUE "ProductVersion", "0.2.18\0"
+   VALUE "FileVersion", "0.2.19\0"
+   VALUE "ProductVersion", "0.2.19\0"
    VALUE "OriginalFilename", "DNF90Launcher.exe\0"
   END
  END

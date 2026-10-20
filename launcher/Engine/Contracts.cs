@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ServerS5A3;
+using Dnf90.Launcher.Diagnostics;
 
 namespace Dnf90.Launcher;
 
@@ -12,13 +13,14 @@ public sealed record ContentRelease(string Version, string SourceId, string Chan
 public sealed record BundleRelease(string Version, string Url, long Size, string Sha256);
 public sealed record Bootstrap(string Product, int Format, long Sequence, PlayerProfile Profile, News[] News, ContentRelease? Content, BundleRelease? Launcher);
 // AutoCheck is the persisted legacy key; it now controls automatic check and installation of both update types.
-public sealed record Preferences(string ClientDirectory = "", string Account = "", bool RememberAccount = true, bool AutoCheck = true, bool ReducedEffects = false);
+public sealed record Preferences(string ClientDirectory = "", string Account = "", bool RememberAccount = true, bool AutoCheck = true, bool ReducedEffects = false, DiagnosticOptions? Diagnostics = null);
 public sealed record State(string Phase, string Message, double Progress, long Downloaded, long Total, bool CanLogin, bool HasUpdate, bool HasLauncherUpdate, string Source, string Version, Preferences Preferences, News[] News)
 {
     public string LauncherVersion => LauncherEngine.VersionText;
+    public DiagnosticStatus? Diagnostics { get; init; }
 }
 public sealed record Request(int Id, string Method, JsonElement Args);
-public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null);
+public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null, DiagnosticExport? DiagnosticExport = null);
 public sealed record ConfigurationReset(bool Reset, string? BackupPath);
 public sealed record Event(string Type, State State);
 public sealed record Credentials(string Account, string Password);

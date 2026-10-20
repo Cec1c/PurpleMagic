@@ -1,3 +1,7 @@
+## 2026-10-20 launcher diagnostics candidate
+
+Launcher 0.2.19 adds optional local enhanced diagnostics. Read `docs/LAUNCHER_DIAGNOSTICS.md` and `docs/diagnostics/VALIDATION.md` before changing collector layouts, lifecycle or export. Keep full EXE hash gating, read-only process permissions, separate sampling/writer/UI notifications, bounded buffers and the existing launcher UI. This candidate has not been published or deployed; native two-hour gameplay and frame-time acceptance remain open.
+
 # PurpleMagic repository guidance
 
 - Read `docs/FEATURE_LEDGER.md`, `docs/FOUNDATIONS.md`, `docs/ARCHITECTURE.md`, `docs/PROVENANCE.md` and `changlog.md` before choosing a baseline. Preserve existing working-tree changes.
@@ -12,7 +16,7 @@
 - Game listeners, game startup and player databases belong to the game service. Forums and public-player snapshots have separate read contracts, authentication and deployment.
 - Runtime configuration, keys, profiles, game assets, generated binaries and private reports stay ignored. Use disposable databases for tests; never grant assets to real players for verification.
 - Validate Go list/test/vet in both modules, module boundary checks and Windows/Linux builds for extraction or Go changes. Database-affecting changes also require the changed module's `scripts/test_mysql.py` with a fresh disposable database.
-- Launcher checks cover Core, EngineTests, PortableTests and Flutter analyze/test. Preserve client directory discovery and channel compatibility; the launcher version is 0.2.17 (based on the exact 0.2.16 import).
+- Launcher checks cover Core, EngineTests, PortableTests and Flutter analyze/test. Preserve client directory discovery and channel compatibility; the launcher version is 0.2.19 candidate (based on the released 0.2.18 source).
 - New frontend changes require type checking, build, relevant tests and browser checks against isolated fixtures. Keep accepted design references separate from private screenshots and credentials.
 - Build, Git publication, deployment and native game acceptance are separate actions. Compatible EXE/PVF/dstr/NPK/profile signatures and downloaded hashes must be verified before dependent server deployment.
 - Windows entrypoints use BAT/Python. Retain third-party license and provenance notices.

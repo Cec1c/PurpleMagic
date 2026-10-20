@@ -69,7 +69,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--version", default="0.2.18")
+    parser.add_argument("--version", default="0.2.19")
     parser.add_argument("--icon", type=Path, default=ROOT / "launcher/Flutter/windows/runner/resources/app_icon.ico")
     parser.add_argument("--dotnet", type=Path, default=ROOT / ".cache/dotnet8/dotnet.exe")
     args = parser.parse_args()

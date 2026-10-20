@@ -1,0 +1,47 @@
+[
+  {
+    "mode": "off",
+    "evidence": "native Windows ReadProcessMemory plus serialization and ring against controlled child fixture",
+    "elapsedSeconds": 10.0045882,
+    "samples": 0,
+    "collectorCpuSeconds": 0.046875,
+    "targetCpuSeconds": 0,
+    "collectorWorkingSetBytes": 69640192,
+    "targetWorkingSetBytes": 25583616,
+    "intervalP50Ms": null,
+    "intervalP95Ms": null,
+    "readP50Ms": null,
+    "readP95Ms": null,
+    "frameTimeMs": null
+  },
+  {
+    "mode": "basic",
+    "evidence": "native Windows ReadProcessMemory plus serialization and ring against controlled child fixture",
+    "elapsedSeconds": 10.0145214,
+    "samples": 10,
+    "collectorCpuSeconds": 0.015625,
+    "targetCpuSeconds": 0,
+    "collectorWorkingSetBytes": 69566464,
+    "targetWorkingSetBytes": 25583616,
+    "intervalP50Ms": 1001.2444,
+    "intervalP95Ms": 1001.6342999999997,
+    "readP50Ms": 0.914,
+    "readP95Ms": 1.1363,
+    "frameTimeMs": null
+  },
+  {
+    "mode": "specialty",
+    "evidence": "native Windows ReadProcessMemory plus serialization and ring against controlled child fixture",
+    "elapsedSeconds": 30.0024913,
+    "samples": 5015,
+    "collectorCpuSeconds": 3.5625,
+    "targetCpuSeconds": 0,
+    "collectorWorkingSetBytes": 68669440,
+    "targetWorkingSetBytes": 25550848,
+    "intervalP50Ms": 6.01549999999952,
+    "intervalP95Ms": 6.242899999997462,
+    "readP50Ms": 0.6275,
+    "readP95Ms": 0.8681,
+    "frameTimeMs": null
+  }
+]

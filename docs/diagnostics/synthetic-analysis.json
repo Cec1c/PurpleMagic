@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "verified": true,
+  "session_id": "ec2806920ef94720957279264d75b8a9",
+  "incidents": {
+    "89fd639937074d86b1bd7e72cd542091": 2
+  },
+  "missing": [
+    "synthetic_fixture_no_player_data",
+    "vehicle.0.native_distance_result:unsupported"
+  ],
+  "timeline": [
+    {
+      "incident": "89fd639937074d86b1bd7e72cd542091",
+      "sequence": 3,
+      "utc": "2026-10-20T06:00:00.015000+00:00",
+      "kind": "observed_state_change",
+      "fields": {
+        "descriptor.state": {
+          "value": 1,
+          "status": "ok",
+          "reason": null
+        },
+        "logical4.0.fresh": {
+          "value": 0,
+          "status": "ok",
+          "reason": null
+        }
+      }
+    }
+  ],
+  "timeline_omitted": 0,
+  "observation_kind": "client_polling"
+}

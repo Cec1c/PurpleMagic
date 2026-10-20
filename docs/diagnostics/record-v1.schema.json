@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Cec1c/PurpleMagic/docs/diagnostics/record-v1.schema.json",
+  "title": "PurpleMagic diagnostic JSONL record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "utc", "monotonic_ms", "type", "module", "session_id", "read_ms", "quality", "fields"],
+  "properties": {
+    "sequence": {"type": "integer", "minimum": 1},
+    "utc": {"type": "string", "format": "date-time"},
+    "monotonic_ms": {"type": "number", "minimum": 0},
+    "type": {"enum": ["identity", "event", "performance", "scene", "sample"]},
+    "module": {"enum": ["collector", "launcher", "process", "at5t", "fixture"]},
+    "session_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "read_ms": {"type": "number", "minimum": 0},
+    "quality": {"enum": ["ok", "partial", "unstable", "read_failed", "dropped"]},
+    "reason": {"type": ["string", "null"]},
+    "base_sequence": {"type": ["integer", "null"], "minimum": 1},
+    "fields": {
+      "type": "object",
+      "maxProperties": 4096,
+      "additionalProperties": {"$ref": "#/$defs/field"}
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "status"],
+      "properties": {
+        "value": {"type": ["number", "null"]},
+        "status": {"enum": ["ok", "not_applicable", "unsupported", "read_failed", "unstable"]},
+        "reason": {"type": ["string", "null"]}
+      },
+      "if": {"properties": {"status": {"const": "ok"}}},
+      "then": {"properties": {"value": {"type": "number"}}},
+      "else": {"properties": {"value": {"type": "null"}}}
+    }
+  }
+}

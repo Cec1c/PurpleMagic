@@ -127,6 +127,11 @@ class LauncherController extends ChangeNotifier {
   String launcherVersion = '';
   String clientDirectory = '', account = '';
   bool rememberAccount = true;
+  bool diagnosticsEnabled = false, diagnosticBusy = false;
+  String diagnosticType = 'auto';
+  Map<String, dynamic> diagnostics = const {};
+  String diagnosticError = '';
+
   List<Map<String, dynamic>> news = [];
   bool _disposed = false, resettingConfiguration = false;
   bool _automaticUpdating = false;
@@ -184,6 +189,11 @@ class LauncherController extends ChangeNotifier {
     rememberAccount = prefs['rememberAccount'] != false;
     autoUpdate = prefs['autoCheck'] != false;
     reducedEffects = prefs['reducedEffects'] == true;
+    final diagnosticPrefs = prefs['diagnostics'] as Map<String, dynamic>? ?? {};
+    diagnosticsEnabled = diagnosticPrefs['enabled'] == true;
+    diagnosticType = diagnosticPrefs['problemType'] as String? ?? 'auto';
+    diagnostics = state['diagnostics'] as Map<String, dynamic>? ?? const {};
+
     connected = true;
     notifyListeners();
   }
@@ -255,6 +265,8 @@ class LauncherController extends ChangeNotifier {
     bool? remember,
     bool? effects,
     bool? check,
+    bool? diagnosticEnabled,
+    String? problemType,
   }) async {
     await client.call('preferences', {
       'clientDirectory': directory ?? clientDirectory,
@@ -262,6 +274,10 @@ class LauncherController extends ChangeNotifier {
       'rememberAccount': remember ?? rememberAccount,
       'autoCheck': check ?? autoUpdate,
       'reducedEffects': effects ?? reducedEffects,
+      'diagnostics': {
+        'enabled': diagnosticEnabled ?? diagnosticsEnabled,
+        'problemType': problemType ?? diagnosticType,
+      },
     });
   }
 
@@ -274,6 +290,40 @@ class LauncherController extends ChangeNotifier {
         }
       }),
     );
+  }
+
+  Future<Map<String, dynamic>?> diagnosticAction(
+    String method, [
+    Map<String, dynamic>? arguments,
+  ]) async {
+    if (diagnosticBusy) return null;
+    diagnosticBusy = true;
+    diagnosticError = '';
+    notifyListeners();
+    try {
+      return await client.call(method, arguments);
+    } catch (error) {
+      diagnosticError = error.toString().replaceFirst('Bad state: ', '');
+      return null;
+    } finally {
+      diagnosticBusy = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> diagnosticPreferences({bool? enabled, String? type}) async {
+    if (diagnosticBusy) return;
+    diagnosticBusy = true;
+    diagnosticError = '';
+    notifyListeners();
+    try {
+      await save(diagnosticEnabled: enabled, problemType: type);
+    } catch (error) {
+      diagnosticError = error.toString().replaceFirst('Bad state: ', '');
+    } finally {
+      diagnosticBusy = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   Future<void> submit(bool register, String account, String password) async {

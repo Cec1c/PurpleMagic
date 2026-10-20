@@ -12,6 +12,10 @@ if (args.Length == 2 && args[0] == "--news-interop") { await NewsIntegration.Run
 if (args.Length == 2 && args[0] == "--bundle-lifecycle") { await BundleLifecycleChecks.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--bundle-exit") { await BundleExitChecks.Run(args[1]); return; }
 
+if (args.Length == 2 && args[0] == "--diagnostic-benchmark") { await DiagnosticBenchmark.Run(args[1]); return; }
+if (args.Length == 1 && args[0] == "--diagnostic-at5t-child") { DiagnosticChecks.MemoryChild(true); return; }
+if (args.Length == 1 && args[0] == "--diagnostic-memory-child") { DiagnosticChecks.MemoryChild(); return; }
+
 var passed = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception(name); passed++; Console.WriteLine("PASS " + name); }
 void Reject(Action action, string name) { try { action(); } catch (Exception error) when (error is InvalidDataException or CryptographicException or IOException) { Check(true, name); return; } throw new Exception("Accepted: " + name); }
@@ -19,6 +23,7 @@ async Task RejectAsync(Func<Task> action, string name) { try { await action(); }
 var temp = Path.Combine(Path.GetTempPath(), "dnf90-engine-tests-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
 try
 {
+    await DiagnosticChecks.Run(temp, Check);
     using var key = RSA.Create(2048);
     var root = new PlayerProfile("https://accounts.example.test", new string('a', 64), key.ExportSubjectPublicKeyInfoPem(), "https://accounts.example.test/old-wpf-settings", "192.0.2.1", 7001, new string('b', 64), new string('c', 64), "");
     await ClientDirectoryChecks.Run(temp, root, Check);

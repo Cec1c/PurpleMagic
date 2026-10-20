@@ -4,12 +4,13 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
 using ServerS5A3;
+using Dnf90.Launcher.Diagnostics;
 
 namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "0.2.18";
+    public const string VersionText = "0.2.19";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -21,8 +22,10 @@ public sealed class LauncherEngine : IDisposable
     private Preferences preferences = new();
     private ContentFile[] plan = [];
     private readonly List<(string Account, Process Process)> games = [];
+    private readonly DiagnosticService diagnostics;
     public event Action<State>? Changed;
-    public State State { get; private set; } = new("ready", "正在读取本机设置…", 0, 0, 0, false, false, false, "本服批准源", "", new(), []);
+    private State state = new("ready", "正在读取本机设置…", 0, 0, 0, false, false, false, "本服批准源", "", new(), []);
+    public State State { get => state with { Diagnostics = diagnostics?.Status }; private set => state = value; }
     private PlayerProfile Profile => bootstrap?.Profile ?? root;
     public LauncherEngine(PlayerProfile trusted, string dataDirectory)
     {
@@ -42,6 +45,9 @@ public sealed class LauncherEngine : IDisposable
         var install = Path.GetDirectoryName(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar))!;
         previousUpdateFailure = BundleInstaller.PreviousFailure(install);
         previousUpdateOutcome = BundleInstaller.ReadOutcome(install);
+        diagnostics = new(stateRoot);
+        diagnostics.Changed += () => Changed?.Invoke(State);
+        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
         Emit("ready", previousUpdateFailure ?? (discovered ? "已自动识别客户端目录。" : preferences.ClientDirectory == "" ? "请选择客户端目录，检查更新后登录。" : "客户端目录已就绪。"));
     }
     private void Emit(string phase, string message, long current = 0, long total = 0)
@@ -141,10 +147,12 @@ public sealed class LauncherEngine : IDisposable
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("当前操作完成后再修改设置。");
         try
         {
+            if (value.Diagnostics?.ProblemType is not (null or "auto" or "quests" or "interaction" or "connection" or "performance")) throw new InvalidDataException("诊断问题类型无效。");
             if (value.Account.Length > 64 || value.ClientDirectory.Length > 1000) throw new InvalidDataException("设置内容过长。");
             var directoryChanged = value.ClientDirectory != preferences.ClientDirectory;
             preferences = value with { Account = value.RememberAccount ? value.Account : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
+            diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
             if (directoryChanged) plan = [];
             Emit("ready", "设置已保存。");
         }
@@ -182,6 +190,7 @@ public sealed class LauncherEngine : IDisposable
     }
     private async Task RefreshMetadata()
     {
+        var metadataClock = Stopwatch.StartNew();
         Emit("checking", "正在读取本服签名发布信息…");
         using var api = new PlayerApi(root);
         using var metadataTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
@@ -196,6 +205,8 @@ public sealed class LauncherEngine : IDisposable
         var raw = output.ToArray(); var next = Trust.Verify(raw, root);
         if (bootstrap is not null && envelope is not null) Trust.CheckSequence(next, raw, bootstrap, envelope);
         SafeFiles.Atomic(Path.Combine(stateRoot, "bootstrap.json"), raw); bootstrap = next; envelope = raw;
+        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
+        diagnostics.Event("metadata_verified", metadataClock.Elapsed.TotalMilliseconds, bootstrap?.Sequence);
         Emit("checking", "发布信息已验证。");
     }
     private async Task PlanContent()
@@ -220,11 +231,12 @@ public sealed class LauncherEngine : IDisposable
             RequireNoGames(); await CheckCore(); await InstallContent();
         }
         catch (OperationCanceledException) { Emit("paused", "下载已暂停，点击继续会保留已下载的断点。", State.Downloaded, State.Total); }
-        catch { Emit("error", "更新未完成，已保留当前版本与可恢复记录。", State.Downloaded, State.Total); throw; }
+        catch (Exception error) { diagnostics.Event("update_error", number: error.HResult); Emit("error", "更新未完成，已保留当前版本与可恢复记录。", State.Downloaded, State.Total); throw; }
         finally { download = null; operation.Release(); }
     }
     private async Task InstallContent()
     {
+        var updateClock = Stopwatch.StartNew();
         RequireContentSupport(Profile);
         if (bootstrap?.Content is not { } content || plan.Length == 0) return;
         RequireNoGames();
@@ -243,6 +255,7 @@ public sealed class LauncherEngine : IDisposable
         cancel.Token.ThrowIfCancellationRequested(); download = null; RequireNoGames();
         Emit("installing", "正在提交更新，保留恢复记录…", total, total);
         transaction.Commit(plan.Select(f => f.Path).ToArray(), envelope!); plan = [];
+        diagnostics.Event("update_complete", updateClock.Elapsed.TotalMilliseconds);
         Emit("ready", "更新完成，客户端资源已通过双重摘要校验。", total, total);
     }
     public async Task Register(Credentials input)
@@ -258,6 +271,8 @@ public sealed class LauncherEngine : IDisposable
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("已有操作正在进行。");
         try
         {
+            diagnostics.Event("login_started");
+            var stageClock = Stopwatch.StartNew();
             RequireContentSupport(Profile);
             ValidateCredentials(input); Emit("checking", "正在验证客户端与本服版本…");
             using var clientLock = new FileTransaction(preferences.ClientDirectory);
@@ -269,13 +284,16 @@ public sealed class LauncherEngine : IDisposable
                 if (plan.Length != 0) throw new InvalidOperationException("请先完成客户端资源更新。");
             }
             await GameContract.VerifyClient(preferences.ClientDirectory, Profile);
+            diagnostics.Event("client_verified", stageClock.Elapsed.TotalMilliseconds); stageClock.Restart();
             if (NativeGuildCompatibility.Prepare(preferences.ClientDirectory, Profile))
                 Emit("checking", "公会兼容补丁已应用，原版客户端已备份。");
             games.RemoveAll(g => g.Process.HasExited);
             if (games.Any(g => g.Account.Equals(input.Account.Trim(), StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("该账号已经启动，请使用另一个账号。");
             var channels = await ChannelProbe.Check(Profile, m => Emit("checking", m));
-            Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile);
+            diagnostics.Event("channel_verified", stageClock.Elapsed.TotalMilliseconds, channels.ServerId); stageClock.Restart();
+            Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile, status => diagnostics.Event("account_http_response", number: status));
             var reply = await api.Submit("login", input.Account.Trim(), input.Password, Device());
+            diagnostics.Event("account_verified", stageClock.Elapsed.TotalMilliseconds); stageClock.Restart();
             NativeChannelHistory.Prepare(Profile, channels);
             var executable = Path.Combine(preferences.ClientDirectory, "DNF.exe");
             var running = Process.GetProcessesByName("DNF");
@@ -287,6 +305,8 @@ public sealed class LauncherEngine : IDisposable
             finally { foreach (var process in running) process.Dispose(); }
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = preferences.ClientDirectory, Arguments = GameContract.Arguments(reply.Token ?? "", Profile.GameHost, Profile.BootstrapPort) };
             var game = Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。"); games.Add((input.Account.Trim(), game));
+            diagnostics.Track(game, executable);
+            diagnostics.Event("process_started", stageClock.Elapsed.TotalMilliseconds);
             preferences = preferences with { Account = preferences.RememberAccount ? input.Account.Trim() : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
             Emit("logging-in", "游戏进程已创建，正在等待客户端启动…");
@@ -295,7 +315,7 @@ public sealed class LauncherEngine : IDisposable
             if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 90 秒后重试。");
             Emit("ready", channels.Message + " 客户端正在运行。");
         }
-        catch { Emit("error", "登录未完成，请查看提示。"); throw; }
+        catch (Exception error) { diagnostics.Event("login_error", number: error.HResult); Emit("error", "登录未完成，请查看提示。"); throw; }
         finally { operation.Release(); }
     }
     private static void ValidateCredentials(Credentials input)
@@ -313,5 +333,11 @@ public sealed class LauncherEngine : IDisposable
         try { if (processes.Length > 0) throw new InvalidOperationException("更新或恢复文件前请退出所有游戏客户端。"); }
         finally { foreach (var p in processes) p.Dispose(); }
     }
-    public void Dispose() { download?.Cancel(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
+    public Task DiagnosticSelect(string id) => diagnostics.Select(id);
+    public Task DiagnosticMark(string id) => diagnostics.Mark(id);
+    public Task DiagnosticReproduce(string id) => diagnostics.Reproduce(id);
+    public Task DiagnosticStop(string id) => diagnostics.Stop(id);
+    public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string[] incidents, string directory) => diagnostics.Export(sessionId, incidents, directory);
+    public void RecordDiagnosticError(int code) => diagnostics.Event("operation_error", number: code);
+    public void Dispose() { download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
 }

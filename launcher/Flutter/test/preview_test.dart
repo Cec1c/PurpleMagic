@@ -84,6 +84,106 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
+  testWidgets('diagnostic preference persists through other settings', (
+    tester,
+  ) async {
+    final fake = FakeCore();
+    final model = LauncherController(client: fake);
+    await start(tester, controller: model, size: const Size(1000, 620));
+    await tester.tap(find.byKey(const Key('settings')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('diagnostics-settings')));
+    await tester.tap(find.byKey(const Key('diagnostics-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('已关闭'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostics-toggle')));
+    await tester.pumpAndSettle();
+    expect(model.diagnosticsEnabled, isTrue);
+    await model.save(effects: true);
+    expect(
+      (fake.state['preferences'] as Map)['diagnostics']['enabled'],
+      isTrue,
+    );
+    expect(find.byKey(const Key('diagnostics-active')), findsOneWidget);
+    await screenshot(tester, 'diagnostics-waiting');
+  });
+
+  testWidgets('diagnostic session actions and explicit export selection', (
+    tester,
+  ) async {
+    final fake = FakeCore();
+    (fake.state['preferences'] as Map)['diagnostics'] = {
+      'enabled': true,
+      'problemType': 'interaction',
+    };
+    fake.state['diagnostics'] = {
+      'enabled': true,
+      'phase': 'basic',
+      'message': '基础记录中',
+      'instances': [
+        {
+          'id': 'session-a',
+          'pid': 10,
+          'window': 'DNF · 14:20:00',
+          'status': 'basic',
+          'exeVersion': 'V141',
+          'selected': true,
+        },
+        {
+          'id': 'session-b',
+          'pid': 11,
+          'window': 'DNF · 14:21:00',
+          'status': 'basic',
+          'exeVersion': 'V141',
+          'selected': true,
+        },
+      ],
+      'clips': [
+        {
+          'id': 'clip-a',
+          'sessionId': 'session-a',
+          'startedUtc': '2026-10-20T06:20:00Z',
+          'endedUtc': '2026-10-20T06:20:30Z',
+          'bytes': 24680,
+          'categories': ['basic', 'at5t'],
+        },
+        {
+          'id': 'clip-b',
+          'sessionId': 'session-b',
+          'startedUtc': '2026-10-20T06:21:00Z',
+          'endedUtc': '2026-10-20T06:21:30Z',
+          'bytes': 13579,
+          'categories': ['basic'],
+        },
+      ],
+    };
+    mockDirectoryPicker(r'C:\Fixture\Exports');
+    final model = LauncherController(client: fake);
+    await start(tester, controller: model);
+    await tester.tap(find.byKey(const Key('diagnostics-active')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('diagnostic-mark')));
+    await tester.pumpAndSettle();
+    expect(fake.diagnosticArguments?['sessionId'], 'session-a');
+    expect(model.busy, isFalse);
+    expect(find.byKey(const Key('clip-b')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('clip-clip-a')));
+    await tester.tap(find.byKey(const Key('clip-clip-a')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('diagnostic-export')));
+    await tester.tap(find.byKey(const Key('diagnostic-export')));
+    await tester.pumpAndSettle();
+    expect(fake.diagnosticArguments?['incidentIds'], ['clip-a']);
+    expect(find.textContaining('已导出 1 个片段'), findsOneWidget);
+    await screenshot(tester, 'diagnostics-export');
+    fake.diagnosticFailure = true;
+    await model.diagnosticAction('diagnosticMark', {'sessionId': 'session-a'});
+    await tester.pumpAndSettle();
+    expect(model.phase, UpdatePhase.ready);
+    expect(model.diagnosticError, '诊断写入失败');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('footer shows the running core version, not content version', (
     tester,
   ) async {
@@ -555,6 +655,9 @@ void main() {
 }
 
 class FakeCore extends CoreClient {
+  Map<String, dynamic>? diagnosticArguments;
+  bool diagnosticFailure = false;
+
   final calls = <String>[];
   Map<String, dynamic>? autoArguments;
   bool autoRestart = false;
@@ -612,6 +715,22 @@ class FakeCore extends CoreClient {
   ]) async {
     calls.add(method);
     switch (method) {
+      case 'diagnosticSelect':
+      case 'diagnosticMark':
+      case 'diagnosticReproduce':
+      case 'diagnosticStop':
+      case 'diagnosticExport':
+        diagnosticArguments = args;
+        if (diagnosticFailure) throw StateError('诊断写入失败');
+        emit();
+        return {
+          'ok': true,
+          'diagnosticExport': {
+            'path': r'C:\Fixture\Exports\sample.zip',
+            'bytes': 4096,
+            'incidents': 1,
+          },
+        };
       case 'updateLauncher':
         launcherArguments = args;
         if (launcherError != null) throw StateError(launcherError!);
@@ -640,6 +759,11 @@ class FakeCore extends CoreClient {
           throw StateError('Password must not be persisted');
         }
         state['preferences'] = Map<String, dynamic>.from(args);
+        state['diagnostics'] = {
+          ...?state['diagnostics'] as Map<String, dynamic>?,
+          'enabled': args['diagnostics']?['enabled'] == true,
+          'message': args['diagnostics']?['enabled'] == true ? '等待游戏' : '已关闭',
+        };
       case 'login':
         state['phase'] = 'logging-in';
         state['canLogin'] = false;

@@ -12,10 +12,12 @@ public sealed class PlayerApi : IDisposable
 {
     public HttpClient Http { get; }
     public PlayerProfile Profile { get; }
+    private readonly Action<int>? responseObserved;
     public static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true, TypeInfoResolver = CoreJson.Default };
-    public PlayerApi(PlayerProfile profile)
+    public PlayerApi(PlayerProfile profile, Action<int>? responseObserved = null)
     {
         Profile = profile;
+        this.responseObserved = responseObserved;
         Http = new HttpClient(new HttpClientHandler {
             UseProxy = false, AllowAutoRedirect = false,
             ServerCertificateCustomValidationCallback = (request, cert, chain, errors) =>
@@ -35,6 +37,7 @@ public sealed class PlayerApi : IDisposable
     {
         if (action is not ("register" or "login")) throw new ArgumentException(nameof(action));
         using var response = await Http.PostAsJsonAsync(Profile.ApiUrl + "/api/account/" + action, new AccountRequest(account, password, device), CoreJson.Default.AccountRequest);
+        try { responseObserved?.Invoke((int)response.StatusCode); } catch (Exception) { }
         var reply = await response.Content.ReadFromJsonAsync(CoreJson.Default.LoginReply);
         if (reply?.Ok != true) throw new InvalidOperationException(reply?.Message ?? "账号服务暂不可用。");
         return reply;

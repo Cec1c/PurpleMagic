@@ -1,0 +1,19 @@
+{
+  "evidence": "accelerated logical-time fixture, not two hours of native gameplay",
+  "logicalHours": 2,
+  "instances": 2,
+  "samples": 300960,
+  "elapsedSeconds": 5.2600139,
+  "collectorCpuSeconds": 5.1875,
+  "allocatedBytes": 4720918328,
+  "readP50Ms": 0.0085,
+  "readP95Ms": 0.0218,
+  "readP99Ms": 0.0513,
+  "peakRingAccountedBytes": 4194304,
+  "ringBudgetBytes": 4194304,
+  "worstCaseAllRetainedBuffersBytes": 20709376,
+  "cacheBudgetBytes": 33554432,
+  "processWorkingSetBytes": 58912768,
+  "actualTwoHourGameSoak": "pending",
+  "frameTimeComparison": "pending native client instrumentation"
+}
