@@ -10,7 +10,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "0.2.19";
+    public const string VersionText = "0.2.20";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
