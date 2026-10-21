@@ -13,6 +13,11 @@ internal sealed class DiagnosticSession(ReadOnlyGameProcess? process, string pvf
     public const int CaptureLimit = 512 * 1024;
     public readonly DiagnosticRing Ring = new(process is null ? 256 * 1024 : 2 * 1024 * 1024);
     public At5tModule? Module;
+    public DiagnosticObserverClient? Observer;
+    public string CrashStatus = "starting";
+    public double ExitObserved;
+    public bool HasOperations, HasExceptions;
+    public bool CriticalPending;
     public long Sequence, Errors, Dropped;
     public long LoginAttempt;
     public double NextBasic, NextSample, SamplingUntil, LastSample, LastFull, NextFlush, TimeOffset;
@@ -52,10 +57,11 @@ internal sealed class DiagnosticService : IDisposable
     private volatile bool closing;
     private DiagnosticSession? launcher;
     private volatile DiagnosticClip[] clips = [];
-    private Task<(ReadOnlyGameProcess Process, long Attempt, DiagnosticLogIndex? Index)>? binding;
+    private Task<(ReadOnlyGameProcess Process, long Attempt, DiagnosticLogIndex? Index, DiagnosticObserverClient? Observer)>? binding;
     private long attempt;
     private int exporting;
     private int bindingPid;
+    private DiagnosticObserverClient? bindingObserver;
     private ProcessIdentity[]? registryToWrite;
     private string error = "";
     private bool writeFailed;
@@ -98,6 +104,7 @@ internal sealed class DiagnosticService : IDisposable
     }
     public void Configure(DiagnosticOptions value, string directory, string pvf, long sequence)
     {
+        value = value with { Enabled = value.Enabled && value.HasConsent };
         Post(() => {
             if (options.Enabled && (!value.Enabled || directory != clientDirectory)) EndAll(value.Enabled ? "client_directory_changed" : "diagnostics_disabled");
             options = value with { ProblemType = "auto" }; clientDirectory = directory; pvfHash = pvf; publication = sequence;
@@ -119,11 +126,13 @@ internal sealed class DiagnosticService : IDisposable
             });
         } catch (Exception) { error = "process_tracking_failed"; }
     }
-    public void Event(string code, double durationMs = 0, double? number = null)
+    public void Failure(string code, Exception exception) => Event(code, number: exception.HResult, exception: exception);
+    public void Event(string code, double durationMs = 0, double? number = null, Exception? exception = null)
     {
         if (!EventCodes.Contains(code)) return;
         Post(() => {
             if (!options.Enabled || launcher is null) return;
+            var evidence = exception is null ? null : DiagnosticFailure.Capture(exception);
             if (code == "login_started") {
                 attempt++;
                 var earlier = launcher.Ring.Snapshot();
@@ -134,21 +143,44 @@ internal sealed class DiagnosticService : IDisposable
                     var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord)!;
                     if (record.Reason is "metadata_verified" or "update_complete" or "update_error") {
                         var fields = new Dictionary<string, DiagnosticField>(record.Fields) { ["attempt"] = new(attempt) };
-                        Record(launcher, record.Type, record.Module, fields, record.Quality, record.ReadMs, record.Reason, observedTime: record.MonotonicMs, observedUtc: record.Utc);
+                        Record(launcher, record.Type, record.Module, fields, record.Quality, record.ReadMs, record.Reason, observedTime: record.MonotonicMs, observedUtc: record.Utc, evidence: record.Evidence);
                     }
                 }
             }
-            Record(launcher, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code);
+            Record(launcher, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code, evidence: evidence);
             foreach (var s in sessions.Where(s => attempt > 0 && s.LoginAttempt == attempt)) {
-                Record(s, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code);
+                Record(s, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code, evidence: evidence);
 
             }
-            if (code == "login_error" && !sessions.Any(s => s.LoginAttempt == attempt)) {
-                launcher.Capture.AddRange(launcher.Ring.Snapshot()); Flush(launcher, "login_error");
+            if (code is "login_error" or "update_error" or "operation_error" && !sessions.Any(s => s.LoginAttempt == attempt)) {
+                launcher.Capture.AddRange(launcher.Ring.Snapshot()); Flush(launcher, code);
             }
         });
     }
     private static readonly HashSet<string> EventCodes = ["metadata_verified", "update_complete", "update_error", "login_started", "client_verified", "channel_verified", "account_http_response", "account_verified", "process_started", "login_error", "operation_error"];
+    public Task Elevate(string id) => Send(() => {
+        var s = sessions.SingleOrDefault(s => s.Id == id);
+        if (!options.Enabled || !options.HasConsent || s?.Process is null || s.CrashStatus is not ("access_denied" or "elevation_cancelled")) throw new InvalidOperationException("此启动无需提升诊断权限。");
+        s.Observer?.Dispose(); s.CrashStatus = "elevating";
+        s.Observer = new(s.Process.Identity, true); Publish();
+    });
+    private void Observe(DiagnosticSession s, bool allowRestart = true)
+    {
+        while (s.Observer?.Take(out var message) == true && message is not null) {
+            if (message.Kind == "crash_ready") s.CrashStatus = "recording";
+            else if (message.Kind is "access_denied" or "elevation_cancelled" or "attach_failed" or "observer_failed" or "observer_timeout" or "platform_unsupported") s.CrashStatus = message.Kind;
+            else if (message.Kind == "observer_disconnected" && s.CrashStatus is "recording" or "starting") s.CrashStatus = "observer_disconnected";
+            else if (message.Kind == "observer_stopped" && s.CrashStatus == "recording") s.CrashStatus = "stopped";
+            if (message.Kind == "operations_unavailable") s.Missing.Add("player_operations:unavailable");
+            if (message.Kind == "player_operations") s.HasOperations = true;
+            if (message.Kind == "native_exception") s.HasExceptions = true;
+            if (message.Kind == "native_exception") s.CriticalPending = true;
+            if (message.Kind == "observer_dropped") s.Dropped += (long)(message.Fields.GetValueOrDefault("count")?.Value ?? 0);
+            Record(s, message.Kind == "native_exception" ? "exception" : "event", "observer", message.Fields,
+                message.Kind == "native_exception" ? "partial" : "ok", 0, message.Kind, evidence: message.Evidence);
+            if (message.Kind == "elevation_cancelled" && allowRestart && !closing) { s.Observer.Dispose(); s.Observer = new(s.Process!.Identity, false); break; }
+        }
+    }
     public async Task<DiagnosticExport> Export(string sessionId, string target)
     {
         if (Interlocked.CompareExchange(ref exporting, 1, 0) != 0) throw new InvalidOperationException("正在导出，请稍候。");
@@ -168,6 +200,8 @@ internal sealed class DiagnosticService : IDisposable
     {
         if (closing) { process.Dispose(); return; }
         bindingPid = process.Identity.Pid;
+        // Attach before full EXE/PVF hashing so early crashes are not lost while hashing.
+        var observer = bindingObserver = options.HasConsent && options.Enabled ? new DiagnosticObserverClient(process.Identity, false) : null;
         binding = Task.Run(async () => {
             try {
                 process.VerifyImage();
@@ -175,28 +209,31 @@ internal sealed class DiagnosticService : IDisposable
                 var id = process.Identity.Id;
                 await saves.Writer.WriteAsync(new(new(id, id, "", "", 0, "", "resume_barrier", 0, 0, 0, 0, false, [], [], 0), [], "", "") { Completion = ready });
                 await ready.Task;
-                return (process, loginAttempt, storage.ReadIndex(id));
-            } catch { process.Dispose(); throw; }
+                return (process, loginAttempt, storage.ReadIndex(id), observer);
+            } catch { observer?.Dispose(); process.Dispose(); throw; }
         });
     }
-    private void Attach(ReadOnlyGameProcess process, long loginAttempt, DiagnosticLogIndex? index)
+    private void Attach(ReadOnlyGameProcess process, long loginAttempt, DiagnosticLogIndex? index, DiagnosticObserverClient? observer)
     {
-        if (sessions.Any(s => s.Process!.Identity.Pid == process.Identity.Pid && s.Process!.Identity.Created == process.Identity.Created) || sessions.Count >= 2) { process.Dispose(); return; }
+        if (sessions.Any(s => s.Process!.Identity.Pid == process.Identity.Pid && s.Process!.Identity.Created == process.Identity.Created) || sessions.Count >= 2) { observer?.Dispose(); process.Dispose(); return; }
         try
         {
             if (pendingStarts.TryGetValue(process.Identity.Pid, out var trackedAttempt)) loginAttempt = trackedAttempt;
             var s = new DiagnosticSession(process, pvfHash, publication) { LoginAttempt = loginAttempt,
                 Sequence = index?.LastSequence ?? 0, TimeOffset = Math.Max(0, (index?.LastTime ?? 0) - clock.Elapsed.TotalMilliseconds + 1),
                 Errors = index?.Summary.Errors ?? 0, Dropped = index?.Summary.Dropped ?? 0,
-                Truncated = index?.Summary.Truncated ?? false };
-            if (index is not null) { s.StartedUtc = index.StartedUtc; s.HasSamples = index.Summary.Categories.Contains("at5t"); }
+                Truncated = index?.Summary.Truncated ?? false, Observer = observer };
+            if (index is not null) {
+                s.StartedUtc = index.StartedUtc; s.HasSamples = index.Summary.Categories.Contains("at5t");
+                s.HasOperations = index.Summary.Categories.Contains("player_operations"); s.HasExceptions = index.Summary.Categories.Contains("native_exception");
+            }
             pendingStarts.Remove(process.Identity.Pid);
             // Copy only this launch attempt, never another game's process records.
             if (launchAttempts.TryGetValue(loginAttempt, out var launch))
                 foreach (var line in launch.Ring.Snapshot()) {
                     var r = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord)!;
                     if (loginAttempt > 0 && r.Fields.GetValueOrDefault("attempt")?.Value == loginAttempt)
-                        Record(s, r.Type, r.Module, r.Fields, r.Quality, r.ReadMs, r.Reason, observedTime: r.MonotonicMs, observedUtc: r.Utc);
+                        Record(s, r.Type, r.Module, r.Fields, r.Quality, r.ReadMs, r.Reason, observedTime: r.MonotonicMs, observedUtc: r.Utc, evidence: r.Evidence);
                 }
             launchAttempts.Remove(loginAttempt);
             if (process.Version != "unsupported") s.Module = new(process, process.ModuleBase); else s.Phase = "unsupported";
@@ -207,7 +244,7 @@ internal sealed class DiagnosticService : IDisposable
                 ["server_events"] = new(null, "unsupported", "not_connected") }, "ok", 0, "game_bound");
             Flush(s, "recording");
         }
-        catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or OverflowException) { retryAfter[process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000; process.Dispose(); error = "process_binding_failed"; }
+        catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or OverflowException) { observer?.Dispose(); retryAfter[process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000; process.Dispose(); error = "process_binding_failed"; }
     }
     private void Discover()
     {
@@ -234,20 +271,20 @@ internal sealed class DiagnosticService : IDisposable
                     }
                     candidates.Add(read.Identity.Id, read);
                 }
-                catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { }
+                catch (Exception e) when (e is IOException or InvalidDataException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { }
             }
         }
         if (candidates.Count > 0 && sessions.Count < 2) { var p = candidates.Values.First(); candidates.Remove(p.Identity.Id); StartBinding(p, 0); }
     }
-    private DiagnosticLine Record(DiagnosticSession s, string type, string module, Dictionary<string, DiagnosticField> fields, string quality, double readMs, string? reason = null, bool full = true, double? observedTime = null, string? observedUtc = null)
+    private DiagnosticLine Record(DiagnosticSession s, string type, string module, Dictionary<string, DiagnosticField> fields, string quality, double readMs, string? reason = null, bool full = true, double? observedTime = null, string? observedUtc = null, DiagnosticEvidence? evidence = null)
     {
         var now = (observedTime ?? clock.Elapsed.TotalMilliseconds) + s.TimeOffset; var n = ++s.Sequence;
         foreach (var (name, value) in fields)
             if (s.Missing.Count < 128 && value.Status is "unsupported" or "read_failed") s.Missing.Add(name + ":" + value.Status);
-        var record = new DiagnosticRecord(n, observedUtc ?? DateTime.UtcNow.ToString("O"), now, type, module, s.Id, readMs, quality, fields, reason, type == "sample" && !full ? s.FullSequence : null);
+        var record = new DiagnosticRecord(n, observedUtc ?? DateTime.UtcNow.ToString("O"), now, type, module, s.Id, readMs, quality, fields, reason, type == "sample" && !full ? s.FullSequence : null, evidence);
         if (type == "sample" && full) s.FullSequence = n;
         var raw = JsonSerializer.SerializeToUtf8Bytes(record, DiagnosticJson.Default.DiagnosticRecord);
-        if (raw.Length > 65535) { s.Dropped++; s.Previous.Clear(); s.FullSequence = 0; type = "event"; full = false; raw = JsonSerializer.SerializeToUtf8Bytes(record with { Type = "event", Fields = [], Quality = "dropped", Reason = "record_budget", BaseSequence = null }, DiagnosticJson.Default.DiagnosticRecord); }
+        if (raw.Length > 65535) { s.Dropped++; s.Previous.Clear(); s.FullSequence = 0; type = "event"; full = false; raw = JsonSerializer.SerializeToUtf8Bytes(record with { Type = "event", Fields = [], Quality = "dropped", Reason = "record_budget", BaseSequence = null, Evidence = null }, DiagnosticJson.Default.DiagnosticRecord); }
         var bytes = new byte[raw.Length + 1]; raw.CopyTo(bytes, 0); bytes[^1] = 10;
         var line = new DiagnosticLine(bytes, now, full, type); s.Ring.Add(line);
         if (quality is "partial" or "unstable" or "read_failed") s.Errors++;
@@ -263,20 +300,43 @@ internal sealed class DiagnosticService : IDisposable
         var missing = new List<string> { "server_events_not_connected", "frame_time_not_instrumented", "native_distance_result_not_instrumented", "function_order_is_not_observed" };
         if (s.Process is null) missing.Add("no_game_process");
         else { if (s.Module is null) missing.Add("at5t_unsupported_exe"); if (s.Process.PvfHash == "") missing.Add("pvf_hash_unavailable"); }
+        if (s.Process is not null && s.CrashStatus is not ("recording" or "stopped")) missing.Add("native_exceptions:" + s.CrashStatus);
+        var categories = new List<string> { "basic" };
+        if (s.Process is not null) categories.Add("performance");
+        if (s.HasSamples) categories.Add("at5t"); if (s.HasOperations) categories.Add("player_operations"); if (s.HasExceptions) categories.Add("native_exception");
         missing.AddRange(s.Missing);
         var summary = new DiagnosticSummary(s.Id, s.Id, s.Process?.Hash ?? "", s.Process?.PvfHash ?? "", s.Publication, s.Process?.Version ?? "launcher",
             reason, 0, s.Errors, s.Dropped, s.Ring.Overwritten, s.Truncated, [.. missing],
-            s.Process is null ? ["basic"] : s.HasSamples ? ["basic", "performance", "at5t"] : ["basic", "performance"], s.Interval, CorrelationId: s.Id, ExpectedPvfSha256: s.PvfHash);
-        var job = new DiagnosticSave(summary, [.. s.Capture], s.StartedUtc, DateTime.UtcNow.ToString("O"));
+            [.. categories], s.Interval, CorrelationId: s.Id, ExpectedPvfSha256: s.PvfHash);
+        DiagnosticLine[] lines = [.. s.Capture]; var omitted = 0;
+        if (s.CriticalPending) {
+            var tail = new List<DiagnosticLine>(); var bytes = 0;
+            foreach (var line in s.Capture.Concat(s.Ring.Snapshot()).Where(l => l.Type != "sample").Distinct()
+                .OrderByDescending(l => JsonSerializer.Deserialize(l.Bytes, DiagnosticJson.Default.DiagnosticRecord)!.Sequence)) {
+                if (bytes + line.Cost > DiagnosticSession.CaptureLimit) break;
+                tail.Add(line); bytes += line.Cost;
+            }
+            tail.Reverse(); lines = [.. tail]; omitted = s.Capture.Except(lines).Count();
+            summary = summary with { Dropped = s.Dropped + omitted };
+        }
+        var job = new DiagnosticSave(summary, lines, s.StartedUtc, DateTime.UtcNow.ToString("O")) { CriticalTail = s.CriticalPending };
         var queued = saves.Writer.TryWrite(job);
         if (!queued && (closing || wait)) { saves.Writer.WriteAsync(job).AsTask().GetAwaiter().GetResult(); queued = true; }
-        if (queued) { s.Capture.Clear(); s.CaptureBytes = 0; }
+        if (queued) {
+            if (s.CriticalPending) { s.Previous.Clear(); s.FullSequence = 0; s.Dropped += omitted; }
+            s.Capture.Clear(); s.CaptureBytes = 0; s.CriticalPending = false;
+        }
         else error = "writer_queue_full";
         s.NextFlush = clock.Elapsed.TotalMilliseconds + 1000;
     }
     private void Sample(DiagnosticSession s, double now)
     {
-        if (s.Process is not null && s.Process.Exited(out var exit)) { Record(s, "event", "process", new() { ["exit_code"] = new(exit) }, "ok", 0, "game_exit"); End(s, "game_exit"); return; }
+        Observe(s);
+        if (s.Process is not null && s.Process.Exited(out var exit)) {
+            if (s.ExitObserved == 0) s.ExitObserved = now;
+            if (s.Observer is not null && !s.Observer.Completed && now - s.ExitObserved < 2000) return;
+            Observe(s); Record(s, "event", "process", new() { ["exit_code"] = new(exit) }, "ok", 0, "game_exit"); End(s, "game_exit"); return;
+        }
         if (now >= s.NextBasic)
         {
             var start = clock.Elapsed.TotalMilliseconds;
@@ -321,9 +381,10 @@ internal sealed class DiagnosticService : IDisposable
     private void End(DiagnosticSession s, string reason)
     {
         if (reason == "collector_error" && s.Process is not null) retryAfter[s.Process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000;
+        s.Observer?.Dispose(); Observe(s, allowRestart: false);
         Record(s, "event", "collector", [], "ok", 0, reason); Flush(s, reason, wait: true); sessions.Remove(s); s.Process?.Dispose();
     }
-    private void EndAll(string reason) { launcher = null; launchAttempts.Clear(); foreach (var s in sessions.ToArray()) End(s, reason); foreach (var p in candidates.Values) p.Dispose(); candidates.Clear(); }
+    private void EndAll(string reason) { bindingObserver?.Dispose(); launcher = null; launchAttempts.Clear(); foreach (var s in sessions.ToArray()) End(s, reason); foreach (var p in candidates.Values) p.Dispose(); candidates.Clear(); }
     private void Loop()
     {
         using var pacer = new DiagnosticPacer();
@@ -334,9 +395,9 @@ internal sealed class DiagnosticService : IDisposable
             {
                 while (commands.Reader.TryRead(out var action)) action();
                 if (binding?.IsCompleted == true) {
-                    try { var result = binding.GetAwaiter().GetResult(); if (options.Enabled && !closing && result.Process.Identity.Path.Equals(Path.Combine(clientDirectory, "DNF.exe"), StringComparison.OrdinalIgnoreCase)) Attach(result.Process, result.Attempt, result.Index); else result.Process.Dispose(); }
+                    try { var result = binding.GetAwaiter().GetResult(); if (options.Enabled && !closing && result.Process.Identity.Path.Equals(Path.Combine(clientDirectory, "DNF.exe"), StringComparison.OrdinalIgnoreCase)) Attach(result.Process, result.Attempt, result.Index, result.Observer); else { result.Observer?.Dispose(); result.Process.Dispose(); } }
                     catch (Exception) { retryAfter[bindingPid] = clock.Elapsed.TotalMilliseconds + 30000; error = "process_binding_failed"; }
-                    binding = null;
+                    binding = null; bindingObserver = null;
                 }
                 var now = clock.Elapsed.TotalMilliseconds;
                 if (options.Enabled)
@@ -349,7 +410,7 @@ internal sealed class DiagnosticService : IDisposable
             }
         }
         finally {
-            if (binding is not null) try { binding.GetAwaiter().GetResult().Process.Dispose(); } catch (Exception) { }
+            if (binding is not null) try { var result = binding.GetAwaiter().GetResult(); result.Observer?.Dispose(); result.Process.Dispose(); } catch (Exception) { }
             while (commands.Reader.TryRead(out var pending)) pending();
             EndAll("launcher_closed"); saves.Writer.TryComplete();
         }
@@ -384,7 +445,7 @@ internal sealed class DiagnosticService : IDisposable
     }
     private void Publish()
     {
-        var rows = sessions.Select(s => new DiagnosticInstance(s.Id, s.Process!.Window, s.Process!.Identity.Pid, s.StartedUtc, s.Phase, s.Process!.Version, true)).ToArray();
+        var rows = sessions.Select(s => new DiagnosticInstance(s.Id, s.Process!.Window, s.Process!.Identity.Pid, s.StartedUtc, s.Phase, s.Process!.Version, true, s.CrashStatus)).ToArray();
         var phase = !options.Enabled ? "off" : error != "" ? "error" : sessions.Count > 0 ? "basic" : "waiting";
         var message = phase switch { "off" => "已关闭", "error" => "日志记录异常：" + error, "basic" => "正在记录本次启动", _ => binding is not null ? "正在读取游戏版本" : "等待游戏启动" };
         status = new(options.Enabled, phase, message, rows, clips);

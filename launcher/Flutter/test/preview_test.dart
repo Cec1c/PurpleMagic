@@ -101,8 +101,22 @@ void main() {
     expect(find.text('已关闭'), findsOneWidget);
     await tester.tap(find.byKey(const Key('diagnostics-toggle')));
     await tester.pumpAndSettle();
+    expect(model.diagnosticsEnabled, isFalse);
+    expect(find.textContaining('异常调用栈'), findsOneWidget);
+    await screenshot(tester, 'diagnostics-consent');
+    await tester.tap(find.byKey(const Key('diagnostics-decline')));
+    await tester.pumpAndSettle();
+    expect(model.diagnosticsEnabled, isFalse);
+    await tester.tap(find.byKey(const Key('diagnostics-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('diagnostics-consent')));
+    await tester.pumpAndSettle();
     expect(model.diagnosticsEnabled, isTrue);
     await model.save(effects: true);
+    expect(
+      (fake.state['preferences'] as Map)['diagnostics']['consentVersion'],
+      1,
+    );
     expect(
       (fake.state['preferences'] as Map)['diagnostics']['enabled'],
       isTrue,
@@ -111,12 +125,41 @@ void main() {
     await screenshot(tester, 'diagnostics-waiting');
   });
 
+  testWidgets('diagnostic elevation targets only the denied game session', (
+    tester,
+  ) async {
+    final fake = FakeCore();
+    (fake.state['preferences'] as Map)['diagnostics'] = {
+      'enabled': true,
+      'consentVersion': 1,
+    };
+      fake.state['diagnostics'] = {
+        'enabled': true,
+        'message': '基础日志正在记录',
+        'instances': [
+        {'id': 'needs-permission', 'crashStatus': 'access_denied'},
+      ],
+      'clips': [],
+    };
+    final model = LauncherController(client: fake);
+    await start(tester, controller: model, size: const Size(1000, 620));
+    await tester.tap(find.byKey(const Key('diagnostics-active')));
+    await tester.pumpAndSettle();
+    expect(find.text('提升诊断权限'), findsOneWidget);
+    await screenshot(tester, 'diagnostics-permission');
+    await tester.tap(find.text('提升诊断权限'));
+    await tester.pumpAndSettle();
+    expect(fake.calls.where((m) => m == 'diagnosticElevate').length, 1);
+    expect(fake.diagnosticArguments, {'sessionId': 'needs-permission'});
+  });
+
   testWidgets(
     'diagnostic launch rows export directly as log with cancel and failure',
     (tester) async {
       final fake = FakeCore();
       (fake.state['preferences'] as Map)['diagnostics'] = {
         'enabled': true,
+        'consentVersion': 1,
         'problemType': 'interaction',
       };
       fake.state['diagnostics'] = {
@@ -126,6 +169,7 @@ void main() {
         'instances': [
           {
             'id': 'session-a',
+            'crashStatus': 'recording',
             'pid': 10,
             'window': 'DNF · 14:20:00',
             'status': 'basic',
@@ -134,6 +178,7 @@ void main() {
           },
           {
             'id': 'session-b',
+            'crashStatus': 'recording',
             'pid': 11,
             'window': 'DNF · 14:21:00',
             'status': 'basic',
@@ -728,6 +773,10 @@ class FakeCore extends CoreClient {
   ]) async {
     calls.add(method);
     switch (method) {
+      case 'diagnosticElevate':
+        diagnosticArguments = args;
+        emit();
+        return {'ok': true, 'state': state};
       case 'diagnosticExport':
         diagnosticArguments = args;
         if (diagnosticFailure) throw StateError('诊断写入失败');
