@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/testbenefits"
 )
 
@@ -42,7 +43,7 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 	if position.Character != "" {
 		op = ">="
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT id,account_id FROM "+quoteIdentifier(s.cfg.Table)+" WHERE id"+op+"? ORDER BY id LIMIT 5", position.Account)
+	rows, err := diagnostics.Query(ctx, s.db, "scan.registration", "SELECT id,account_id FROM "+quoteIdentifier(s.cfg.Table)+" WHERE id"+op+"? ORDER BY id LIMIT 5", position.Account)
 	if err != nil {
 		return position, err
 	}
@@ -111,7 +112,7 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 				if e != nil {
 					failures = append(failures, e)
 					if s.cfg.Logger != nil {
-						s.cfg.Logger("benefit-delivery-retry", "account_cursor", a.id, "character_id", ch.CharacterID, "campaign_id", c.ID, "cause", e.Error())
+						diagnostics.Log(s.cfg.Logger, ctx, "benefit-delivery-retry", e, "account_cursor", a.id, "character_id", ch.CharacterID, "campaign_id", c.ID)
 					}
 				} else if c.Reward.Scope.Effective() == testbenefits.ScopeAccount {
 					accountSent[c.ID] = true

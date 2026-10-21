@@ -2,9 +2,7 @@ package gmtool
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/servicehttp"
 )
 
@@ -49,7 +48,7 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 		defer stop()
 		position, err := s.scanBenefitDeliveries(ctx, in)
 		if err != nil {
-			s.cfg.Logger("benefit-scan-retry", "account_cursor", position.Account, "cause", err.Error())
+			diagnostics.Log(s.cfg.Logger, ctx, "benefit-scan-retry", err, "account_cursor", position.Account)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(struct {
@@ -91,7 +90,7 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 		}
 		api.ServeHTTP(w, r)
 	}))
-	return servicehttp.Protect(token, hash, mux)
+	return diagnostics.Wrap("game-gateway", s.cfg.Logger, servicehttp.Protect(token, hash, mux))
 }
 
 // ExternalHandler owns browser authentication, static catalog queries, and the
@@ -103,7 +102,7 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 	}
 	base := s.ManagementHandler(webRoot)
 	catalog := s.v1Routes()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return diagnostics.Wrap("external-gm", s.cfg.Logger, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -122,12 +121,7 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			base.ServeHTTP(w, r)
 			return
 		}
-		var requestID [16]byte
-		if _, e := rand.Read(requestID[:]); e != nil {
-			v1Fail(w, r, 503, "unavailable", "服务暂不可用", true)
-			return
-		}
-		id := hex.EncodeToString(requestID[:])
+		id := diagnostics.RequestID(r.Context())
 		r = r.WithContext(context.WithValue(r.Context(), v1RequestIDKey{}, id))
 		w.Header().Set("X-Request-ID", id)
 		if !s.authenticated(r) {
@@ -169,18 +163,35 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		}
 		res, e := peer.Do(r.Context(), r.Method, r.URL.RequestURI(), raw, r.Header)
 		if e != nil {
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-gateway-failed", e)
 			v1Fail(w, r, 503, "gateway_unavailable", "游戏网关连接暂不可用", true)
 			return
 		}
 		defer res.Body.Close()
 		if res.Header.Get("X-PurpleMagic-Protocol") != servicehttp.Version || res.Header.Get("X-PVF-SHA256") != peer.Hash() {
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-gateway-failed", &servicehttp.PeerError{Kind: "generation_mismatch", Status: res.StatusCode})
 			v1Fail(w, r, 503, "gateway_generation", "游戏网关与 PVF 代次不一致", true)
 			return
 		}
+		readDone := diagnostics.Start(r.Context(), "peer.response_body")
 		raw, e = io.ReadAll(io.LimitReader(res.Body, servicehttp.MaxResponse+1))
 		if e != nil || len(raw) > servicehttp.MaxResponse {
+			kind := "response_read"
+			if len(raw) > servicehttp.MaxResponse {
+				kind = "response_limit"
+			}
+			err := &servicehttp.PeerError{Kind: kind, Status: res.StatusCode, Cause: e}
+			readDone(err)
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-gateway-failed", err)
 			v1Fail(w, r, 503, "gateway_response", "游戏网关响应读取失败", true)
 			return
+		}
+		readDone(nil)
+		if res.StatusCode >= 400 {
+			var envelope v1Envelope
+			if json.Unmarshal(raw, &envelope) == nil && envelope.Error != nil {
+				diagnostics.Code(r.Context(), envelope.Error.Code)
+			}
 		}
 		if r.URL.Path == "/api/v1/capabilities" && res.StatusCode == 200 {
 			var v map[string]any
@@ -217,8 +228,10 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
 		w.Header().Set("X-Request-ID", res.Header.Get("X-Request-ID"))
 		w.WriteHeader(res.StatusCode)
-		w.Write(raw)
-	})
+		done := diagnostics.Start(r.Context(), "response.write")
+		_, e = w.Write(raw)
+		done(e)
+	}))
 }
 
 // RunExternalScanner drives bounded gateway transactions. Cursor is disposable;
@@ -230,6 +243,7 @@ func RunExternalScanner(ctx context.Context, peer *servicehttp.Client, interval 
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
 	var position benefitScanPosition
+	cycle := diagnostics.ID()
 	for {
 		select {
 		case <-ctx.Done():
@@ -237,23 +251,29 @@ func RunExternalScanner(ctx context.Context, peer *servicehttp.Client, interval 
 		case <-timer.C:
 		}
 		for i := 0; i < 10; i++ {
+			run := diagnostics.New(ctx)
+			diagnostics.Field(run, "cycle_id", cycle)
+			diagnostics.Field(run, "account_cursor", position.Account)
+			diagnostics.Field(run, "character_id", position.Character)
+			diagnostics.Field(run, "campaign_id", position.Campaign)
 			var out struct {
 				Position benefitScanPosition `json:"position"`
 				Retry    bool                `json:"retry"`
 			}
-			e := peer.JSON(ctx, "/api/internal/gateway/v1/scan-v2", position, &out)
+			e := peer.JSON(run, "/api/internal/gateway/v1/scan-v2", position, &out)
 			if e != nil {
 				if ctx.Err() == nil {
-					log("external-benefit-scan-retry")
+					diagnostics.Log(log, run, "external-benefit-scan-retry", e)
 				}
 				break
 			}
 			position = out.Position
 			if out.Retry {
-				log("external-benefit-scan-retry", "account_cursor", position.Account, "character_id", position.Character, "campaign_id", position.Campaign)
+				diagnostics.Log(log, run, "external-benefit-scan-retry", nil, "retry_reason", "gateway_delivery_retry", "next_account_cursor", position.Account, "next_character_id", position.Character, "next_campaign_id", position.Campaign)
 			}
 			if position.Account == 0 {
-				log("external-benefit-scan-cycle-complete")
+				diagnostics.Log(log, run, "external-benefit-scan-cycle-complete", nil)
+				cycle = diagnostics.ID()
 			}
 			if position.Account == 0 || out.Retry {
 				break

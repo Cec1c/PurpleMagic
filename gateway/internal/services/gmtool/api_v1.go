@@ -3,8 +3,8 @@ package gmtool
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
+	"dnf90.local/gateway/internal/diagnostics"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -38,14 +38,19 @@ type v1Envelope struct {
 }
 
 func v1Reply(w http.ResponseWriter, r *http.Request, status int, out v1Envelope) {
+	done := diagnostics.Start(r.Context(), "response.serialize_write")
 	out.RequestID, _ = r.Context().Value(v1RequestIDKey{}).(string)
+	if out.RequestID == "" {
+		out.RequestID = diagnostics.RequestID(r.Context())
+	}
 	out.ObservedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(out)
+	done(json.NewEncoder(w).Encode(out))
 }
 func v1Fail(w http.ResponseWriter, r *http.Request, status int, code, message string, retry bool) {
+	diagnostics.Code(r.Context(), code)
 	v1Reply(w, r, status, v1Envelope{Error: &v1Error{Code: code, Message: message, Retryable: retry}})
 }
 
@@ -120,14 +125,16 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/items", s.v1Items)
 	mux.HandleFunc("GET /api/v1/items/{itemId}", s.v1ItemDetail)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { v1Fail(w, r, 404, "not_found", "接口不存在", false) })
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var raw [16]byte
-		if _, err := rand.Read(raw[:]); err != nil {
-			v1Fail(w, r, 503, "unavailable", "服务暂不可用", true)
-			return
-		}
-		id := hex.EncodeToString(raw[:])
+	return diagnostics.Wrap("gm-api", s.cfg.Logger, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := diagnostics.RequestID(r.Context())
 		r = r.WithContext(context.WithValue(r.Context(), v1RequestIDKey{}, id))
+		_, pattern := mux.Handler(r)
+		if r.Method == http.MethodPost {
+			_, pattern = writes.Handler(r)
+		}
+		if pattern != "" {
+			diagnostics.Route(r.Context(), pattern)
+		}
 		w.Header().Set("X-Request-ID", id)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if !s.authenticated(r) {
@@ -150,7 +157,7 @@ func (s *Server) v1Routes() http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
-	})
+	}))
 }
 
 type v1Query struct {
@@ -257,7 +264,7 @@ func (s *Server) v1SummaryReader() (repository.CharacterSummaryReader, error) {
 }
 func (s *Server) v1Unavailable(w http.ResponseWriter, r *http.Request, err error) {
 	if s.cfg.Logger != nil {
-		s.cfg.Logger("gm-v1-read-unavailable", "request_id", r.Context().Value(v1RequestIDKey{}), "cause", err.Error())
+		diagnostics.Log(s.cfg.Logger, r.Context(), "gm-v1-read-unavailable", err)
 	}
 	v1Fail(w, r, 503, "dependency_unavailable", "数据暂时无法读取，请稍后重试", true)
 }

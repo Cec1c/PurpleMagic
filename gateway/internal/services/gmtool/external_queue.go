@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/servicehttp"
 )
 
@@ -148,18 +148,24 @@ func (q *ExternalQueue) task(ctx context.Context, id string) (queueTask, json.Ra
 		return task, nil, e
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 || res.Header.Get("X-PurpleMagic-Protocol") != servicehttp.Version || res.Header.Get("X-PVF-SHA256") != q.peer.Hash() {
-		return task, nil, errors.New("task gateway unavailable")
-	}
-	raw, e := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	raw, e := q.peer.ReadResponse(ctx, res)
 	if e != nil {
 		return task, nil, e
 	}
 	var envelope struct {
 		Data json.RawMessage `json:"data"`
 	}
-	if json.Unmarshal(raw, &envelope) != nil || json.Unmarshal(envelope.Data, &task) != nil || task.ID != id || (task.PVFChecksum != "" && task.PVFChecksum != q.peer.Hash()) {
-		return task, nil, errors.New("task identity or PVF changed")
+	if e = json.Unmarshal(raw, &envelope); e != nil {
+		return task, nil, &servicehttp.PeerError{Kind: "invalid_json", Cause: e}
+	}
+	if e = json.Unmarshal(envelope.Data, &task); e != nil {
+		return task, nil, &servicehttp.PeerError{Kind: "invalid_task_json", Cause: e}
+	}
+	if task.ID != id {
+		return task, nil, &servicehttp.PeerError{Kind: "task_identity_mismatch"}
+	}
+	if task.PVFChecksum != "" && task.PVFChecksum != q.peer.Hash() {
+		return task, nil, &servicehttp.PeerError{Kind: "generation_mismatch"}
 	}
 	return task, envelope.Data, nil
 }
@@ -177,6 +183,7 @@ func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 		v1Fail(w, r, 400, "invalid_task", "任务请求无效", false)
 		return true
 	}
+	diagnostics.Field(r.Context(), "job_id", parts[0])
 	var in struct {
 		Revision uint64 `json:"revision"`
 		Confirm  bool   `json:"confirm"`
@@ -189,6 +196,7 @@ func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 	defer q.mu.Unlock()
 	task, raw, e := q.task(r.Context(), parts[0])
 	if e != nil {
+		diagnostics.Fail(r.Context(), e)
 		v1Fail(w, r, 503, "gateway_unavailable", "读取任务失败，请重试", true)
 		return true
 	}
@@ -236,13 +244,16 @@ func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 	v1Reply(w, r, 200, v1Envelope{Data: data})
 	return true
 }
-func (q *ExternalQueue) step(ctx context.Context) error {
+func (q *ExternalQueue) step(ctx context.Context) (resultErr error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for id, j := range q.state.Jobs {
 		if j.Status != "active" {
 			continue
 		}
+		ctx = backgroundJob(ctx, "mail", id)
+		diagnostics.Field(ctx, "revision", j.Revision)
+		defer func() { resultErr = wrapJob(ctx, resultErr) }()
 		task, _, e := q.task(ctx, id)
 		if e != nil {
 			return e
@@ -276,7 +287,7 @@ func (q *ExternalQueue) step(ctx context.Context) error {
 			return e
 		}
 		if result.Data.ID != id || result.Data.Revision != j.Revision+1 {
-			return errors.New("queued task response mismatch")
+			return &servicehttp.PeerError{Kind: "task_revision_mismatch"}
 		}
 		j.Revision = result.Data.Revision
 		j.InFlight = false
@@ -298,10 +309,10 @@ func (q *ExternalQueue) Run(ctx context.Context, log func(string, ...any)) {
 			return
 		case <-timer.C:
 			if e := q.stepBenefits(ctx); e != nil && ctx.Err() == nil {
-				log("external-benefit-queue-retry")
+				diagnostics.Log(log, ctx, "external-benefit-queue-retry", e)
 			}
 			if e := q.step(ctx); e != nil && ctx.Err() == nil {
-				log("external-mail-queue-retry")
+				diagnostics.Log(log, ctx, "external-mail-queue-retry", e)
 			}
 		}
 	}

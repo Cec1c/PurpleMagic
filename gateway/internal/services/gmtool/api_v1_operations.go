@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
+	"dnf90.local/gateway/internal/diagnostics"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -123,6 +124,7 @@ func (s *Server) v1OperationGroup() (repository.Group, error) {
 	return g, nil
 }
 func (s *Server) v1OperationError(w http.ResponseWriter, r *http.Request, err error) {
+	diagnostics.Fail(r.Context(), err)
 	var input *v1MailInputError
 	if errors.As(err, &input) {
 		v1Fail(w, r, input.status, input.code, input.message, false)
@@ -149,7 +151,7 @@ func (s *Server) v1OperationError(w http.ResponseWriter, r *http.Request, err er
 		v1Fail(w, r, 422, "preview_unavailable", err.Error(), false)
 	default:
 		if s.cfg.Logger != nil {
-			s.cfg.Logger("gm-v1-operation-error", "request_id", r.Context().Value(v1RequestIDKey{}), "cause", err.Error())
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-v1-operation-error", err)
 		}
 		v1Fail(w, r, 503, "operation_unavailable", "操作暂未完成，请刷新记录后重试", true)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
@@ -72,7 +73,7 @@ func (s *Store) CampaignRecipientPageThrough(ctx context.Context, group reposito
 	if limit < 1 || limit > 100 {
 		return nil, "", ErrPreviewLimit
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT id,account_id FROM "+s.prefix+" WHERE id>=? ORDER BY id LIMIT 6", accountAfter)
+	rows, err := diagnostics.Query(ctx, s.db, "benefits.registration", "SELECT id,account_id FROM "+s.prefix+" WHERE id>=? ORDER BY id LIMIT 6", accountAfter)
 	if err != nil {
 		return nil, "", err
 	}
@@ -96,11 +97,15 @@ func (s *Store) CampaignRecipientPageThrough(ctx context.Context, group reposito
 	}
 	out := []CampaignRecipient{}
 	for _, a := range accounts[:min(5, len(accounts))] {
+		charactersDone := diagnostics.Start(ctx, "benefits.characters")
 		characters, err := CharactersForAccount(ctx, group, a.key)
+		charactersDone(err)
 		if err != nil {
 			return nil, "", err
 		}
+		accountDone := diagnostics.Start(ctx, "benefits.account_receipts")
 		account, found, err := group.Account.Load(ctx, a.key)
+		accountDone(err)
 		if err != nil {
 			return nil, "", err
 		}

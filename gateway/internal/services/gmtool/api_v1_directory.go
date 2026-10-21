@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
@@ -87,7 +88,7 @@ func (s *Server) v1Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 	query += " ORDER BY a.id LIMIT ?"
 	args = append(args, q.Limit+1)
-	rows, err := s.db.QueryContext(r.Context(), query, args...)
+	rows, err := diagnostics.Query(r.Context(), s.db, "accounts.registration", query, args...)
 	if err != nil {
 		s.v1Unavailable(w, r, err)
 		return
@@ -117,18 +118,22 @@ func (s *Server) v1Accounts(w http.ResponseWriter, r *http.Request) {
 	for _, a := range accounts {
 		ids = append(ids, a.AccountID)
 	}
+	summaryDone := diagnostics.Start(r.Context(), "accounts.characters")
 	characters, err := reader.SummariesForAccounts(r.Context(), ids)
+	summaryDone(err)
 	if err != nil {
 		s.v1Unavailable(w, r, err)
 		return
 	}
 	counts := map[string]int{}
+	assemblyDone := diagnostics.Start(r.Context(), "accounts.assembly")
 	for _, c := range characters {
 		counts[c.AccountID]++
 	}
 	for i := range accounts {
 		accounts[i].CharacterCount = counts[accounts[i].AccountID]
 	}
+	assemblyDone(nil)
 	v1Reply(w, r, 200, v1Envelope{Data: accounts, Page: &page})
 }
 

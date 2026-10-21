@@ -24,6 +24,8 @@ GM queries now show base rows before bounded parallel supplements, cancel reads 
 
 ## What it does
 
+GM diagnostics correlate requests across services and time account queries, benefit details and delivery transactions. See the [logging contract and troubleshooting guide](docs/GM_DIAGNOSTICS.md).
+
 | Workflow | Current capabilities |
 | --- | --- |
 | Player login | Windows registration and login, client-directory discovery, channel checks and game launch; launcher source version 0.2.18 |

@@ -3,9 +3,9 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"dnf90.local/gateway/internal/modules/dnf/repository"
 	"errors"
 	"fmt"
-	"dnf90.local/gateway/internal/modules/dnf/repository"
 	"sort"
 )
 
@@ -52,7 +52,7 @@ func loadStringMap(
 	query string,
 	ownerID string,
 ) (map[string]string, error) {
-	rows, err := database.QueryContext(ctx, query, ownerID)
+	rows, err := diagnosticQuery(ctx, database, "storage.metadata", query, ownerID)
 	if err != nil {
 		return nil, err
 	}

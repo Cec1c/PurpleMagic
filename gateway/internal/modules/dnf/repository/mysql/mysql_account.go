@@ -4,15 +4,15 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	mysql "github.com/go-sql-driver/mysql"
 	"dnf90.local/gateway/internal/platform/db"
+	mysql "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -42,7 +42,7 @@ func (s *mysqlAccountStore) Load(ctx context.Context, accountID string) (reposit
 	var record repository.AccountRecord
 	var representName sql.NullString
 	var createdAt, updatedAt sql.NullTime
-	err = s.router.db.QueryRowContext(ctx, query, accountID).Scan(
+	err = diagnosticRow(ctx, s.router.db, "account.base", query, accountID).Scan(
 		&record.AccountID,
 		&record.State,
 		&record.HonorExp,

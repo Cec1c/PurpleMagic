@@ -5,6 +5,7 @@ package testbenefits
 import (
 	"context"
 	"crypto/sha256"
+	"dnf90.local/gateway/internal/diagnostics"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -229,9 +230,11 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 			deliver = repository.AppendSystemNotification
 			body = "点券 " + strconv.FormatInt(job.Cera, 10) + " 已存入账号，账号下所有角色共享。"
 		}
+		mailDone := diagnostics.Start(ctx, "delivery.mail_append")
 		mailID, err := deliver(ctx, mailboxes, repository.SystemMailDelivery{
 			RecipientCharacterID: recipient.CharacterID, Title: job.Title, Body: body, Source: "test-benefits:" + deliveryID(job), Gold: job.Gold, Attachments: attachments, CreatedAt: at,
 		})
+		mailDone(err)
 		if err != nil {
 			return err
 		}
@@ -253,12 +256,18 @@ func DeliverProjectedWithReceipt(ctx context.Context, group repository.Group, jo
 		}
 		if job.Cera > 0 {
 			for _, field := range []string{"account_cera", "gm_currency_sequence_v1"} {
-				if err := repository.SaveAccountMetadataEntry(ctx, accounts, account, field, account.Metadata[field], time.Now().UTC()); err != nil {
+				walletDone := diagnostics.Start(ctx, "delivery.wallet_write")
+				err := repository.SaveAccountMetadataEntry(ctx, accounts, account, field, account.Metadata[field], time.Now().UTC())
+				walletDone(err)
+				if err != nil {
 					return err
 				}
 			}
 		}
-		return repository.SaveAccountMetadataEntry(ctx, accounts, account, key, prefix+payload, time.Now().UTC())
+		receiptDone := diagnostics.Start(ctx, "delivery.receipt_write")
+		err = repository.SaveAccountMetadataEntry(ctx, accounts, account, key, prefix+payload, time.Now().UTC())
+		receiptDone(err)
+		return err
 	})
 	if err != nil {
 		return DeliveryReceipt{}, err

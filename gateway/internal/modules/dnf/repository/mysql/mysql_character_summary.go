@@ -56,7 +56,7 @@ func (s *mysqlCharStore) SummariesForAccounts(ctx context.Context, ids []string)
 	seen := map[string]bool{}
 	for _, database := range s.router.readDBs {
 		table := mysqlTable(database, s.router.tablePrefix, mysqlCharTable)
-		rows, err := s.router.db.QueryContext(ctx, "SELECT "+summaryColumns+" FROM "+table+" WHERE delete_flag=0 AND account_id IN ("+marks+") AND BINARY account_id IN ("+marks+") ORDER BY BINARY account_id,slot,BINARY character_id LIMIT ?", args...)
+		rows, err := diagnosticQuery(ctx, s.router.db, "characters.summary", "SELECT "+summaryColumns+" FROM "+table+" WHERE delete_flag=0 AND account_id IN ("+marks+") AND BINARY account_id IN ("+marks+") ORDER BY BINARY account_id,slot,BINARY character_id LIMIT ?", args...)
 		if err != nil {
 			return nil, err
 		}

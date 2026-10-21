@@ -12,13 +12,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"dnf90.local/gateway/internal/diagnostics"
 )
 
 const Version = "purplemagic-service-v1"
@@ -83,7 +84,17 @@ func (c *Client) Do(ctx context.Context, method, path string, body []byte, heade
 	r.Header.Set("Authorization", "Bearer "+c.config.Token)
 	r.Header.Set("X-PurpleMagic-Protocol", Version)
 	r.Header.Set("X-PVF-SHA256", c.config.PVFSHA256)
-	return c.http.Do(r)
+	diagnostics.Headers(ctx, r.Header)
+	done := diagnostics.Start(ctx, "peer.response_headers")
+	res, err := c.http.Do(r)
+	if err != nil {
+		err = &PeerError{Kind: "transport", Cause: err}
+	} else {
+		diagnostics.Field(ctx, "peer_status", res.StatusCode)
+		diagnostics.Field(ctx, "peer_request_id", responseID(res))
+	}
+	done(err)
+	return res, err
 }
 func (c *Client) JSON(ctx context.Context, path string, in, out any) error {
 	raw, e := json.Marshal(in)
@@ -93,20 +104,16 @@ func (c *Client) JSON(ctx context.Context, path string, in, out any) error {
 	h := http.Header{"Content-Type": []string{"application/json"}}
 	res, e := c.Do(ctx, "POST", path, raw, h)
 	if e != nil {
-		return errors.New("private GM peer unavailable")
+		return e
 	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		return errors.New("private GM peer rejected request")
+	raw, e = c.ReadResponse(ctx, res)
+	if e != nil {
+		return e
 	}
-	if res.Header.Get("X-PurpleMagic-Protocol") != Version || res.Header.Get("X-PVF-SHA256") != c.Hash() {
-		return errors.New("private GM generation mismatch")
+	if e = json.Unmarshal(raw, out); e != nil {
+		return &PeerError{Kind: "invalid_json", Status: res.StatusCode, RequestID: responseID(res), Cause: e}
 	}
-	raw, e = io.ReadAll(io.LimitReader(res.Body, MaxResponse+1))
-	if e != nil || len(raw) > MaxResponse {
-		return errors.New("private GM response exceeds limit")
-	}
-	return json.Unmarshal(raw, out)
+	return nil
 }
 func Authenticated(r *http.Request) bool { v, _ := r.Context().Value(identityKey{}).(bool); return v }
 func Protect(token, hash string, next http.Handler) http.Handler {
@@ -114,11 +121,15 @@ func Protect(token, hash string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		provided := sha256.Sum256([]byte(r.Header.Get("Authorization")))
 		if len(token) < 32 || subtle.ConstantTimeCompare(expected[:], provided[:]) != 1 || r.Header.Get("X-PurpleMagic-Protocol") != Version || r.Header.Get("X-PVF-SHA256") != hash || r.Header.Get("Origin") != "" || r.Header.Get("Cookie") != "" {
+			diagnostics.Code(r.Context(), "private_auth_or_generation")
+			w.Header().Set("X-PurpleMagic-Error-Code", "private_auth_or_generation")
 			http.Error(w, "private service authentication or generation mismatch", http.StatusForbidden)
 			return
 		}
 		w.Header().Set("X-PurpleMagic-Protocol", Version)
 		w.Header().Set("X-PVF-SHA256", hash)
+		diagnostics.TrustPeer(r.Context(), r.Header)
+		diagnostics.ResponseHeaders(r.Context(), w.Header())
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), identityKey{}, true)))
 	})
 }

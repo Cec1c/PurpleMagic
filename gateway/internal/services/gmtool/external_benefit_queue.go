@@ -5,13 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/servicehttp"
 )
 
@@ -82,6 +81,8 @@ func (q *ExternalQueue) HandleBenefit(w http.ResponseWriter, r *http.Request) bo
 	}
 	hash := sha256.Sum256([]byte("benefit-redelivery:" + key))
 	jobID := hex.EncodeToString(hash[:16])
+	diagnostics.Field(r.Context(), "job_id", jobID)
+	diagnostics.Field(r.Context(), "campaign_id", id)
 	q.mu.Lock()
 	previous, exists := q.state.Benefits[jobID]
 	q.mu.Unlock()
@@ -97,6 +98,7 @@ func (q *ExternalQueue) HandleBenefit(w http.ResponseWriter, r *http.Request) bo
 	defer cancel()
 	res, err := q.peer.Do(ctx, "GET", "/api/v1/benefits/"+id, nil, nil)
 	if err != nil {
+		diagnostics.Fail(r.Context(), err)
 		v1Fail(w, r, 503, "gateway_unavailable", "读取福利规则失败，请重试", true)
 		return true
 	}
@@ -109,7 +111,15 @@ func (q *ExternalQueue) HandleBenefit(w http.ResponseWriter, r *http.Request) bo
 			PVFChecksum string
 		}
 	}
-	if res.StatusCode != 200 || res.Header.Get("X-PurpleMagic-Protocol") != servicehttp.Version || res.Header.Get("X-PVF-SHA256") != q.peer.Hash() || json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&rule) != nil || rule.Data.ID != id {
+	raw, err := q.peer.ReadResponse(ctx, res)
+	if err == nil {
+		err = json.Unmarshal(raw, &rule)
+	}
+	if err != nil || rule.Data.ID != id {
+		if err == nil {
+			err = &servicehttp.PeerError{Kind: "rule_identity_mismatch"}
+		}
+		diagnostics.Fail(r.Context(), err)
 		v1Fail(w, r, 503, "gateway_unavailable", "读取福利规则失败，请重试", true)
 		return true
 	}
@@ -148,7 +158,7 @@ func (q *ExternalQueue) HandleBenefit(w http.ResponseWriter, r *http.Request) bo
 	return true
 }
 
-func (q *ExternalQueue) stepBenefits(ctx context.Context) error {
+func (q *ExternalQueue) stepBenefits(ctx context.Context) (resultErr error) {
 	q.benefitMu.Lock()
 	defer q.benefitMu.Unlock()
 	q.mu.Lock()
@@ -165,6 +175,11 @@ func (q *ExternalQueue) stepBenefits(ctx context.Context) error {
 		return nil
 	}
 	j := jobs[0]
+	ctx = backgroundJob(ctx, "benefit", j.ID)
+	diagnostics.Field(ctx, "campaign_id", j.CampaignID)
+	diagnostics.Field(ctx, "revision", j.Revision)
+	diagnostics.Field(ctx, "cursor_hash", diagnostics.Fingerprint(j.Cursor))
+	defer func() { resultErr = wrapJob(ctx, resultErr) }()
 	old := j
 	var out benefitRedeliveryResult
 	run, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -174,7 +189,7 @@ func (q *ExternalQueue) stepBenefits(ctx context.Context) error {
 	if err != nil {
 		j.Error = "连接或读取失败，后台正在重试"
 	} else if out.Checked < 0 || out.Checked > 1 || out.Received < 0 || out.Skipped < 0 || out.Failed < 0 || out.Received+out.Skipped+out.Failed > out.Checked || len(out.Next) > 256 {
-		return errors.New("invalid benefit batch response")
+		return &servicehttp.PeerError{Kind: "invalid_benefit_batch"}
 	} else {
 		j.Error = out.Stop
 		j.Cursor = out.Next

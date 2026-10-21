@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/testbenefits"
 )
 
@@ -96,7 +97,7 @@ func (s *Server) redeliverBenefitPage(w http.ResponseWriter, r *http.Request) {
 			out.Failed++
 			out.Failures = append(out.Failures, benefitRedeliveryFailure{rec.AccountID, rec.CharacterID, v1DeliveryFailure(e.Error()).Message})
 			if s.cfg.Logger != nil {
-				s.cfg.Logger("benefit-redelivery-failed", "campaign_id", c.ID, "character_id", rec.CharacterID, "cause", e.Error())
+				diagnostics.Log(s.cfg.Logger, ctx, "benefit-redelivery-failed", e, "campaign_id", c.ID, "character_id", rec.CharacterID)
 			}
 		}
 	}
