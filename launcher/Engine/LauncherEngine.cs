@@ -32,6 +32,10 @@ public sealed class LauncherEngine : IDisposable
         root = trusted; stateRoot = dataDirectory; SafeFiles.NoLinks(stateRoot); Directory.CreateDirectory(stateRoot);
         var file = Path.Combine(stateRoot, "preferences.json");
         if (File.Exists(file)) preferences = JsonSerializer.Deserialize(File.ReadAllBytes(file), WireJson.Default.Preferences) ?? new();
+        if (preferences.Diagnostics is { Enabled: true, HasConsent: false } legacy) {
+            preferences = preferences with { Diagnostics = legacy with { Enabled = false } };
+            SafeFiles.Atomic(file, JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
+        }
         var detected = ClientDirectoryDiscovery.Find(preferences.ClientDirectory, root.DefaultClientDirectory,
             AppContext.BaseDirectory, Environment.GetEnvironmentVariable(ClientDirectoryDiscovery.LaunchDirectoryVariable), Environment.CurrentDirectory);
         var discovered = detected != "" && detected != preferences.ClientDirectory;
@@ -148,6 +152,7 @@ public sealed class LauncherEngine : IDisposable
         try
         {
             if (value.Diagnostics?.ProblemType is not (null or "auto" or "quests" or "interaction" or "connection" or "performance")) throw new InvalidDataException("诊断问题类型无效。");
+            if (value.Diagnostics is { Enabled: true, HasConsent: false }) throw new InvalidOperationException("请先阅读并同意异常栈与游戏操作采集说明。");
             if (value.Account.Length > 64 || value.ClientDirectory.Length > 1000) throw new InvalidDataException("设置内容过长。");
             var directoryChanged = value.ClientDirectory != preferences.ClientDirectory;
             preferences = value with { Account = value.RememberAccount ? value.Account : "" };
@@ -231,7 +236,7 @@ public sealed class LauncherEngine : IDisposable
             RequireNoGames(); await CheckCore(); await InstallContent();
         }
         catch (OperationCanceledException) { Emit("paused", "下载已暂停，点击继续会保留已下载的断点。", State.Downloaded, State.Total); }
-        catch (Exception error) { diagnostics.Event("update_error", number: error.HResult); Emit("error", "更新未完成，已保留当前版本与可恢复记录。", State.Downloaded, State.Total); throw; }
+        catch (Exception error) { diagnostics.Failure("update_error", error); Emit("error", "更新未完成，已保留当前版本与可恢复记录。", State.Downloaded, State.Total); throw; }
         finally { download = null; operation.Release(); }
     }
     private async Task InstallContent()
@@ -315,7 +320,7 @@ public sealed class LauncherEngine : IDisposable
             if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 90 秒后重试。");
             Emit("ready", channels.Message + " 客户端正在运行。");
         }
-        catch (Exception error) { diagnostics.Event("login_error", number: error.HResult); Emit("error", "登录未完成，请查看提示。"); throw; }
+        catch (Exception error) { diagnostics.Failure("login_error", error); Emit("error", "登录未完成，请查看提示。"); throw; }
         finally { operation.Release(); }
     }
     private static void ValidateCredentials(Credentials input)
@@ -334,6 +339,7 @@ public sealed class LauncherEngine : IDisposable
         finally { foreach (var p in processes) p.Dispose(); }
     }
     public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string target) => diagnostics.Export(sessionId, target);
-    public void RecordDiagnosticError(int code) => diagnostics.Event("operation_error", number: code);
+    public Task ElevateDiagnostics(string sessionId) => diagnostics.Elevate(sessionId);
+    public void RecordDiagnosticError(Exception error) => diagnostics.Failure("operation_error", error);
     public void Dispose() { download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
 }

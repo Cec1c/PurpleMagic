@@ -128,6 +128,7 @@ class LauncherController extends ChangeNotifier {
   String clientDirectory = '', account = '';
   bool rememberAccount = true;
   bool diagnosticsEnabled = false, diagnosticBusy = false;
+  int diagnosticConsentVersion = 0;
   String diagnosticType = 'auto';
   Map<String, dynamic> diagnostics = const {};
   String diagnosticError = '';
@@ -191,6 +192,7 @@ class LauncherController extends ChangeNotifier {
     reducedEffects = prefs['reducedEffects'] == true;
     final diagnosticPrefs = prefs['diagnostics'] as Map<String, dynamic>? ?? {};
     diagnosticsEnabled = diagnosticPrefs['enabled'] == true;
+    diagnosticConsentVersion = diagnosticPrefs['consentVersion'] as int? ?? 0;
     diagnosticType = diagnosticPrefs['problemType'] as String? ?? 'auto';
     diagnostics = state['diagnostics'] as Map<String, dynamic>? ?? const {};
 
@@ -266,6 +268,7 @@ class LauncherController extends ChangeNotifier {
     bool? effects,
     bool? check,
     bool? diagnosticEnabled,
+    int? diagnosticConsent,
     String? problemType,
   }) async {
     await client.call('preferences', {
@@ -276,6 +279,7 @@ class LauncherController extends ChangeNotifier {
       'reducedEffects': effects ?? reducedEffects,
       'diagnostics': {
         'enabled': diagnosticEnabled ?? diagnosticsEnabled,
+        'consentVersion': diagnosticConsent ?? diagnosticConsentVersion,
         'problemType': problemType ?? diagnosticType,
       },
     });
@@ -311,13 +315,21 @@ class LauncherController extends ChangeNotifier {
     }
   }
 
-  Future<void> diagnosticPreferences({bool? enabled, String? type}) async {
+  Future<void> diagnosticPreferences({
+    bool? enabled,
+    String? type,
+    int? consent,
+  }) async {
     if (diagnosticBusy) return;
     diagnosticBusy = true;
     diagnosticError = '';
     notifyListeners();
     try {
-      await save(diagnosticEnabled: enabled, problemType: type);
+      await save(
+        diagnosticEnabled: enabled,
+        problemType: type,
+        diagnosticConsent: consent,
+      );
     } catch (error) {
       diagnosticError = error.toString().replaceFirst('Bad state: ', '');
     } finally {

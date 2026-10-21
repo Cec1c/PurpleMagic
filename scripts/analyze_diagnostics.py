@@ -26,8 +26,10 @@ def analyze_log(path):
         raise ValueError('Log limit or incomplete line')
     rows = [json.loads(line) for line in raw.splitlines()]
     header, footer = rows[0], rows[-1]
-    if header['type'] != 'log_header' or footer['type'] != 'log_summary' or header['schema_version'] != 2:
+    if header['type'] != 'log_header' or footer['type'] != 'log_summary' or header['schema_version'] not in (2, 3):
         raise ValueError('Missing log header/summary')
+    if footer.get('schema_version') not in (2, 3) or footer['schema_version'] < header['schema_version']:
+        raise ValueError('Unsupported final log schema')
     sid = header['log']['summary']['session_id']
     if footer['log']['summary']['session_id'] != sid:
         raise ValueError('Summary session mismatch')
@@ -51,11 +53,15 @@ def analyze_log(path):
                 raise ValueError('Unavailable field must be null')
             if field['status'] in {'unsupported', 'read_failed'}:
                 missing.add(key + ':' + field['status'])
-        if row['type'] == 'event':
-            events.append({'sequence': sequence, 'utc': row['utc'], 'reason': row['reason']})
+        if row['type'] in ('event', 'exception'):
+            event = {'sequence': sequence, 'utc': row['utc'], 'reason': row['reason']}
+            if row.get('evidence'):
+                event['evidence'] = row['evidence']
+                event['fields'] = row['fields']
+            events.append(event)
     if len(rows) - 2 != footer['log']['summary']['records']:
         raise ValueError('Record count mismatch')
-    return {'schema_version': 2, 'verified': True, 'session_id': sid, 'records': len(rows) - 2,
+    return {'schema_version': footer['schema_version'], 'verified': True, 'session_id': sid, 'records': len(rows) - 2,
             'missing': sorted(missing), 'timeline': events[:100], 'timeline_omitted': max(0, len(events) - 100),
             'truncated': footer['log']['summary']['truncated'], 'sha256': hashlib.sha256(raw).hexdigest()}
 

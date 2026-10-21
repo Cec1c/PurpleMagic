@@ -12,7 +12,50 @@ class DiagnosticsPanel extends StatefulWidget {
 
 class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
   String exported = '', pickerError = '';
-  bool choosing = false;
+  bool choosing = false, consenting = false;
+
+  Future<void> toggle(bool enabled) async {
+    if (consenting) return;
+    if (enabled) {
+      consenting = true;
+      final agreed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('开启增强诊断日志'),
+          content: const SingleChildScrollView(
+            child: Text(
+              '开启期间会收集登录器和游戏的异常码、异常调用栈，以及游戏窗口处于前台时的玩家操作：'
+              '方向键、按键次数、鼠标点击、移动与滚轮活动和焦点变化。\n\n'
+              '其他按键合并为次数，不记录按键文字、聊天内容、密码或 Token。'
+              '日志只保存在本机，保留最近 5 次，可由你导出 .log 分享；不会自动上传。\n\n'
+              '异常采集会以调试方式关联游戏进程，异常发生时短暂暂停进程以读取调用栈。'
+              '权限不足时可点击提升诊断权限，由 Windows 弹出 UAC 确认。'
+              '关闭开关或退出登录器后停止采集。',
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('diagnostics-decline'),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              key: const Key('diagnostics-consent'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('同意并开启'),
+            ),
+          ],
+        ),
+      );
+      consenting = false;
+      if (agreed != true || !mounted) return;
+    }
+    await widget.model.diagnosticPreferences(
+      enabled: enabled,
+      consent: enabled ? 1 : null,
+    );
+  }
 
   String date(Object? value) {
     final time = DateTime.tryParse('$value')?.toLocal();
@@ -107,7 +150,7 @@ class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
                 value: model.diagnosticsEnabled,
                 onChanged: busy || model.busy || !model.connected
                     ? null
-                    : (v) => model.diagnosticPreferences(enabled: v),
+                    : toggle,
               ),
               SizedBox(
                 height: 36,
@@ -138,6 +181,42 @@ class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
                 ),
               ),
               const Divider(height: 24),
+              for (final instance
+                  in (status['instances'] as List? ?? [])
+                      .cast<Map<String, dynamic>>())
+                if (instance['crashStatus'] == 'access_denied' ||
+                    instance['crashStatus'] == 'elevation_cancelled')
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      '异常栈采集需要额外权限',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    subtitle: const Text(
+                      '确认 Windows UAC 后，为本次游戏采集异常栈。',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    trailing: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => model.diagnosticAction('diagnosticElevate', {
+                              'sessionId': instance['id'],
+                            }),
+                      child: const Text('提升诊断权限'),
+                    ),
+                  )
+                else if (instance['crashStatus'] != 'recording' &&
+                    instance['crashStatus'] != 'stopped')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      instance['crashStatus'] == 'starting' ||
+                              instance['crashStatus'] == 'elevating'
+                          ? '正在关联异常栈采集器…'
+                          : '本次游戏的异常栈采集未就绪，基础日志仍在记录。',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
               const Text('最近的启动日志', style: TextStyle(fontSize: 14)),
               const SizedBox(height: 10),
               Flexible(

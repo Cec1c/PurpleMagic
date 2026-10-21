@@ -1,6 +1,9 @@
 using System.Text.Json;
 using ServerS5A3;
 using Dnf90.Launcher;
+using Dnf90.Launcher.Diagnostics;
+
+if (args.Length > 0 && args[0] == "--diagnostic-observer") { Environment.Exit(await DiagnosticObserver.Run(args)); return; }
 
 Console.InputEncoding = System.Text.Encoding.UTF8;
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
@@ -46,6 +49,7 @@ async Task Dispatch(Request request)
             case "diagnosticExport":
                 var export = await engine.ExportDiagnostics(request.Args.GetProperty("sessionId").GetString()!, request.Args.GetProperty("path").GetString()!);
                 Respond(new(request.Id, true, State: engine.State, DiagnosticExport: export)); return;
+            case "diagnosticElevate": await engine.ElevateDiagnostics(request.Args.GetProperty("sessionId").GetString()!); break;
             case "resetGameConfiguration":
                 var confirmed = request.Args.TryGetProperty("confirmed", out var confirmation) && confirmation.ValueKind == JsonValueKind.True;
                 var reset = await engine.ResetGameConfiguration(confirmed);
@@ -59,7 +63,7 @@ async Task Dispatch(Request request)
     }
     catch (Exception error)
     {
-        engine.RecordDiagnosticError(error.HResult);
+        engine.RecordDiagnosticError(error);
         var message = error switch {
             HttpRequestException => "无法连接服务器或证书验证失败。请检查网络和后台配置。",
             IOException when error is not InvalidDataException => "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",

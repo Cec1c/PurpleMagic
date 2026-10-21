@@ -9,11 +9,12 @@ namespace Dnf90.Launcher.Diagnostics;
 
 internal interface IDiagnosticMemory { byte[] Read(uint address, int size); }
 
-// No debug privilege, writes, injected code, global input hooks or game arguments.
+// Basic read-only identity/memory access; native exception observation is isolated.
 internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
 {
     internal const uint Access = 0x1010; // QUERY_LIMITED_INFORMATION | VM_READ
     private readonly SafeProcessHandle handle;
+    private readonly bool memoryAccess = true;
     public ProcessIdentity Identity { get; }
     public uint ModuleBase { get; private set; }
     public string Hash { get; private set; } = "";
@@ -24,6 +25,7 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         handle = OpenProcess(Access, false, pid);
+        if (handle.IsInvalid) { handle.Dispose(); memoryAccess = false; handle = OpenProcess(0x1000, false, pid); }
         try
         {
             if (handle.IsInvalid) throw new Win32Exception();
@@ -50,6 +52,7 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
         var module = new ModuleEntry { Size = (uint)Marshal.SizeOf<ModuleEntry>() };
         var address = !snapshot.IsInvalid && Module32First(snapshot, ref module) ? module.Base.ToInt64() : 0;
         if (address is > 0 and <= uint.MaxValue) ModuleBase = (uint)address;
+        if (ModuleBase == 0 || !memoryAccess) Version = "unsupported";
         if (Version != "unsupported")
         {
             // The approved images are PE32/i386. Validate the loaded image as well.

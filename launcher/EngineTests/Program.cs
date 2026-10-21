@@ -7,6 +7,12 @@ using System.Text.Json;
 using Dnf90.Launcher;
 using ServerS5A3;
 
+if (args.Length > 0 && args[0] == "--diagnostic-observer") { Environment.Exit(await Dnf90.Launcher.Diagnostics.DiagnosticObserver.Run(args)); return; }
+if (args.Length == 2 && args[0] == "--diagnostic-crash-check") {
+    Directory.CreateDirectory(args[1]);
+    await CrashDiagnosticsChecks.Run(args[1], (ok, name) => { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }); return;
+}
+
 if (args.Length == 2 && args[0] == "--interop") { await Integration.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--news-interop") { await NewsIntegration.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--bundle-lifecycle") { await BundleLifecycleChecks.Run(args[1]); return; }
@@ -26,6 +32,7 @@ try
     await DiagnosticChecks.Run(temp, Check);
     using var key = RSA.Create(2048);
     var root = new PlayerProfile("https://accounts.example.test", new string('a', 64), key.ExportSubjectPublicKeyInfoPem(), "https://accounts.example.test/old-wpf-settings", "192.0.2.1", 7001, new string('b', 64), new string('c', 64), "");
+    await CrashDiagnosticsChecks.Consent(temp, root, Check);
     await ClientDirectoryChecks.Run(temp, root, Check);
     await LauncherBundleDownloadChecks.Run(temp, root, Check);
     await ContentDirectDownloadChecks.Run(temp, root, Check);

@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Cec1c/PurpleMagic/docs/diagnostics/record-v2.schema.json",
+  "title": "PurpleMagic diagnostic JSONL record v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sequence",
+    "utc",
+    "monotonic_ms",
+    "type",
+    "module",
+    "session_id",
+    "read_ms",
+    "quality",
+    "fields"
+  ],
+  "properties": {
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "monotonic_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "identity",
+        "event",
+        "performance",
+        "scene",
+        "sample",
+        "exception"
+      ]
+    },
+    "module": {
+      "enum": [
+        "collector",
+        "launcher",
+        "process",
+        "at5t",
+        "fixture",
+        "observer"
+      ]
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "read_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "quality": {
+      "enum": [
+        "ok",
+        "partial",
+        "unstable",
+        "read_failed",
+        "dropped"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "base_sequence": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "fields": {
+      "type": "object",
+      "maxProperties": 4096,
+      "additionalProperties": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "evidence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "managed_exception",
+            "native_exception"
+          ]
+        },
+        "exceptions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/exception"
+          }
+        },
+        "stack": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/stack_frame"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "status"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "not_applicable",
+            "unsupported",
+            "read_failed",
+            "unstable"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "number"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "value": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "stack_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module",
+        "offset"
+      ],
+      "properties": {
+        "module": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        }
+      }
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "h_result",
+        "native_code",
+        "stack"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "h_result": {
+          "type": "integer"
+        },
+        "native_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "stack": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/stack_frame"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,24 @@
+# 2026-10-21：异常栈与操作日志候选验证
+
+| 检查 | 结果 |
+| --- | --- |
+| Core / Engine / Portable | 155 / 384 / 14 项通过；Engine 包含逐日志记录断言，记录时序会影响断言总数 |
+| Flutter | analyze 与 22 项 widget 测试通过；开启说明、取消不启用、同意持久化、权限按钮仅提交目标会话、原生另存为桥接/取消/失败 |
+| 原生 x86 / x64 异常 | 实际 Windows 调试关联，首轮访问违规交回程序处理；未处理异常返回原退出码，导出 8 / 7 个模块内偏移栈帧 |
+| 实际 NativeAOT Host | 两种架构的子进程分别走关联、异常采集、退出、RPC 导出、格式核验，均通过 |
+| 生命周期 | 正常关闭采集脱离而不终止游戏；强制结束隔离 Host 后辅助进程脱离，测试游戏继续运行；双开独立、重开续写回归通过 |
+| 隐私与容量 | 未同意不采集；错误消息与路径不导出；其他前台 PID 输入被丢弃；字母键归匿名计数，鼠标坐标不记录；普通容量耗尽后仍保存最终异常 |
+| 构建与便携 | NativeAOT + Flutter Windows + Bootstrap + 单 EXE 构建通过；两进程一次解包、23 文件摘要、解包后核心初始化、旧文件名缓存及坏包拒绝通过 |
+| 日志格式 | 38 条实际导出记录通过 v2 record schema；4 条异常记录及旧 schema 2 合成日志分析通过 |
+
+构建版本仍为 0.2.19，使用新生成的 loopback fixture profile，仅用于验证；正式合并后需单独确定下一个版本并用当前批准 profile 重建。源码、构建和受控 Windows 子进程验证已完成；未发布、未修改服务器或玩家资源。
+
+正式游戏的反调试兼容、真实玩家输入、实际 UAC（同意/取消）、原生 Save As 点击与长时游戏性能仍需实机验收。没有恢复 RPA 或操作真实玩家。隔离便携测试第一次用过深目录触发 Python 的 261 字符路径读回限制；文件可由扩展路径读回，改用短隔离目录后完整通过。
+
+复现入口：`scripts/test_native_diagnostics.py`、`scripts/test_diagnostics_host.py`（`--native-crash-fixture` / `--parent-exit`）和 `deploy/windows/test_portable_launcher.py`。私有总回执为候选 `runtime/crash-validation/final-receipt.json`，截图位于 Flutter `artifacts/screenshots/diagnostics-consent.png` 与 `diagnostics-permission.png`。
+
+---
+
 # 简化启动日志验证 · 2026-10-20
 
 当前 0.2.19 候选按用户后续要求改为一个开关、每次游戏启动一份日志、保留最近五次、原生另存为 `.log`。下面的 ZIP/标记/倒计时结果属于先前实现的历史记录。

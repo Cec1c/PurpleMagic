@@ -34,7 +34,7 @@ internal sealed class DiagnosticRing(int capacity = 3 * 1024 * 1024)
 }
 
 internal sealed record DiagnosticSave(DiagnosticSummary Summary, DiagnosticLine[] Lines, string StartedUtc, string EndedUtc)
-{ internal TaskCompletionSource? Completion { get; init; } }
+{ internal TaskCompletionSource? Completion { get; init; } internal bool CriticalTail { get; init; } }
 
 internal sealed record DiagnosticLogIndex(DiagnosticSummary Summary, string StartedUtc, string EndedUtc, long LastSequence, double LastTime, long Bytes);
 internal sealed record DiagnosticLogEnvelope(string Type, int SchemaVersion, string CollectorVersion, string ModuleVersion, DiagnosticLogIndex Log);
@@ -88,7 +88,7 @@ internal sealed class DiagnosticStorage
         }
     }
     private static byte[] Envelope(string type, DiagnosticLogIndex index) =>
-        [.. JsonSerializer.SerializeToUtf8Bytes(new DiagnosticLogEnvelope(type, 2, LauncherEngine.VersionText, At5tModule.ModuleVersion, index), DiagnosticJson.Default.DiagnosticLogEnvelope), 10];
+        [.. JsonSerializer.SerializeToUtf8Bytes(new DiagnosticLogEnvelope(type, 3, LauncherEngine.VersionText, At5tModule.ModuleVersion, index), DiagnosticJson.Default.DiagnosticLogEnvelope), 10];
     public void Save(DiagnosticSave job)
     {
         lock (gate) {
@@ -109,7 +109,12 @@ internal sealed class DiagnosticStorage
                     var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord) ?? throw new InvalidDataException("日志记录无效。");
                     if (record.SessionId != id) throw new InvalidDataException("日志会话不匹配。");
                     if (record.Sequence <= index.LastSequence) continue;
-                    if (truncated || file.Position + line.Bytes.Length > MaxLog - 65536) { truncated = true; continue; }
+                    // Reserve space for exception evidence and its recent operation tail,
+                    // even after ordinary samples have filled the file.
+                    var fatal = record.Type == "exception" && record.Fields.GetValueOrDefault("first_chance")?.Value == 0;
+                    var critical = record.Evidence is not null || job.CriticalTail && record.Type != "sample";
+                    var limit = MaxLog - (fatal ? 65536 : critical ? 131072 : 512 * 1024);
+                    if ((!critical && truncated) || file.Position + line.Bytes.Length > limit) { truncated = true; continue; }
                     file.Write(line.Bytes); records++;
                     index = index with { LastSequence = record.Sequence, LastTime = record.MonotonicMs };
                 }
