@@ -392,6 +392,11 @@ export function App() {
               <strong>{nav.label}</strong>
             </div>
             <div className="topbar-actions">
+              {live && state.api?.pending?.confirmed && (
+                <button className="secondary" onClick={() => live.openPending()}>
+                  操作回执 · {state.api.pending.steps.filter((step) => step.done).length}/{state.api.pending.steps.length}
+                </button>
+              )}
               <span className="topbar-selected">
                 {resolveRecipients(state, selection).length} 个已选角色
               </span>
@@ -543,7 +548,7 @@ export function App() {
             />
           </Modal>
         )}
-        {state.api?.pending && <LiveConfirmation pending={state.api.pending} />}
+        {state.api?.pending && !state.api.pending.hidden && <LiveConfirmation pending={state.api.pending} />}
         {tokenPanel && live && <Modal title="访问 Token" onClose={() => setTokenPanel(false)} footer={<>
           <button className="secondary" onClick={() => setTokenPanel(false)}>保持连接</button>
           <button className="primary" onClick={() => void live.guard(async () => {

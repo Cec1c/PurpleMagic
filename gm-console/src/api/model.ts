@@ -59,10 +59,12 @@ export type Pending = {
   steps: Step[];
   recipients?: { id: string; name: string; accountId: string }[];
   confirmed: boolean;
+  hidden?: boolean;
   completed?: boolean;
   rejected?: boolean;
   draftId?: string;
   error?: string;
+  errorCode?: string;
 };
 export const emptyState = (): State => ({
   schema: 1,

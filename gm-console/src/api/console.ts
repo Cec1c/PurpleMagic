@@ -1115,8 +1115,10 @@ export class ConsoleAPI {
     }
   }
   async prepare(command: Command, selection: Selection) {
-    if (this.meta.pending?.confirmed)
+    if (this.meta.pending?.confirmed) {
+      this.openPending();
       throw new Error("请先处理尚未取得回执的操作");
+    }
     this.meta.busy = true;
     this.meta.error = "";
     this.publish();
@@ -1138,12 +1140,57 @@ export class ConsoleAPI {
     this.meta.pending = undefined;
     this.persistPending();
   }
+  dismissPending() {
+    const p = this.meta.pending;
+    if (!p) return;
+    if (p.confirmed && (!p.completed && !p.rejected || this.meta.busy)) {
+      p.hidden = true;
+      this.persistPending();
+    } else if (!this.meta.busy) this.cancel();
+  }
+  openPending() {
+    if (!this.meta.pending) return;
+    this.meta.pending.hidden = false;
+    this.persistPending();
+  }
+  canRepreviewQuests() {
+    const p = this.meta.pending;
+    return !!p?.rejected &&
+      ["revision_conflict", "pvf_conflict", "character_online"].includes(p.errorCode || "") &&
+      p.steps.some((s) => !s.done) &&
+      p.steps.every((s) => /\/quest-operations$/.test(s.path));
+  }
+  async repreviewQuests() {
+    const p = this.meta.pending;
+    if (!p || this.meta.busy || !this.canRepreviewQuests()) return;
+    this.meta.busy = true;
+    this.publish();
+    try {
+      const steps = [];
+      for (const step of p.steps) {
+        if (step.done) { steps.push(step); continue; }
+        const preview = await this.http.post(step.path + "/preview", step.body);
+        steps.push({ ...step, id: crypto.randomUUID(), result: preview,
+          body: { ...step.body, revision: preview.revision, pvfChecksum: preview.pvfChecksum } });
+      }
+      p.steps = steps;
+      p.confirmed = false;
+      p.rejected = false;
+      p.hidden = false;
+      p.error = p.errorCode = undefined;
+      this.persistPending();
+    } finally {
+      this.meta.busy = false;
+      this.publish();
+    }
+  }
   async confirm() {
     const p = this.meta.pending;
     if (!p || p.completed || p.rejected || this.meta.busy) return;
     this.meta.busy = true;
     p.confirmed = true;
     p.error = undefined;
+    p.errorCode = undefined;
     this.persistPending();
     try {
       await executeOperation(this, p);
@@ -1160,6 +1207,7 @@ export class ConsoleAPI {
       this.persistPending();
     } catch (e) {
       p.error = (e as Error).message;
+      p.errorCode = e instanceof ApiError ? e.code : undefined;
       p.rejected =
         e instanceof ApiError && [400, 403, 404, 409, 422].includes(e.status);
       this.meta.pending = p;

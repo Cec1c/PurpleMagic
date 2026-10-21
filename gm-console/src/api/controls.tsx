@@ -106,20 +106,17 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
   return (
     <Modal
       title={p.confirmed ? "操作进度与回执" : p.title}
-      onClose={() => {
-        if ((!p.confirmed || p.completed || p.rejected) && !busy) api.cancel();
-      }}
+      onClose={() => api.dismissPending()}
+      dismissOnBackdrop={false}
       footer={
         <>
-          {(!p.confirmed || p.completed || p.rejected) && (
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => api.cancel()}
-            >
-              {p.completed ? "完成" : p.rejected ? "结束此操作" : "取消"}
-            </button>
-          )}
+          <button
+            className="secondary"
+            disabled={busy && !p.confirmed}
+            onClick={() => api.dismissPending()}
+          >
+            {p.completed ? "完成" : p.rejected ? "结束此操作" : p.confirmed ? "收起" : "取消"}
+          </button>
           {!p.completed && !p.rejected && (
             <button
               className="primary"
@@ -129,11 +126,19 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               {busy ? "正在执行…" : p.confirmed ? "继续并查询回执" : "确认执行"}
             </button>
           )}
+          {api.canRepreviewQuests() && (
+            <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewQuests())}>
+              重新预览未完成项
+            </button>
+          )}
         </>
       }
     >
       <p className="confirm-target">{p.target}</p>
       <p>{p.summary}</p>
+      {p.confirmed && !p.completed && !p.rejected && (
+        <p className="muted">可收起或刷新页面，从顶部“操作回执”继续。已完成的步骤会保留。</p>
+      )}
       {p.recipients && (
         <ul className="confirmation-recipients">
           {p.recipients.map((c) => (

@@ -181,6 +181,10 @@ func replaceQuestStates(
 	if _, err := database.ExecContext(ctx, "DELETE FROM "+statesTable+" WHERE character_id = ? AND state_group = ?", characterID, stateGroup); err != nil {
 		return err
 	}
+	return insertQuestStates(ctx, database, statesTable, extraTable, characterID, stateGroup, states, 0)
+}
+
+func insertQuestStates(ctx context.Context, database SQLDB, statesTable, extraTable, characterID, stateGroup string, states map[int64]repository.QuestState, batchRows int) error {
 	// Quest writes used to ignore the existing INSERT batch setting. A character
 	// with hundreds of archived quests therefore rewrote every state and extra
 	// in a separate round trip on each NPC action. Reuse the bounded batcher
@@ -195,6 +199,10 @@ func replaceQuestStates(
 		prefix:       "INSERT INTO " + extraTable + " (character_id, state_group, quest_id, extra_key, extra_value) VALUES ",
 		placeholders: "(?, ?, ?, ?, ?)", columns: 5,
 	})
+	if batchRows > 0 {
+		stateBatch.batch = batchRows
+		extraBatch.batch = batchRows
+	}
 	questIDs := make([]int64, 0, len(states))
 	for questID := range states {
 		questIDs = append(questIDs, questID)

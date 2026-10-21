@@ -62,6 +62,40 @@ test('lost commit response retries the same body and idempotency key',async()=>{
  await assert.rejects(api.confirm());assert.equal(api.meta.pending.confirmed,true);assert.ok(!api.meta.pending.completed);
  await api.confirm();assert.equal(api.meta.pending.completed,true);assert.deepEqual(calls[0],calls[1]);api.cancel();
 });
+
+test('closing an in-flight operation keeps it running and exposes the persisted receipt after refresh',async()=>{
+ storage.clear();let release;
+ const api=setup(()=>new Promise(r=>release=r));const pending=api.confirm();
+ api.dismissPending();assert.equal(api.meta.pending.hidden,true);assert.equal(api.meta.busy,true);
+ assert.throws(()=>api.cancel());release(response({requestId:'kept-receipt'}));await pending;
+ const restored=new ConsoleAPI(()=>{});restored.restore();assert.equal(restored.meta.pending.completed,true);
+ assert.equal(restored.meta.pending.hidden,true);restored.openPending();assert.equal(restored.meta.pending.hidden,false);
+ assert.equal(restored.meta.pending.steps[0].result.requestId,'kept-receipt');restored.cancel();
+});
+
+test('unknown response can be collapsed, navigated and restored without a new request identity',async()=>{
+ storage.clear();const calls=[];
+ const api=setup(async(path,init)=>{calls.push({path,body:init.body,key:init.headers['Idempotency-Key']});throw Error('lost');});
+ await assert.rejects(api.confirm());api.dismissPending();api.navigate('quests',true);
+ const restored=new ConsoleAPI(()=>{});restored.restore();restored.character=async()=>{};restored.enter=async()=>{};
+ restored.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,key:init.headers['Idempotency-Key']});return response({requestId:'permanent'});};
+ assert.equal(restored.meta.pending.hidden,true);assert.equal(restored.canRepreviewQuests(),false);
+ restored.openPending();await restored.confirm();assert.deepEqual(calls[0],calls[1]);restored.cancel();
+});
+
+test('quest revision rejection re-previews only unfinished targets before another explicit confirmation',async()=>{
+ storage.clear();const calls=[];const api=setup(async()=>new Response(JSON.stringify({error:{code:'revision_conflict',message:'changed'}}),{status:409}));
+ api.meta.pending.steps=[
+  {id:'done',path:'/api/v1/characters/1/quest-operations',label:'A',body:{},done:true,result:{requestId:'first'}},
+  {id:'old-key',path:'/api/v1/characters/2/quest-operations',label:'B',body:{accountId:'a',revision:'old',pvfChecksum:'old'}}
+ ];
+ await assert.rejects(api.confirm());assert.equal(api.canRepreviewQuests(),true);
+ api.http.fetcher=async(path,init)=>{calls.push({path,body:JSON.parse(init.body)});return response({revision:'fresh',pvfChecksum:'approved'});};
+ await api.repreviewQuests();assert.equal(calls.length,1);assert.ok(calls[0].path.endsWith('/preview'));
+ assert.equal(api.meta.pending.confirmed,false);assert.equal(api.meta.pending.steps[0].result.requestId,'first');
+ const step=api.meta.pending.steps[1];assert.notEqual(step.id,'old-key');assert.equal(step.body.revision,'fresh');assert.equal(step.body.pvfChecksum,'approved');
+ await api.confirm();assert.equal(calls.length,2);assert.equal(calls[1].path,'/api/v1/characters/2/quest-operations');api.cancel();
+});
 test('successful commit survives a subsequent refresh failure',async()=>{
  let writes=0;const api=setup(async()=>{writes++;return response({requestId:'receipt'});});
  api.character=async()=>{throw Error('read unavailable')};

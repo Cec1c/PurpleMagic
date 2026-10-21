@@ -55,6 +55,7 @@ export async function prepareOperation(
           : {}),
         ...(data.items ? { items: data.items } : {}),
         ...(!data.receipt && data.revision ? { revision: data.revision } : {}),
+        ...(data.pvfChecksum ? { pvfChecksum: data.pvfChecksum } : {}),
       },
       { result: data.receipt || data, refreshRead },
     );

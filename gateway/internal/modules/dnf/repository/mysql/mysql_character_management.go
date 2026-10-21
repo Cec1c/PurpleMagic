@@ -64,6 +64,9 @@ func (s *mysqlCharStore) withinCharacterManagement(ctx context.Context, accountI
 			Equipment: &characterSettlementScopedEquipmentRepository{characterID: characterID, base: base.Equipment},
 			Pet:       &characterPetScopedPetRepository{characterID: characterID, base: base.Pet},
 		}
+		if receiptTable == "character_management_operations" {
+			g.Quest = &managedQuestStore{base: &mysqlQuestStore{mysqlStoreBase{router: r}}, character: characterID}
+		}
 
 		return apply(g, receipts)
 	})

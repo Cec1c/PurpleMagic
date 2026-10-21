@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/adminapi"
 	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	"dnf90.local/gateway/internal/modules/dnf/quest"
@@ -137,7 +138,9 @@ func (s *Server) v1QuestOperation(w http.ResponseWriter, r *http.Request) {
 	}
 	command := adminops.QuestCommand{AccountID: c.AccountID, CharacterID: c.CharacterID, Action: body.Action, QuestIDs: ids, Reason: body.Reason, Revision: body.Revision, PVFChecksum: body.PVFChecksum, Actor: actor, Key: key}
 	if commit {
+		done := diagnostics.Start(r.Context(), "quest.receipt_lookup")
 		result, found, err := adminops.LookupQuestOperation(r.Context(), u, command)
+		done(err)
 		if err != nil || found {
 			s.v1QuestOperationResult(w, r, result, err)
 			return
@@ -151,7 +154,9 @@ func (s *Server) v1QuestOperation(w http.ResponseWriter, r *http.Request) {
 		v1Fail(w, r, 409, "pvf_conflict", "PVF 已变更，请重新预览任务操作", false)
 		return
 	}
+	done := diagnostics.Start(r.Context(), "quest.definitions")
 	catalog, err := s.questOperationCatalog(r.Context(), ix, ids)
+	done(err)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			v1Fail(w, r, 422, "definition_missing", "当前 PVF 缺少任务或关联任务定义", false)
@@ -161,7 +166,9 @@ func (s *Server) v1QuestOperation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	command.PVFChecksum = ix.Checksum
+	done = diagnostics.Start(r.Context(), "quest.operation")
 	result, err := adminops.RunQuestOperation(r.Context(), u, catalog, command, commit, s.v1CharacterEditCheck(command.AccountID))
+	done(err)
 	s.v1QuestOperationResult(w, r, result, err)
 }
 
@@ -176,6 +183,9 @@ func (s *Server) v1QuestOperationResult(w http.ResponseWriter, r *http.Request, 
 	switch {
 	case err == nil:
 		v1Reply(w, r, 200, v1Envelope{Data: result})
+	case errors.Is(err, context.DeadlineExceeded):
+		diagnostics.Fail(r.Context(), err)
+		fail(503, "quest_operation_timeout", "任务操作超时，请继续查询原请求回执", true)
 	case errors.Is(err, adminops.ErrConflict):
 		fail(409, "revision_conflict", "角色或任务已变更，请重新预览", false)
 	case errors.Is(err, adminops.ErrIdempotency):
