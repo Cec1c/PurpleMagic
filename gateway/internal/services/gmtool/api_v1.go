@@ -118,6 +118,7 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/mailbox/{mailId}", s.v1MailboxDetail)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/quests", s.v1CharacterQuests)
 	mux.HandleFunc("GET /api/v1/activities", s.v1Activities)
+	writes.HandleFunc("POST /api/v1/activities", s.v1SaveActivities)
 	mux.HandleFunc("GET /api/v1/settings/pvf", s.v1PVFMode)
 	writes.HandleFunc("POST /api/v1/settings/pvf", s.v1PVFMode)
 	mux.HandleFunc("GET /api/v1/quests", s.v1Quests)
@@ -322,6 +323,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	_, questErr := s.questReadIndex(r.Context())
 	features["quests.read"] = available && resources && questErr == nil
 	features["activities.read"] = s.deps.Runtime != nil || s.deps.Activities != nil
+	features["activities.write"] = features["activities.read"]
 	features["pvf.mode"] = s.pvfModeControl() != nil
 	_, questWrites := group.Character.(repository.CharacterManagementUnitOfWork)
 	_, inventoryWrites := group.Character.(repository.InventoryManagementUnitOfWork)

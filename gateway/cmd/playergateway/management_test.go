@@ -10,7 +10,7 @@ import (
 func TestManagementPlayerAndHubBoundaries(t *testing.T) {
 	module := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(201) })
 	hub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(202) })
-	for _, path := range []string{"/api/v1/accounts", "/api/v1/accounts/a/currency-adjustments", "/console/index.html", "/api/auth/login"} {
+	for _, path := range []string{"/api/v1/accounts", "/api/v1/accounts/a/currency-adjustments", "/api/v1/activities", "/console/index.html", "/api/auth/login"} {
 		w := httptest.NewRecorder()
 		privateHandler(hub, module).ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 		if w.Code != 201 {

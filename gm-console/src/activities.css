@@ -1,0 +1,30 @@
+.activity-overview { display: grid; grid-template-columns: repeat(4, 1fr); padding: 18px 22px; gap: 20px; border-radius: var(--radius-lg); margin-bottom: 20px; }
+.activity-overview > div { display: flex; align-items: center; gap: 12px; color: var(--accent); }
+.activity-overview span { display: flex; flex-direction: column; gap: 4px; color: var(--text-3); font-size: 12px; }
+.activity-overview strong { color: var(--text-1); font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.activity-toolbar { flex-wrap: wrap; }
+.activity-toolbar select { max-width: 160px; }
+.activity-action-bar { display: flex; gap: 12px; align-items: center; min-height: 48px; margin: 4px 0 12px; color: var(--text-3); font-size: 12px; flex-wrap: wrap; }
+.activity-actions { display: flex; gap: 8px; margin-left: auto; }
+.activity-action-bar .text-button, .activity-name .text-button { background: none; border: 0; padding: 0; color: var(--accent); text-align: left; cursor: pointer; }
+.activity-name .text-button { color: var(--text-1); font-weight: 600; line-height: 1.5; }
+.activity-name .text-button:hover { color: var(--accent); }
+.activity-table { min-height: 330px; }
+.activity-table table { min-width: 760px; }
+.activity-table .activity-select { width: 44px; }
+.activity-name { min-width: 260px; max-width: 430px; }
+.activity-name p { margin: 7px 0 0; font-size: 12px; color: var(--text-3); line-height: 1.7; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.activity-table tr.selected { background: var(--accent-soft); }
+.activity-footnote { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-3); font-size: 12px; padding: 16px 2px; }
+.activity-footnote small { margin-left: auto; white-space: nowrap; }
+.activity-detail p { line-height: 1.8; overflow-wrap: anywhere; }
+.activity-detail dl { display: grid; grid-template-columns: 110px 1fr; gap: 12px 16px; margin: 24px 0; }
+.activity-detail dt { color: var(--text-3); }
+.activity-detail dd { margin: 0; }
+.activity-detail details { padding-top: 14px; border-top: 1px solid var(--border-1); }
+.activity-detail summary { cursor: pointer; color: var(--text-2); }
+@media (max-width: 760px) {
+  .activity-overview { grid-template-columns: repeat(2, 1fr); gap: 18px; padding: 16px; }
+  .activity-actions { margin-left: 0; }
+  .activity-footnote small { margin-left: 0; }
+}

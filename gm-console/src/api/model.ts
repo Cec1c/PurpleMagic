@@ -47,11 +47,13 @@ export type Step = {
   headers?: Record<string, string>;
   result?: any;
   done?: boolean;
-  kind?: "task" | "benefit-enable";
+  kind?: "task" | "benefit-enable" | "activities";
+  attempted?: boolean;
   refreshRead?: string;
   refreshed?: boolean;
 };
 export type Pending = {
+  activityChanges?: { id: number; name: string; before: boolean; enabled: boolean }[];
   id: string;
   title: string;
   target: string;

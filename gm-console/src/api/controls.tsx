@@ -139,6 +139,9 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
       {p.confirmed && !p.completed && !p.rejected && (
         <p className="muted">可收起或刷新页面，从顶部“操作回执”继续。已完成的步骤会保留。</p>
       )}
+      {p.activityChanges && <ul className="confirmation-recipients">
+        {p.activityChanges.map((v) => <li key={v.id}>{v.name}<span>#{v.id} · {v.before ? "开启" : "关闭"} → {v.enabled ? "开启" : "关闭"}</span></li>)}
+      </ul>}
       {p.recipients && (
         <ul className="confirmation-recipients">
           {p.recipients.map((c) => (
@@ -156,7 +159,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           <li key={s.id}>
             {s.done && <CheckCircle2 size={14} />}
             <strong>{s.label}</strong>
-            {s.done && <span>{s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
+            {s.done && <span>{s.kind === "activities" ? `配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}` : s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
             {s.kind === "task" && s.result && (
               <span>
                 已发 {s.result.sent} / {s.result.total} · 失败{" "}

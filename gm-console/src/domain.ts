@@ -1,5 +1,6 @@
+import { activityChanges, demoActivities, type ActivitySnapshot, type ActivityChange } from "./activities.ts";
 export type Section =
-  "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "accounts" | "settings";
+  "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "activities" | "accounts" | "settings";
 export type InventoryTab =
   | "bag"
   | "equipped"
@@ -118,6 +119,7 @@ export type News = {
   sourceRevision?: string;
 };
 export type State = {
+  activities?: ActivitySnapshot;
   api?: import("./api/model").LiveData;
   schema: 1;
   accounts: Account[];
@@ -132,6 +134,7 @@ export type State = {
 };
 export type Selection = { accounts: string[]; characters: string[] };
 export type Command =
+  | { kind: "activity-save"; revision: number; activities: ActivityChange[] }
   | {
       kind: "item";
       key: string;
@@ -297,6 +300,22 @@ export function applyCommand(
     }
   };
   switch (command.kind) {
+    case "activity-save": {
+      const snapshot = s.activities || structuredClone(demoActivities);
+      if (command.revision !== snapshot.revision) throw new Error("活动配置已更新，请刷新后重新确认");
+      const changes = activityChanges(snapshot, command.activities);
+      for (const change of changes) {
+        const row = snapshot.activities.find((v) => v.id === change.id)!;
+        row.enabled = change.enabled;
+        row.pendingRestart = row.pendingRestart || row.enabled !== row.effectiveEnabled;
+      }
+      snapshot.revision++;
+      snapshot.restartRequired = snapshot.activities.some((v) => v.pendingRestart);
+      s.activities = snapshot;
+      target = "全服游戏活动";
+      summary = changes.map((v) => `${v.name}（#${v.id}）${v.enabled ? "开启" : "关闭"}`).join("；") + " · 配置已保存，游戏服务下次重启生效";
+      break;
+    }
     case "item": {
       const item = s.items.find((i) => i.key === command.key);
       if (!item) throw new Error("物品不存在");

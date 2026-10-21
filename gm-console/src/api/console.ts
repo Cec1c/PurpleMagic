@@ -583,6 +583,7 @@ export class ConsoleAPI {
         () => this.tasks(), () => this.history(),
       ]);
     else if (refresh && section === "benefits") await this.benefits();
+    else if (refresh && section === "activities") await this.activities();
     else if (refresh && section === "settings") await this.hub();
   }
   async inventory(tab: InventoryTab, more = false) {
@@ -1218,7 +1219,7 @@ export class ConsoleAPI {
       this.publish();
     }
     await this.guard(async () => {
-      if (this.sectionId !== "benefits") await this.character();
+      if (!["benefits", "activities"].includes(this.sectionId)) await this.character();
       await this.enter(this.sectionId, true);
     });
   }

@@ -1,3 +1,5 @@
+import { activityChanges, type ActivitySnapshot } from "../activities";
+import { executeActivitySave, publishActivities } from "./activities";
 import type { Command, Selection } from "../domain";
 import { benefitReward } from "../domain";
 import type { ConsoleAPI } from "./console";
@@ -389,6 +391,20 @@ export async function prepareOperation(
       );
     }
     p.summary = p.steps.map((s) => s.label).join("；");
+  } else if (command.kind === "activity-save") {
+    if (!api.meta.features["activities.write"]) throw new Error("当前服务尚未开放活动配置保存");
+    const { data } = await api.http.get<ActivitySnapshot>("/api/v1/activities");
+    publishActivities(api, data);
+    if (data.revision !== command.revision) throw new ApiError("活动配置已更新，请按当前状态重新选择", 409, "revision_conflict");
+    const changes = activityChanges(data, command.activities);
+    p.title = "确认活动配置";
+    p.target = "全服游戏活动";
+    p.summary = `保存 ${changes.length} 个活动开关，游戏服务下次重启时生效。`;
+    p.activityChanges = changes;
+    add("保存活动配置", "/api/v1/activities", {
+      revision: data.revision,
+      activities: changes.map(({ id, enabled }) => ({ id, enabled })),
+    }, { kind: "activities" });
   } else if (command.kind === "benefit-create") {
     const reward = benefitReward(command);
     let itemFields: DTO = {};
@@ -593,7 +609,9 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
       api.persistPending();
       continue;
     }
-    if (step.kind === "task") {
+    if (step.kind === "activities") {
+      await executeActivitySave(api, step);
+    } else if (step.kind === "task") {
       const taskPath = step.path.replace(/\/run$/, "");
       let task = (await api.http.get(taskPath)).data;
       // Read the permanent task before resubmitting; a lost response must not create a new job.

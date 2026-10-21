@@ -6,7 +6,7 @@ import { Tabs, SearchField, Pill, Empty, type PageProps } from "../ui";
 
 export function QueryPage(props: PageProps) {
   const live = useLive();
-  const [tab, setTab] = useState<"players" | "items" | "activities">("players");
+  const [tab, setTab] = useState<"players" | "items">("players");
   return (
     <>
       {live && (
@@ -16,7 +16,6 @@ export function QueryPage(props: PageProps) {
             items={[
               { id: "players", label: "账号与角色" },
               { id: "items", label: "PVF 物品库" },
-              { id: "activities", label: "服务器活动" },
             ]}
             value={tab}
             onChange={(value) => {
@@ -28,10 +27,8 @@ export function QueryPage(props: PageProps) {
       )}
       {tab === "players" ? (
         <Players {...props} />
-      ) : tab === "items" ? (
-        <ItemLibrary {...props} />
       ) : (
-        <Activities {...props} />
+        <ItemLibrary {...props} />
       )}
     </>
   );
@@ -201,70 +198,5 @@ function Sections({ rows }: { rows: any[] }) {
         </div>
       ))}
     </div>
-  );
-}
-function Activities({ state }: PageProps) {
-  const live = useLive()!;
-  const [q, setQ] = useState("");
-  const data = state.api?.resources.activities;
-  useEffect(() => {
-    void live.guard(() => live.activities());
-    return () => live.cancelScope("activities");
-  }, [live]);
-  const rows = (data?.activities || []).filter((v: any) =>
-    `${v.id} ${v.name} ${v.description}`.includes(q),
-  );
-  return (
-    <>
-      <div className="toolbar">
-        <SearchField
-          placeholder="搜索活动名称或 ID"
-          value={q}
-          onChange={setQ}
-        />
-        <button
-          className="secondary"
-          onClick={() => void live.guard(() => live.activities())}
-        >
-          刷新活动
-        </button>
-      </div>
-      <div className="table-panel glass">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>活动</th>
-                <th>配置状态</th>
-                <th>实际状态</th>
-                <th>生效情况</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((v: any) => (
-                <tr key={v.id}>
-                  <td>
-                    <strong>{v.name}</strong>
-                    <small className="cell-meta">
-                      #{v.id} · {v.description}
-                    </small>
-                  </td>
-                  <td>{v.enabled ? "开启" : "关闭"}</td>
-                  <td>
-                    <Pill tone={v.effectiveEnabled ? "green" : "neutral"}>
-                      {v.effectiveEnabled ? "运行中" : "未运行"}
-                    </Pill>
-                  </td>
-                  <td>
-                    {v.pendingRestart ? "等待下次游戏服务重启" : "已生效"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!rows.length && <Empty title="没有符合条件的活动" />}
-      </div>
-    </>
   );
 }
