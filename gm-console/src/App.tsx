@@ -321,7 +321,7 @@ export function App() {
           </a>
           <div className="sidebar-label">玩家管理</div>
           <nav aria-label="主要功能">
-            {navigation.slice(0, 6).map((n) => (
+            {navigation.filter((n) => n.id !== "settings").map((n) => (
               <a
                 href={`#${n.id}`}
                 aria-current={section === n.id ? "page" : undefined}
