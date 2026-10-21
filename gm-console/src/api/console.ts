@@ -85,6 +85,7 @@ export function itemDTO(v: DTO, c: Character, tab: InventoryTab): Item {
     tab,
     slot: v.slot,
     id: v.itemId,
+    expiration: v.templateExpiration,
     name: v.name || `物品 ${v.itemId}`,
     category:
       v.category ||

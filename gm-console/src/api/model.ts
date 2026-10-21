@@ -28,7 +28,7 @@ export type LiveData = {
   catalog: Item[];
   catalogNext: string;
   jobs: { value: string; label: string }[];
-  jobsRaw: DTO[];
+  jobsRaw: import("../professions").ProfessionDefinition[];
   resources: Record<string, DTO>;
   taskNext: string;
   historyNext: Record<string, string>;

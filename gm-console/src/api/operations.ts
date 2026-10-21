@@ -1,5 +1,6 @@
 import { activityChanges, type ActivitySnapshot } from "../activities";
 import { executeActivitySave, publishActivities } from "./activities";
+import { itemExpirationLabel } from "../item-expiration";
 import type { Command, Selection } from "../domain";
 import { benefitReward } from "../domain";
 import type { ConsoleAPI } from "./console";
@@ -188,6 +189,7 @@ export async function prepareOperation(
     const attachments = command.items.length ? command.items : [null];
     for (let i = 0; i < attachments.length; i++) {
       const a = attachments[i];
+      let expiry = a?.expiration;
       let reward: DTO = {
         title: command.title,
         body: command.body,
@@ -202,6 +204,7 @@ export async function prepareOperation(
         const { data } = await api.http.get(
           `/api/v1/items/${segment(a.id)}/grant-options`,
         );
+        if (data.expiration) expiry = { known: true, absoluteExpireTime: data.expiration.defaultExpireTime || 0, usablePeriodDays: data.expiration.usablePeriodDays || 0 };
         reward = {
           ...reward,
           itemId: a.id,
@@ -241,7 +244,7 @@ export async function prepareOperation(
         throw new Error("收件名单已变更，请重新选择");
       p.recipients = names;
       add(
-        `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name} × ${a.count}` : ""}`,
+        `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count} · ${itemExpirationLabel(expiry)}` : ""}`,
         `/api/v1/tasks/${job.id}/run`,
         { revision: job.revision, confirm: true, retry: false },
         { kind: "task", result: job },

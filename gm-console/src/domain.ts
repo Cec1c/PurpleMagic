@@ -32,7 +32,9 @@ export type Account = {
   characterCount?: number;
   rawPoints?: string;
 };
+export type ItemExpiration = { known: boolean; absoluteExpireTime: number; usablePeriodDays: number };
 export type Item = {
+  expiration?: ItemExpiration;
   key: string;
   characterId: string;
   accountId?: string;
@@ -70,6 +72,7 @@ export type Quest = {
   level: number;
 };
 export type Attachment = {
+  expiration?: ItemExpiration;
   id: string;
   name: string;
   count: number;

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
@@ -119,6 +120,7 @@ type mysqlProfessionManagementStore struct {
 	base               *mysqlCharStore
 	account, character string
 	allowed            map[int64]bool
+	beforeSkills       *repository.SkillRecord
 }
 
 func (s *mysqlProfessionManagementStore) LoadProfessionManagement(ctx context.Context, id string, ids []int64) (repository.ProfessionManagementState, error) {
@@ -133,9 +135,18 @@ func (s *mysqlProfessionManagementStore) LoadProfessionManagement(ctx context.Co
 	for _, id := range ids {
 		s.allowed[id] = true
 	}
+	if ids != nil {
+		copy := repository.CloneSkill(v.Growth.Skill)
+		s.beforeSkills = &copy
+	}
 	return v, nil
 }
-func (s *mysqlProfessionManagementStore) SaveProfessionManagement(ctx context.Context, v repository.ProfessionManagementState, changed []int64) error {
+func (s *mysqlProfessionManagementStore) SaveProfessionManagement(ctx context.Context, v repository.ProfessionManagementState, changed []int64) (err error) {
+	done := diagnostics.Start(ctx, "profession.save")
+	defer func() { done(err) }()
+	if s.beforeSkills == nil {
+		return repository.ErrResourceRange
+	}
 	c := v.Growth.Character
 	job, e := strconv.ParseUint(c.Job, 10, 8)
 	if e != nil || strconv.FormatUint(job, 10) != c.Job || c.Stats["grow_type"] < 0 || c.Stats["grow_type"] > 255 || v.Quests.CharacterID != s.character || v.Quests.UpdatedAt.IsZero() {
@@ -170,8 +181,7 @@ func (s *mysqlProfessionManagementStore) SaveProfessionManagement(ctx context.Co
 			return e
 		}
 	}
-	k := mysqlSkillStore{mysqlStoreBase: mysqlStoreBase{router: r}}
-	if e = k.Save(ctx, v.Growth.Skill); e != nil {
+	if e = saveProfessionSkillDelta(ctx, r, s.character, *s.beforeSkills, v.Growth.Skill); e != nil {
 		return e
 	}
 	if len(changed) == 0 {

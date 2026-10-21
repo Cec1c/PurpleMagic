@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import { useLive } from "../api/context";
 import { LoadMore, TaskDetail } from "../api/controls";
-import type { Attachment } from "../domain";
+import type { Attachment, Item } from "../domain";
 import { resolveRecipients } from "../domain";
 import { catalog as demoCatalog } from "../fixtures";
+import { itemExpirationLabel, itemOptionLabel } from "../item-expiration";
 import {
   Tabs,
   Field,
@@ -39,7 +40,7 @@ export function MailPage({
 }: PageProps) {
   const live = useLive();
   const [taskId, setTaskId] = useState("");
-  const catalog = state.api?.catalog || demoCatalog;
+  const catalog: Pick<Item, "id" | "name" | "expiration">[] = state.api?.catalog || demoCatalog;
   const [catalogQuery, setCatalogQuery] = useState("");
   const [tab, setTab] = useState<"compose" | "inbox" | "history">("compose"),
     [picker, setPicker] = useState(false),
@@ -82,7 +83,7 @@ export function MailPage({
         ? prev.map((x) =>
             x.id === i.id ? { ...x, count: x.count + count } : x,
           )
-        : [...prev, { id: i.id, name: i.name, count, enhance: 0 }],
+        : [...prev, { id: i.id, name: i.name, count, enhance: 0, expiration: i.expiration }],
     );
   }
   const motion = useEnterMotion(tab);
@@ -172,7 +173,7 @@ export function MailPage({
                 >
                   {catalog.map((i) => (
                     <option key={i.id} value={i.id}>
-                      {i.name}
+                      {itemOptionLabel(i)}
                     </option>
                   ))}
                 </select>
@@ -207,7 +208,7 @@ export function MailPage({
                   <Package size={19} />
                   <span>
                     <strong>{i.name}</strong>
-                    <small>{i.id}</small>
+                    <small>ID {i.id} · {itemExpirationLabel(i.expiration)}</small>
                   </span>
                   <label>
                     数量

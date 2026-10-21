@@ -284,7 +284,7 @@ func (s *Server) v1Items(w http.ResponseWriter, r *http.Request) {
 	entries, total := s.items.search(itemSearchQuery{Q: q.Q, Kind: kind, Limit: q.Limit, Offset: offset, Rarity: -1, UsableJob: -1})
 	data := make([]map[string]any, 0, len(entries))
 	for _, e := range entries {
-		data = append(data, map[string]any{"itemId": strconv.FormatUint(uint64(e.ID), 10), "name": e.Name, "kind": e.Kind, "rarity": e.Rarity, "minLevel": e.MinLevel, "category": e.Tag, "segment": e.Segment, "stackLimit": strconv.FormatInt(e.StackLimit, 10), "invalid": e.Invalid})
+		data = append(data, map[string]any{"itemId": strconv.FormatUint(uint64(e.ID), 10), "name": e.Name, "kind": e.Kind, "rarity": e.Rarity, "minLevel": e.MinLevel, "category": e.Tag, "segment": e.Segment, "stackLimit": strconv.FormatInt(e.StackLimit, 10), "invalid": e.Invalid, "templateExpiration": templateExpirationPayload(e)})
 	}
 	page := v1Page{Limit: q.Limit}
 	if offset+len(entries) < total {

@@ -32,9 +32,9 @@ GM diagnostics correlate requests across services and time account queries, bene
 | Updates | Configurable sources, signed manifests and file hashes, progress, pause, installation and rollback; launcher and game-content updates have separate contracts |
 | Accounts and characters | Search, cursor pagination, online filtering, account expansion and deduplicated recipient selection |
 | Inventory | Eight views for bags, equipment, pet equipment, character/account storage, pets, avatars and emblems; inspect instances and edit supported attributes, replace compatible items or delete selected batches |
-| Progression and assets | Adjust level, profession, awakening, SP/TP, gold and premium currency through previewed transactions with durable receipts |
+| Progression and assets | Choose a base class and its profession/awakening stage, then adjust level, SP/TP, gold and premium currency through previewed transactions with durable receipts |
 | Game quests | Read character quests and definitions; accept, abandon, mark ready, complete without rewards and reset through management APIs; the console exposes completion and reset actions |
-| Mail and benefits | Selecting an account includes all its existing characters; confirm the final recipient list once, then track the durable queue; enabled benefit rules run automatically |
+| Mail and benefits | Item choices show IDs and expiration; selecting an account includes all its existing characters; confirm the final recipient list once, then track the durable queue; enabled benefit rules run automatically |
 | Announcements and downloads | Edit announcements, update sources and the signed game connection profile through the Hub from the console |
 | GM workspace | Orchid glass light/dark themes, floating navigation, page transitions, fixed-position loading indicators and a centered Token form with an optional 30-day session |
 

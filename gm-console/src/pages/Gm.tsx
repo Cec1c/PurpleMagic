@@ -2,6 +2,7 @@ import { numberDraft, draftNumber } from "../numeric";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import { useLive } from "../api/context";
+import { professionGroups, demoProfessionGroups } from "../professions";
 import { LoadMore } from "../api/controls";
 import {
   Save,
@@ -71,6 +72,9 @@ export function GmPage({ state, character, request }: PageProps) {
   ]);
   const skillPoints = state.api?.resources.skillPoints;
   const balance = skillPoints?.balance;
+  const groups = live ? professionGroups(state.api?.jobsRaw || []) : demoProfessionGroups;
+  const optionValue = (v: { value: string; label: string }) => live ? v.value : v.label;
+  const root = groups.find(g => g.choices.some(v => optionValue(v) === job));
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
@@ -119,23 +123,20 @@ export function GmPage({ state, character, request }: PageProps) {
                   onChange={(e) => setLevel(e.target.value)}
                 />
               </Field>
-              <Field label="职业">
+              <Field label="根职业">
+                <select value={root?.value || ""} disabled={!groups.length} onChange={(e) => {
+                  const group = groups.find(g => g.value === e.target.value);
+                  if (group) setJob(optionValue(group.choices[0]));
+                }}>
+                  {!root && <option value="">选择根职业</option>}
+                  {groups.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </select>
+              </Field>
+              <Field label="转职 / 觉醒">
                 <select value={job} onChange={(e) => setJob(e.target.value)}>
-                  {(
-                    state.api?.jobs ||
-                    [
-                      ...new Set([
-                        character.job,
-                        "帝血弑天",
-                        "剑神",
-                        "月之女皇",
-                        "炽天使",
-                        "极武圣",
-                        "机械元首",
-                      ]),
-                    ].map((label) => ({ value: label, label }))
-                  ).map((j) => (
-                    <option key={j.value} value={live ? j.value : j.label}>
+                  {!root && <option value={job}>{character.job}</option>}
+                  {(root?.choices || []).map((j) => (
+                    <option key={j.value} value={optionValue(j)}>
                       {j.label}
                     </option>
                   ))}
