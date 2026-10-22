@@ -70,10 +70,27 @@ dotnet run --project launcher/Probe -- runtime/launcher-input/profile.json --cha
 
 发布后读回 `/launcher/v2/bootstrap.json` 并验签，完整下载更新包验哈，分别检查旧版检测更新和新版启动。APP 更新替换内部界面程序；旧桌面便携入口自身的图标/属性需换用新便携 EXE。
 
+### 本服度盘交付门槛
+
+本服登录器 APP 更新包与 PVF/EXE 等游戏资源使用百度网盘交付。玩家仍请求签名清单中的网关 URL；支持 `X-DNF90-Bundle-Transport: baidu-v1` 的下载器由网关返回 HTTP 307，随后从度盘下载。OAuth 凭据、文件 ID、映射和临时下载地址留在私有运行目录。
+
+每次发布按以下顺序核验：
+
+1. 将本次 APP 更新 ZIP 和新增游戏资源上传到本服度盘，记录文件长度与 SHA256。
+2. 从度盘完整读回每个新增文件，核对长度和 SHA256；已有且摘要相同的资源复用其验证记录。
+3. 在 `launcher_hub.baidu_delivery.artifacts_file` 中登记 SHA256 → `fs_id`、`path`、`size`，保留已有映射。当前解析器在网关启动时读取映射，变更后按部署窗口重启网关加载，并读回配置与服务状态。
+4. 通过私有 Hub 发布签名序列后，用实际玩家下载路径确认网关返回 **307**、度盘 Range 请求返回 **206**，核对 `Content-Range` 和实际字节。
+5. 使用实际登录器下载器，在独立空目录完整下载 APP 和当前清单全部资源，验证签名、长度和 SHA256；对已完成目录再次规划，结果应为 **0 项下载**。
+6. 保存上传、完整读回、映射加载、307/206 和实际下载器回执；同时核对发布序列、游戏/GM 与批准 EXE/PVF 组合。
+
+`POST /admin/api/bundle/<version>` 会立即发布签名序列，因此上传、完整验哈和映射加载在调用前完成，实际公开路径与下载器检查在调用后完成。网关的源站回退继续承担故障恢复，本服正常发布以度盘链路验证通过为准。
+
 ## English quick path
 
 The existing generator is a command-line build pipeline, not a web build UI. Copy `launcher/server.example.json` into the ignored runtime directory, fill the player HTTPS origin, direct game IP/bootstrap port and actual channel server ID, then run `scripts/prepare_launcher_profile.py` with the approved client, TLS certificate and RSA **public** key. The tool computes all file/certificate hashes and preserves explicit channel compatibility fields.
 
 On Windows, supply your background/announcement artwork and run `BUILD_FLUTTER.bat`, then `BUILD_PORTABLE.bat` using the commands above. The same approved profile is used by the Hub and embedded launcher. Keep the matching PKCS8 signing private key exclusively in the Hub. The read-only `launcher/Probe --channel-only` checks TLS and game connectivity. Upload the APP ZIP through the private Hub bundle endpoint to publish a new signed update sequence; distribute the portable EXE separately.
+
+For this server's Baidu delivery policy, upload and fully read back each new APP/content artifact before publication, verify size/SHA256, and load its private hash-to-file mapping by restarting the gateway in the deployment window. After publication, require actual gateway 307 and provider Range 206 responses, then use the real launcher downloader to fetch the APP and all current content into an isolated empty directory. A second plan must contain zero downloads. Keep the receipts and OAuth material outside the public repository.
 
 便携入口会在当前目录和入口目录检查 `.client/`、`client/`，要求存在非空 `DNF.exe`、`Script.pvf`；已有有效手选目录优先。完整版本哈希在更新与启动时继续校验。
