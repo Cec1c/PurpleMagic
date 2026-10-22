@@ -9,16 +9,19 @@
 ![Go](https://img.shields.io/badge/Services-Go-00ADD8?style=flat-square)
 ![.NET 8](https://img.shields.io/badge/Engine-.NET%208-512BD4?style=flat-square)
 ![MariaDB](https://img.shields.io/badge/Storage-MariaDB-003545?style=flat-square)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-A855F7?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Cec1c/PurpleMagic?style=flat-square)](https://github.com/Cec1c/PurpleMagic/stargazers)
 
 **面向 DNF90 的 Windows 玩家登录器、更新网关与 GM 管理工具链。**
 
 统一维护源码，分别构建组件；从玩家登录、资源更新到背包、邮件与福利管理。
 
-[English](README.md) ｜ [部署](docs/DEPLOYMENT.zh-CN.md) ｜ [生成登录器](docs/LAUNCHER_INPUTS.md) ｜ [福利规则](#福利规则一次配置持续发放) ｜ [网络与接口](docs/architecture/NETWORK_AND_CONTRACTS_20261019.md) ｜ [功能台账](docs/FEATURE_LEDGER.md) ｜ [开发文档](#开发文档)
+[English](README.md) ｜ [大肥鱼使用指南](docs/BIG_FISH_GUIDE.zh-CN.md) ｜ [部署](docs/DEPLOYMENT.zh-CN.md) ｜ [生成登录器](docs/LAUNCHER_INPUTS.md) ｜ [福利规则](#福利规则一次配置持续发放) ｜ [网络与接口](docs/architecture/NETWORK_AND_CONTRACTS_20261019.md) ｜ [功能台账](docs/FEATURE_LEDGER.md) ｜ [开发文档](#开发文档)
 
 </div>
 
+> [!TIP]
+> **第一次使用？从《[大肥鱼也能看懂的使用指南](docs/BIG_FISH_GUIDE.zh-CN.md)》开始。** 单机、局域网和公网联机共用一套服务，至少准备一套 Docker 环境。指南从地址和证书讲起，带你完成启动、Token 登录、生成登录器、发道具与配置自动福利。
 
 GM 查询先展示基础数据，再有限并发补齐；切页取消读取，超时与部分失败可重试。查询区提供 PVF 物品库，任务库可选择多个角色，设置支持将批准 PVF 直接载入内存。详见 [查询与 PVF 数据模式](docs/GM_QUERY_PERFORMANCE.md)。[游戏活动管理](docs/GM_ACTIVITY_MANAGEMENT.md) 使用独立侧栏，支持搜索、状态筛选及一次确认批量启停；保存配置在游戏服务下次重启时生效，页面分别显示配置与实际状态。
 
@@ -28,7 +31,7 @@ GM 诊断可关联跨服务请求，并记录账号查询、福利详情和发�
 
 | 场景 | 当前能力 |
 | --- | --- |
-| 玩家登录 | Windows 注册、登录、客户端目录发现、频道检查与游戏启动；登录器源码版本 0.2.18 |
+| 玩家登录 | Windows 注册、登录、客户端目录发现、频道检查与游戏启动；登录器源码版本 0.2.20 |
 | 资源更新 | 配置更新源，校验签名清单和文件摘要，处理下载进度、暂停、安装与回退；登录器程序与游戏内容独立更新 |
 | 账号与角色 | 搜索、游标分页、在线筛选、完整账号角色展开，以及批量勾选和收件去重 |
 | 物品管理 | 物品栏、穿戴栏、宠物栏、仓库、账号仓库、宠物、时装、徽章八区；查看实例，调整已支持属性、替换同类物品及批量删除 |
@@ -107,8 +110,8 @@ docker compose --env-file runtime/selfhost/compose.env -f deploy/selfhost/compos
 
 ```text
 python scripts/prepare_launcher_profile.py --connection runtime/launcher-input/server.json --client D:/GameClient --certificate runtime/launcher-input/player-fullchain.pem --public-key runtime/launcher-input/update-public.pem --output runtime/launcher-input/profile.json
-BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.18
-BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.18.zip --output dist/PurpleMagic-0.2.18.exe --dotnet dotnet
+BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.20
+BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.20.zip --output dist/PurpleMagic-0.2.20.exe --dotnet dotnet
 ```
 
 配置工具计算 EXE/PVF 和证书摘要，保留指定频道契约。玩家账号 `ApiUrl`、游戏直连 `GameHost:BootstrapPort` 和更新下载源分别配置。Windows 名称为 PurpleMagic，客户端目录使用系统文件夹选择器。
@@ -174,4 +177,6 @@ python gm/scripts/test_mysql.py
 
 ## 来源与许可
 
-组件沿用原始许可和版权声明，详见[源码来源](docs/PROVENANCE.md)、[GM 声明](gm/NOTICE.md)、[新版前端声明](gm-console/THIRD_PARTY_NOTICES.md)和[历史前端声明](gm-web/THIRD_PARTY_NOTICES.md)。
+PurpleMagic 项目代码采用 **GNU GPL v3（GPL-3.0-only）**，完整条款见 [LICENSE](LICENSE)。分发受 GPL 覆盖的程序及修改版时，保留许可和版权声明，并按 GPLv3 提供对应源码。
+
+导入代码、第三方依赖与素材保留原有声明及许可范围，详见[许可说明](docs/LICENSING.md)、[源码来源](docs/PROVENANCE.md)、[GM 声明](gm/NOTICE.md)、[新版前端声明](gm-console/THIRD_PARTY_NOTICES.md)和[历史前端声明](gm-web/THIRD_PARTY_NOTICES.md)。

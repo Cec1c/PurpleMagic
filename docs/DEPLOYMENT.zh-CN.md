@@ -1,5 +1,7 @@
 # 部署 PurpleMagic
 
+首次部署可先读《[大肥鱼也能看懂的使用指南](BIG_FISH_GUIDE.zh-CN.md)》，包含单机/联机选型、本地证书、地址填写及日常操作。本页保留完整部署命令与维护说明。
+
 本仓提供可构建的 Linux 镜像、Compose 编排和配置准备工具。推荐先在同一台 Linux 主机运行 PlayerGateway、GMService 和 Nginx，接入已有游戏服务；需要跨主机时，沿用相同进程，通过 SSH 转发两条私有链路。
 
 ## 部署前准备

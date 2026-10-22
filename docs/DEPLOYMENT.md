@@ -1,5 +1,7 @@
 # Self-hosting PurpleMagic
 
+For a step-by-step introduction to solo, LAN and internet play, see the [beginner guide (Chinese)](BIG_FISH_GUIDE.zh-CN.md).
+
 [完整中文部署步骤](DEPLOYMENT.zh-CN.md)
 
 The repository includes a multi-stage Docker image, Linux Compose services and a private configuration generator in `deploy/selfhost/`. It connects to an existing compatible game server and MariaDB schema. The game process and database are managed by the game project.

@@ -16,13 +16,14 @@ launcher changes; the server HEAD alone does not identify that snapshot.
   executable or build-time dependency on a neighboring game checkout.
 
 The project was named PurpleMagic on 2026-10-17 and is hosted at
-[Cec1c/PurpleMagic](https://github.com/Cec1c/PurpleMagic). The GM source
-snapshot has no top-level license grant, as documented in gm/NOTICE.md; this
-candidate does not relicense imported code. The launcher source's original
-notices are preserved. Reference projects CPA-Manager-Plus and CPAMP Theme Studio
-are MIT licensed; the current GM Web includes Theme Studio material with its
-licenses, notices and reference manifest under gm-web/. The initial import
-manifest predates this integration work.
+[Cec1c/PurpleMagic](https://github.com/Cec1c/PurpleMagic). Its own project code
+is licensed under GNU GPL version 3 only; see [LICENSE](../LICENSE) and
+[licensing scope](LICENSING.md). The imported GM snapshot had no top-level
+license grant, as recorded in gm/NOTICE.md. Imported code and the launcher's
+original notices retain their attribution and licensing status. Reference
+projects CPA-Manager-Plus and CPAMP Theme Studio are MIT licensed; the archived
+GM Web includes Theme Studio material with its licenses, notices and reference
+manifest under gm-web/. The initial import manifest predates this integration work.
 
 Production secrets, player data, PVF, generated binaries and original private
 configuration are not part of the source manifest.

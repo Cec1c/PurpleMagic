@@ -9,16 +9,19 @@
 ![Go](https://img.shields.io/badge/Services-Go-00ADD8?style=flat-square)
 ![.NET 8](https://img.shields.io/badge/Engine-.NET%208-512BD4?style=flat-square)
 ![MariaDB](https://img.shields.io/badge/Storage-MariaDB-003545?style=flat-square)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-A855F7?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Cec1c/PurpleMagic?style=flat-square)](https://github.com/Cec1c/PurpleMagic/stargazers)
 
 **A Windows player launcher, update gateway and GM management toolkit for DNF90.**
 
 One source repository with independently built components, from player login and updates to inventory, mail and benefit management.
 
-[简体中文](README.zh-CN.md) ｜ [Deploy](docs/DEPLOYMENT.md) ｜ [Build a launcher](docs/LAUNCHER_INPUTS.md) ｜ [Benefit rules](#benefit-rules-configure-once-keep-delivering) ｜ [Network and APIs](docs/architecture/NETWORK_AND_CONTRACTS_20261019.md) ｜ [Feature ledger](docs/FEATURE_LEDGER.md) ｜ [Documentation](#documentation)
+[简体中文](README.zh-CN.md) ｜ [Beginner guide (中文)](docs/BIG_FISH_GUIDE.zh-CN.md) ｜ [Deploy](docs/DEPLOYMENT.md) ｜ [Build a launcher](docs/LAUNCHER_INPUTS.md) ｜ [Benefit rules](#benefit-rules-configure-once-keep-delivering) ｜ [Network and APIs](docs/architecture/NETWORK_AND_CONTRACTS_20261019.md) ｜ [Feature ledger](docs/FEATURE_LEDGER.md) ｜ [Documentation](#documentation)
 
 </div>
 
+> [!TIP]
+> **New here? Start with [大肥鱼也能看懂的使用指南](docs/BIG_FISH_GUIDE.zh-CN.md) (Chinese).** Solo, LAN and internet play use the same services and require a Docker environment for this deployment recipe. The guide covers addresses, certificates, startup, Token login, launcher builds, item delivery and automatic benefits.
 
 GM queries show base rows before bounded parallel supplements, cancel reads when navigating, and support timeouts and retries. Query includes a PVF item library; the quest library supports selected characters. Settings can load the approved PVF into memory. See [query behavior and PVF modes](docs/GM_QUERY_PERFORMANCE.md). [Game activities](docs/GM_ACTIVITY_MANAGEMENT.md) have their own sidebar entry, with search, status filters and batch enable/disable after one confirmation. Saved configuration takes effect at the next game-service restart; the page shows configured and running states separately.
 
@@ -28,7 +31,7 @@ GM diagnostics correlate requests across services and time account queries, bene
 
 | Workflow | Current capabilities |
 | --- | --- |
-| Player login | Windows registration and login, client-directory discovery, channel checks and game launch; launcher source version 0.2.18 |
+| Player login | Windows registration and login, client-directory discovery, channel checks and game launch; launcher source version 0.2.20 |
 | Updates | Configurable sources, signed manifests and file hashes, progress, pause, installation and rollback; launcher and game-content updates have separate contracts |
 | Accounts and characters | Search, cursor pagination, online filtering, account expansion and deduplicated recipient selection |
 | Inventory | Eight views for bags, equipment, pet equipment, character/account storage, pets, avatars and emblems; inspect instances and edit supported attributes, replace compatible items or delete selected batches |
@@ -107,8 +110,8 @@ The existing command-line pipeline prepares a profile from a connection configur
 
 ```text
 python scripts/prepare_launcher_profile.py --connection runtime/launcher-input/server.json --client D:/GameClient --certificate runtime/launcher-input/player-fullchain.pem --public-key runtime/launcher-input/update-public.pem --output runtime/launcher-input/profile.json
-BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.18
-BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.18.zip --output dist/PurpleMagic-0.2.18.exe --dotnet dotnet
+BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.20
+BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.20.zip --output dist/PurpleMagic-0.2.20.exe --dotnet dotnet
 ```
 
 The profile tool hashes the EXE/PVF and certificate and preserves explicit channel compatibility settings. Configure the account `ApiUrl`, direct game `GameHost:BootstrapPort` and update sources separately. The Windows application is named PurpleMagic and uses the native folder picker.
@@ -174,4 +177,6 @@ Database checks create disposable MariaDB containers and require Docker. Build t
 
 ## Sources and licenses
 
-Components retain their original licenses and copyright notices. See [source provenance](docs/PROVENANCE.md), the [GM notice](gm/NOTICE.md), [current frontend notices](gm-console/THIRD_PARTY_NOTICES.md) and [archived frontend notices](gm-web/THIRD_PARTY_NOTICES.md).
+PurpleMagic's own project code is licensed under **GNU GPL v3 (`GPL-3.0-only`)**; see [LICENSE](LICENSE). Distribution of covered binaries or modified versions must retain the required notices and provide corresponding source under GPLv3.
+
+Imported code, dependencies and assets retain their original notices and licensing scope. See [licensing details](docs/LICENSING.md), [source provenance](docs/PROVENANCE.md), the [GM notice](gm/NOTICE.md), [current frontend notices](gm-console/THIRD_PARTY_NOTICES.md) and [archived frontend notices](gm-web/THIRD_PARTY_NOTICES.md).
