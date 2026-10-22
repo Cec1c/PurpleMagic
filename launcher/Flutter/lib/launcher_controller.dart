@@ -125,6 +125,7 @@ class LauncherController extends ChangeNotifier {
   bool hasUpdate = false, hasLauncherUpdate = false, connected = false;
   String source = '本服批准源', message = '正在连接登录器核心…', version = '';
   String launcherVersion = '';
+  String clientVersion = '';
   String clientDirectory = '', account = '';
   bool rememberAccount = true;
   bool diagnosticsEnabled = false, diagnosticBusy = false;
@@ -183,6 +184,7 @@ class LauncherController extends ChangeNotifier {
     source = state['source'] as String? ?? '本服批准源';
     version = state['version'] as String? ?? '';
     launcherVersion = state['launcherVersion'] as String? ?? '';
+    clientVersion = state['clientVersion'] as String? ?? '';
     news = (state['news'] as List? ?? []).cast<Map<String, dynamic>>();
     final prefs = state['preferences'] as Map<String, dynamic>? ?? {};
     clientDirectory = prefs['clientDirectory'] as String? ?? '';

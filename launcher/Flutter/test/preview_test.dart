@@ -87,6 +87,34 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
+  testWidgets('installed EXE version appears beside client status', (
+    tester,
+  ) async {
+    final fake = FakeCore();
+    fake.state['clientVersion'] = 'V150';
+    fake.state['version'] = 'client-v153-new-release';
+    final model = LauncherController(client: fake);
+    await start(tester, controller: model);
+    String status() => tester
+        .widget<Text>(find.byKey(const Key('client-status')))
+        .textSpan!
+        .toPlainText();
+    expect(status(), '客户端已就绪  ·  V150');
+    await screenshot(tester, 'client-version-1440');
+    tester.view.physicalSize = const Size(1000, 620);
+    await tester.pumpAndSettle();
+    await screenshot(tester, 'client-version-1000');
+    fake.state['clientVersion'] = 'V153';
+    fake.emit();
+    await tester.pump();
+    expect(status(), '客户端已就绪  ·  V153');
+    fake.state.remove('clientVersion');
+    fake.emit();
+    await tester.pump();
+    expect(status(), '客户端已就绪');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('diagnostic preference persists through other settings', (
     tester,
   ) async {

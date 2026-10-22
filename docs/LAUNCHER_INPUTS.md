@@ -39,6 +39,8 @@ openssl pkey -in signing-key.pem -pubout -out update-public.pem
 
 `MinimumLauncherVersion` 控制允许的最低客户端版本；当前模板为 0.2.18。`SettingsUrl` 是保留的旧清单字段，当前引擎主要从 `ApiUrl/launcher/v2/bootstrap.json` 获取签名发布信息。新 Hub 的首个状态可以没有内容包；发布批准资源后客户端开始检查对应更新。
 
+客户端状态旁的 EXE 版本标识取自签名资源清单的版本名，如 `client-v153-raid-state-20261022` 显示为 `V153`。只有本地 `DNF.exe` 的长度及 SHA256 与清单一致时才显示；待更新的旧 EXE 可使用本目录 `.dnf90-update/installed.json` 的已验签回执识别。没有匹配版本时省略标识。发布资源时继续保留 `client-v数字-说明` 的命名；该标识与底部的登录器版本独立。
+
 ## 构建与检查
 
 构建机使用 Windows、Flutter、.NET 8 SDK、Visual Studio C++ 桌面工具与 NativeAOT。准备自己的 `launcher/Flutter/assets/background.webp` 和 `announcement.webp`；这两张美术输入不随源码分发。witch PNG 和 ICO 已在仓库，见 [品牌资源](BRANDING.md)。

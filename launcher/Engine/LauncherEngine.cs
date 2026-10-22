@@ -21,6 +21,7 @@ public sealed class LauncherEngine : IDisposable
     private byte[]? envelope;
     private Preferences preferences = new();
     private ContentFile[] plan = [];
+    private string clientVersion = "";
     private readonly List<(string Account, Process Process)> games = [];
     private readonly DiagnosticService diagnostics;
     public event Action<State>? Changed;
@@ -46,6 +47,7 @@ public sealed class LauncherEngine : IDisposable
         }
         var cached = Path.Combine(stateRoot, "bootstrap.json");
         if (File.Exists(cached)) { envelope = File.ReadAllBytes(cached); bootstrap = Trust.Verify(envelope, root); }
+        RefreshClientVersion();
         var install = Path.GetDirectoryName(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar))!;
         previousUpdateFailure = BundleInstaller.PreviousFailure(install);
         previousUpdateOutcome = BundleInstaller.ReadOutcome(install);
@@ -60,9 +62,10 @@ public sealed class LauncherEngine : IDisposable
         State = new(phase, message, total == 0 ? 0 : Math.Clamp((double)current / total, 0, 1), current, total,
             !busy && phase != "paused" && plan.Length == 0 && preferences.ClientDirectory != "" && SupportsContent(Profile), plan.Length != 0,
             bootstrap?.Launcher is { } b && System.Version.Parse(b.Version) > System.Version.Parse(VersionText),
-            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []);
+            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion };
         Changed?.Invoke(State);
     }
+    private void RefreshClientVersion() => clientVersion = InstalledClientVersion.Read(preferences.ClientDirectory, root, bootstrap);
     public void Pause() => download?.Cancel();
     internal static bool SupportsContent(PlayerProfile profile) =>
         (string.IsNullOrEmpty(profile.MinimumLauncherVersion) ||
@@ -158,7 +161,7 @@ public sealed class LauncherEngine : IDisposable
             preferences = value with { Account = value.RememberAccount ? value.Account : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
             diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
-            if (directoryChanged) plan = [];
+            if (directoryChanged) { plan = []; await Task.Run(RefreshClientVersion); }
             Emit("ready", "设置已保存。");
         }
         finally { operation.Release(); }
@@ -221,6 +224,7 @@ public sealed class LauncherEngine : IDisposable
         if (preferences.ClientDirectory == "") { Emit("ready", "发布信息已更新，请先选择客户端目录。"); return; }
         RequireNoGames();
         using var transaction = new FileTransaction(preferences.ClientDirectory); transaction.Recover();
+        await Task.Run(RefreshClientVersion);
         if (bootstrap.Content is { } content)
         {
             Emit("checking", "正在校验客户端资源…"); plan = await ContentUpdater.Plan(preferences.ClientDirectory, content, CancellationToken.None, Path.Combine(stateRoot, "content-check.txt"));
@@ -258,8 +262,10 @@ public sealed class LauncherEngine : IDisposable
             finished += ContentUpdater.TransferSize(file);
         }
         cancel.Token.ThrowIfCancellationRequested(); download = null; RequireNoGames();
+        clientVersion = "";
         Emit("installing", "正在提交更新，保留恢复记录…", total, total);
         transaction.Commit(plan.Select(f => f.Path).ToArray(), envelope!); plan = [];
+        await Task.Run(RefreshClientVersion);
         diagnostics.Event("update_complete", updateClock.Elapsed.TotalMilliseconds);
         Emit("ready", "更新完成，客户端资源已通过双重摘要校验。", total, total);
     }

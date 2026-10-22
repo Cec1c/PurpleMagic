@@ -845,8 +845,18 @@ class _PreviewHomeState extends State<PreviewHome> {
             ),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(
-                model.status,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: model.status),
+                    if (model.clientVersion.isNotEmpty)
+                      TextSpan(
+                        text: '  ·  ${model.clientVersion}',
+                        style: const TextStyle(color: gold),
+                      ),
+                  ],
+                ),
+                key: const Key('client-status'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 11, color: Color(0xffd3cbdc)),

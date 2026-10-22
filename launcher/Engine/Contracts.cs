@@ -17,6 +17,7 @@ public sealed record Preferences(string ClientDirectory = "", string Account = "
 public sealed record State(string Phase, string Message, double Progress, long Downloaded, long Total, bool CanLogin, bool HasUpdate, bool HasLauncherUpdate, string Source, string Version, Preferences Preferences, News[] News)
 {
     public string LauncherVersion => LauncherEngine.VersionText;
+    public string ClientVersion { get; init; } = "";
     public DiagnosticStatus? Diagnostics { get; init; }
 }
 public sealed record Request(int Id, string Method, JsonElement Args);
