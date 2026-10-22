@@ -171,6 +171,8 @@ func v1DeliveryFailure(message string) *v1Error {
 	switch message {
 	case "角色已删除，未发送", "角色已重新创建，请重新预览", "角色与收件账号不匹配", "账号不存在":
 		return &v1Error{Code: "recipient_changed", Message: message, Retryable: false}
+	case "物品版本待核对，后台校验后续发":
+		return &v1Error{Code: "pvf_review_required", Message: message, Retryable: false}
 	default:
 		return &v1Error{Code: "delivery_failed", Message: "投递失败，请检查服务状态后重试", Retryable: true}
 	}

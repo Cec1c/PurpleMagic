@@ -19,25 +19,59 @@ type benefitScanPosition struct {
 	Campaign  string `json:"campaign,omitempty"`
 }
 
+type benefitScanResult struct {
+	Position  benefitScanPosition `json:"position"`
+	Retry     bool                `json:"retry"`
+	Done      bool                `json:"done"`
+	Checked   int                 `json:"checked"`
+	Delivered int                 `json:"delivered"`
+	Received  int                 `json:"received"`
+	Failed    int                 `json:"failed"`
+	Blocked   []benefitScanBlock  `json:"blocked,omitempty"`
+}
+type benefitScanBlock struct {
+	CampaignID string `json:"campaignId"`
+	Message    string `json:"message"`
+}
+
 func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScanPosition) (benefitScanPosition, error) {
+	out, err := s.scanBenefitPage(ctx, position)
+	return out.Position, err
+}
+
+func (s *Server) scanBenefitPage(ctx context.Context, position benefitScanPosition) (out benefitScanResult, resultErr error) {
+	defer func() { out.Position = position; out.Retry = resultErr != nil }()
 	if s.deps.Benefits == nil {
-		return position, errors.New("benefit store unavailable")
+		return out, errors.New("benefit store unavailable")
 	}
 	campaigns, err := s.deps.Benefits.Campaigns(ctx)
 	if err != nil {
-		return position, err
+		return out, err
 	}
 	sort.Slice(campaigns, func(i, j int) bool { return campaigns[i].ID < campaigns[j].ID })
 	active := false
-	for _, c := range campaigns {
+	blocked := map[string]bool{}
+	for i, c := range campaigns {
 		active = active || (c.Enabled && (c.AutoExistingCharacters || c.AutoNewCharacters))
+		if c.Enabled && (c.AutoExistingCharacters || c.AutoNewCharacters) && c.Reward.PVFChecksum != "" && c.Reward.PVFChecksum != s.v1PVFChecksum() {
+			updated, e := s.reconcileCampaignPVF(ctx, c)
+			if e == nil {
+				campaigns[i] = updated
+			} else {
+				blocked[c.ID] = true
+				out.Blocked = append(out.Blocked, benefitScanBlock{c.ID, "物品版本待核对，未发放对象保留待发"})
+				diagnostics.Log(s.cfg.Logger, ctx, "benefit-pvf-review-required", e, "campaign_id", c.ID)
+			}
+		}
 	}
 	if !active {
-		return benefitScanPosition{}, nil
+		position = benefitScanPosition{}
+		out.Done = true
+		return out, nil
 	}
 	group, err := s.repositories()
 	if err != nil {
-		return position, err
+		return out, err
 	}
 	op := ">"
 	if position.Character != "" {
@@ -45,7 +79,7 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 	}
 	rows, err := diagnostics.Query(ctx, s.db, "scan.registration", "SELECT id,account_id FROM "+quoteIdentifier(s.cfg.Table)+" WHERE id"+op+"? ORDER BY id LIMIT 5", position.Account)
 	if err != nil {
-		return position, err
+		return out, err
 	}
 	type account struct {
 		id  int64
@@ -56,24 +90,32 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 		var a account
 		if err = rows.Scan(&a.id, &a.key); err != nil {
 			rows.Close()
-			return position, err
+			return out, err
 		}
 		accounts = append(accounts, a)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return position, err
+		return out, err
 	}
 	var failures []error
 	attempts := 0
 	for _, a := range accounts {
 		if err = ctx.Err(); err != nil {
-			return position, errors.Join(append(failures, err)...)
+			return out, errors.Join(append(failures, err)...)
 		}
 		characters, e := testbenefits.CharactersForAccount(ctx, group, a.key)
+		if e == nil && len(characters) == 0 {
+			position = benefitScanPosition{Account: a.id}
+			continue
+		}
 		account, found, loadErr := group.Account.Load(ctx, a.key)
 		if e != nil || loadErr != nil || !found {
+			if e == nil && loadErr == nil {
+				loadErr = errors.New("benefit account unavailable")
+			}
+			out.Failed++
 			failures = append(failures, errors.Join(e, loadErr))
 			position = benefitScanPosition{Account: a.id}
 			continue
@@ -87,6 +129,9 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 				if !testbenefits.EligibleNewCharacter(c, ch) {
 					continue
 				}
+				if blocked[c.ID] {
+					continue
+				}
 				// Check receipts before entering expensive locking transactions. The write
 				// path repeats this check under its original account lock.
 				if accountSent[c.ID] {
@@ -94,13 +139,19 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 				}
 				receipt, e := testbenefits.PreviousDeliveryReceipt(account, c.Reward, testbenefits.Recipient{AccountID: ch.AccountID, CharacterID: ch.CharacterID, CreatedAt: ch.CreatedAt})
 				if e == nil && receipt.MailID != "" {
+					out.Checked++
+					out.Received++
+					position = benefitScanPosition{Account: a.id, Character: ch.CharacterID, Campaign: c.ID}
+					if c.Reward.Scope.Effective() == testbenefits.ScopeAccount {
+						accountSent[c.ID] = true
+					}
 					continue
 				}
 				if attempts >= 10 {
-					return position, errors.Join(failures...)
+					return out, errors.Join(failures...)
 				}
 				if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 4*time.Second {
-					return position, errors.Join(failures...)
+					return out, errors.Join(failures...)
 				}
 				if e == nil {
 					delivery, stop := context.WithTimeout(ctx, 4*time.Second)
@@ -108,14 +159,19 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 					stop()
 				}
 				attempts++
+				out.Checked++
 				position = benefitScanPosition{Account: a.id, Character: ch.CharacterID, Campaign: c.ID}
 				if e != nil {
+					out.Failed++
 					failures = append(failures, e)
 					if s.cfg.Logger != nil {
 						diagnostics.Log(s.cfg.Logger, ctx, "benefit-delivery-retry", e, "account_cursor", a.id, "character_id", ch.CharacterID, "campaign_id", c.ID)
 					}
-				} else if c.Reward.Scope.Effective() == testbenefits.ScopeAccount {
-					accountSent[c.ID] = true
+				} else {
+					out.Delivered++
+					if c.Reward.Scope.Effective() == testbenefits.ScopeAccount {
+						accountSent[c.ID] = true
+					}
 				}
 			}
 		}
@@ -123,6 +179,7 @@ func (s *Server) scanBenefitDeliveries(ctx context.Context, position benefitScan
 	}
 	if len(accounts) < 5 {
 		position = benefitScanPosition{}
+		out.Done = true
 	}
-	return position, errors.Join(failures...)
+	return out, errors.Join(failures...)
 }

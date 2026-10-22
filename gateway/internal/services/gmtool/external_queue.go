@@ -25,9 +25,10 @@ type queuedMail struct {
 	InFlight        bool   `json:"inFlight"`
 }
 type queueState struct {
-	Hash     string                   `json:"pvfSha256"`
-	Jobs     map[string]queuedMail    `json:"jobs"`
-	Benefits map[string]queuedBenefit `json:"benefits,omitempty"`
+	Hash           string                   `json:"pvfSha256"`
+	Jobs           map[string]queuedMail    `json:"jobs"`
+	Benefits       map[string]queuedBenefit `json:"benefits,omitempty"`
+	Reconciliation *benefitReconciliation   `json:"reconciliation,omitempty"`
 }
 type queueTask struct {
 	ID          string `json:"id"`
@@ -40,11 +41,14 @@ type queueTask struct {
 // ExternalQueue persists administrator-confirmed work. Delivery and deduplication
 // remain authoritative in the original gateway database, including after restart.
 type ExternalQueue struct {
-	mu        sync.Mutex
-	benefitMu sync.Mutex
-	path      string
-	state     queueState
-	peer      *servicehttp.Client
+	mu           sync.Mutex
+	benefitMu    sync.Mutex
+	scanMu       sync.Mutex
+	scanEnabled  bool
+	scanInterval time.Duration
+	path         string
+	state        queueState
+	peer         *servicehttp.Client
 }
 
 func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, error) {
@@ -74,6 +78,7 @@ func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, e
 			}
 		}
 		if q.state.Hash != peer.Hash() {
+			q.state.Reconciliation = nil
 			for id, j := range q.state.Benefits {
 				if j.Status == "active" {
 					j.Status = "conflict"
@@ -88,6 +93,12 @@ func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, e
 				}
 			}
 			q.state.Hash = peer.Hash()
+		}
+	}
+	if q.state.Reconciliation != nil {
+		r := q.state.Reconciliation
+		if (r.Status != "active" && r.Status != "waiting") || r.Position.Account < 0 || len(r.Position.Character) > 128 || len(r.Position.Campaign) > 32 || len(r.Blocked) > 1000 {
+			return nil, errors.New("invalid benefit reconciliation state")
 		}
 	}
 	if q.state.Benefits == nil {

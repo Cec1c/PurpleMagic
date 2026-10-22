@@ -43,6 +43,9 @@ func (s *Server) v1CampaignRecipients(w http.ResponseWriter, r *http.Request) {
 			state = "sent"
 		} else if r.Error != "" {
 			state = "failed"
+		} else if r.Eligible && c.Reward.PVFChecksum != "" && c.Reward.PVFChecksum != s.v1PVFChecksum() {
+			state = "failed"
+			r.Error = "物品版本待核对，后台校验后续发"
 		}
 		var delivered any
 		if r.Delivery != nil {

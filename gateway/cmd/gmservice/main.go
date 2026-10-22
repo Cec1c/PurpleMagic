@@ -105,6 +105,7 @@ func run(ctx context.Context, path string) error {
 	if e != nil {
 		return e
 	}
+	queue.ConfigureBenefitReconciliation(c.ScanEnabled)
 	handlers := []http.Handler{s.ExternalHandler(c.WebRoot, c.PublicOrigin, peer, queue), s.CatalogHandler(c.CatalogToken)}
 	servers := make([]*http.Server, 0, 2)
 	failures := make(chan error, 3)
@@ -128,7 +129,7 @@ func run(ctx context.Context, path string) error {
 	go func() {
 		defer close(workerDone)
 		if c.ScanEnabled {
-			if e := gmtool.RunExternalScanner(workerCtx, peer, time.Duration(c.ScanSeconds)*time.Second, logger); e != nil {
+			if e := queue.RunBenefitReconciliation(workerCtx, time.Duration(c.ScanSeconds)*time.Second, logger); e != nil {
 				failures <- e
 			}
 		}

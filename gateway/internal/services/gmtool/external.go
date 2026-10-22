@@ -46,15 +46,12 @@ func (s *Server) GatewayHandler(token, hash string) http.Handler {
 		defer scan.Unlock()
 		ctx, stop := context.WithTimeout(r.Context(), 20*time.Second)
 		defer stop()
-		position, err := s.scanBenefitDeliveries(ctx, in)
+		out, err := s.scanBenefitPage(ctx, in)
 		if err != nil {
-			diagnostics.Log(s.cfg.Logger, ctx, "benefit-scan-retry", err, "account_cursor", position.Account)
+			diagnostics.Log(s.cfg.Logger, ctx, "benefit-scan-retry", err, "account_cursor", out.Position.Account)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(struct {
-			Position benefitScanPosition `json:"position"`
-			Retry    bool                `json:"retry"`
-		}{position, err != nil})
+		json.NewEncoder(w).Encode(out)
 	})
 	mux.HandleFunc("POST /api/internal/gateway/v1/scan", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
@@ -143,6 +140,9 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		if r.Method == http.MethodPost && !s.v1CheckWrite(w, r) {
 			return
 		}
+		if queue != nil && queue.HandleBenefitReconciliation(w, r) {
+			return
+		}
 		if queue != nil && strings.HasPrefix(r.URL.Path, "/api/v1/benefits/") && queue.HandleBenefit(w, r) {
 			return
 		}
@@ -191,6 +191,13 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			var envelope v1Envelope
 			if json.Unmarshal(raw, &envelope) == nil && envelope.Error != nil {
 				diagnostics.Code(r.Context(), envelope.Error.Code)
+			}
+		}
+		if queue != nil && r.Method == http.MethodPost && res.StatusCode >= 200 && res.StatusCode < 300 &&
+			(strings.HasPrefix(r.URL.Path, "/api/v1/benefits/") || r.URL.Path == "/api/v1/benefits") &&
+			!strings.HasSuffix(r.URL.Path, "/pvf-preview") && !strings.HasSuffix(r.URL.Path, "/preview") {
+			if err := queue.RequestBenefitReconciliation(); err != nil {
+				diagnostics.Log(s.cfg.Logger, r.Context(), "benefit-reconciliation-request-failed", err)
 			}
 		}
 		if r.URL.Path == "/api/v1/capabilities" && res.StatusCode == 200 {

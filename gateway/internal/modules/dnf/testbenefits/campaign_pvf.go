@@ -47,6 +47,16 @@ func CampaignProjection(c Campaign) PVFProjection {
 	return PVFProjection{c.Reward.PVFChecksum, c.Reward.Attachments, c.Reward.Definition, c.ItemName}
 }
 
+// A full-archive update can leave a rule's item unchanged. Rebind only when
+// both its recorded definition and its projected attachment match exactly.
+// Missing historical evidence or changed reward data still requires review.
+func UnchangedCampaignProjection(c Campaign, p PVFProjection) bool {
+	return c.Reward.RewardPlan != nil && c.Reward.Definition != nil &&
+		len(c.Reward.Definition.ScriptSHA256) == 64 && p.Definition != nil &&
+		reflect.DeepEqual(c.Reward.Definition, p.Definition) &&
+		reflect.DeepEqual(c.Reward.Attachments, p.Attachments) && c.ItemName == p.ItemName
+}
+
 func PVFProjectionHash(p PVFProjection) string { return pvfHash(p) }
 func pvfHash(value any) string {
 	raw, _ := json.Marshal(value)

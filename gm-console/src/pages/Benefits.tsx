@@ -4,6 +4,7 @@ import { catalog as demoCatalog } from "../fixtures";
 import { LoadMore, TaskDetail } from "../api/controls";
 import { Gift, Pause, Play, Plus } from "lucide-react";
 import { Field, CheckBox, Pill, number, type PageProps } from "../ui";
+import { BenefitReconciliation } from "../api/BenefitReconciliation";
 
 export function BenefitsPage({ state, request }: PageProps) {
   const live = useLive();
@@ -42,6 +43,7 @@ export function BenefitsPage({ state, request }: PageProps) {
               {create ? "收起表单" : "创建规则"}
             </button>
           </div>
+          <BenefitReconciliation />
           {create && (
             <form
               className="glass content-panel benefit-create"

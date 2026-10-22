@@ -15,6 +15,9 @@ type v1MailInputError struct {
 }
 
 func (e *v1MailInputError) Error() string { return e.message }
+func (e *v1MailInputError) DiagnosticFields() []any {
+	return []any{"operation_code", e.code, "operation_status", e.status}
+}
 
 func (s *Server) v1MailGrantOptions(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(r.PathValue("itemId"), 10, 31)

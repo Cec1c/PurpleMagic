@@ -6,6 +6,8 @@ import { Modal, Field } from "../ui";
 import { query, segment } from "./http";
 import type { DTO } from "./model";
 import type { Command } from "../domain";
+import { collectRecipients, type RecipientRow } from "./benefit-recipients";
+import { BenefitRecipients } from "./BenefitRecipients";
 
 export function LoginPanel() {
   const api = useLive()!;
@@ -192,29 +194,44 @@ export function TaskDetail({
   const [task, setTask] = useState<DTO>();
   const [redelivery, setRedelivery] = useState<DTO | null>(null);
   const [redeliveryError, setRedeliveryError] = useState("");
-  const [rows, setRows] = useState<DTO[]>([]),
+  const [rows, setRows] = useState<RecipientRow[]>([]),
     [next, setNext] = useState(""),
     [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [complete, setComplete] = useState(false);
   const readController = useRef<AbortController | undefined>(undefined);
+  const priorRedelivery = useRef<DTO | null>(null);
   async function read(more = false) {
     readController.current?.abort();
     const controller = new AbortController();
     readController.current = controller;
     setBusy(true);
     setError("");
+    setComplete(false);
+    if (campaignId && !more) { setRows([]); setNext(""); }
     try {
       const root = campaignId
         ? `/api/v1/benefits/${segment(campaignId)}`
         : `/api/v1/tasks/${segment(id)}`;
+      if (campaignId) {
+        setTask(undefined);
+        await collectRecipients(
+          (cursor, signal) => api.http.get<RecipientRow[]>(query(root + "/recipients", { limit: 100, cursor: cursor || undefined }), signal),
+          controller.signal,
+          (loaded, cursor) => { setRows(loaded); setNext(cursor); setComplete(!cursor); },
+          more ? rows : [], more ? next : "",
+        );
+        return;
+      }
       const t = campaignId ? null : await api.http.get(root, controller.signal);
-      const r = await api.http.get<DTO[]>(
+      const r = await api.http.get<RecipientRow[]>(
         query(root + "/recipients", {
           limit: 100,
           cursor: more ? next : undefined,
         }),
         controller.signal,
       );
+      if (controller.signal.aborted) return;
       setTask(t?.data);
       setRows(more ? [...rows, ...r.data] : r.data);
       setNext(r.page?.nextCursor || "");
@@ -226,6 +243,8 @@ export function TaskDetail({
     }
   }
   useEffect(() => {
+    setRedelivery(null);
+    priorRedelivery.current = null;
     void read();
     return () => readController.current?.abort();
   }, [id, campaignId]);
@@ -247,7 +266,8 @@ export function TaskDetail({
     return () => { clearInterval(timer); controller.abort(); };
   }, [campaignId]);
   useEffect(() => {
-    if (redelivery && redelivery.status !== "active") void read();
+    if (priorRedelivery.current?.status === "active" && redelivery && redelivery.status !== "active") void read();
+    priorRedelivery.current = redelivery;
   }, [redelivery?.id, redelivery?.status]);
   function act(action: "pause" | "retry" | "resume") {
     onClose();
@@ -308,7 +328,7 @@ export function TaskDetail({
           {task.failed}
         </p>
       )}
-      {campaignId && <p>已加载 {rows.length} 项 · 已发 {rows.filter(r => r.state === "sent").length} · 待发 {rows.filter(r => r.state === "pending").length}{next ? " · 还有更多" : ""}</p>}
+      {campaignId && <BenefitRecipients rows={rows} busy={busy} complete={complete} />}
       {redelivery && <div className="benefit-redelivery-status" role="status">
         <strong>{({active: "正在后台补发", completed: "本轮补发完成", failed: "本轮补发结束，存在失败记录", conflict: "补发已停止"} as Record<string, string>)[redelivery.status]}</strong>
         <p>已检查 {redelivery.checked} · 确认已收到 {redelivery.received} · 跳过 {redelivery.skipped} · 失败 {redelivery.failed}</p>
@@ -318,9 +338,9 @@ export function TaskDetail({
         {redelivery.failed > (redelivery.failures?.length || 0) && <small>仅显示前 10 个失败对象。</small>}
       </div>}
       {redeliveryError && <p role="alert" className="inline-error">补发进度：{redeliveryError}</p>}
-      {busy && <p role="status">正在读取发放记录…</p>}
-      {!busy && !error && !rows.length && <p>暂无收件角色</p>}
-      <div className="table-scroll">
+      {!campaignId && busy && <p role="status">正在读取发放记录…</p>}
+      {!campaignId && !busy && !error && !rows.length && <p>暂无收件角色</p>}
+      {!campaignId && <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -354,8 +374,9 @@ export function TaskDetail({
             ))}
           </tbody>
         </table>
-      </div>
-      <LoadMore show={!!next && !busy} onClick={() => void read(true)} />
+      </div>}
+      {!campaignId && <LoadMore show={!!next && !busy} onClick={() => void read(true)} />}
+      {campaignId && error && !busy && <button className="secondary" onClick={() => void read(!!next)}>继续查询</button>}
       {error && (
         <p role="alert" className="inline-error">
           {error}
