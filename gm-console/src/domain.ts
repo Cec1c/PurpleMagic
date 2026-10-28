@@ -1,6 +1,6 @@
 import { activityChanges, demoActivities, type ActivitySnapshot, type ActivityChange } from "./activities.ts";
 export type Section =
-  "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "activities" | "accounts" | "settings";
+  "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "activities" | "anti-cheat" | "accounts" | "settings";
 export type InventoryTab =
   | "bag"
   | "equipped"

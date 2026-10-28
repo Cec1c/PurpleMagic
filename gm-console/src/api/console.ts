@@ -585,6 +585,7 @@ export class ConsoleAPI {
       ]);
     else if (refresh && section === "benefits") await this.benefits();
     else if (refresh && section === "activities") await this.activities();
+    else if (refresh && section === "anti-cheat") { this.meta.resources.moderationRefresh = { revision: Number(this.meta.resources.moderationRefresh?.revision || 0) + 1 }; this.publish(); }
     else if (refresh && section === "settings") await this.hub();
   }
   async inventory(tab: InventoryTab, more = false) {
@@ -851,6 +852,12 @@ export class ConsoleAPI {
         this.publish();
       }
     }
+  }
+  async moderation(resource: "clears" | "accounts" | "bans", params: Record<string,string|number|undefined>, signal?: AbortSignal) {
+    return (await this.http.get(query(`/api/v1/anti-cheat/${resource}`,params),signal)).data;
+  }
+  async changeBan(change: import("../moderation").BanChange) {
+    return await this.http.post<import("../moderation").Ban>("/api/v1/anti-cheat/bans",change,change.requestId);
   }
   async activities() {
     const signal = this.signal("activities");
@@ -1220,7 +1227,7 @@ export class ConsoleAPI {
       this.publish();
     }
     await this.guard(async () => {
-      if (!["benefits", "activities"].includes(this.sectionId)) await this.character();
+      if (!["benefits", "activities", "anti-cheat"].includes(this.sectionId)) await this.character();
       await this.enter(this.sectionId, true);
     });
   }
