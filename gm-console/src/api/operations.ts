@@ -272,7 +272,7 @@ export async function prepareOperation(
     const action = command.status === "completed" ? "complete" : "reset";
     p.summary =
       action === "complete"
-        ? "完成选中任务（不发任务奖励）"
+        ? "完成选中任务并同步开槽（不发金币、经验和道具）"
         : "恢复选中任务为未完成";
     p.summary += `：${command.ids.map((id) => api.meta.quests.find((q) => q.id === id)?.name || id).join("、")}`;
     for (const target of recipients) await preview(`${target.name}：${p.summary}`, `/api/v1/characters/${segment(target.id)}/quest-operations`, {

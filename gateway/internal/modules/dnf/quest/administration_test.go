@@ -95,3 +95,38 @@ func TestAdministrationCompletionCannotGrantOrdinaryReward(t *testing.T) {
 		t.Fatal("character assets changed", err)
 	}
 }
+
+func TestAdministrationSlotExpansionUsesPVF(t *testing.T) {
+	character := repository.CharacterRecord{CharacterID: "10", AccountID: "fixture", Job: "0", Level: 90, Stats: map[string]int64{"ex_equip_slot_stat": 128}}
+	for _, tc := range []struct {
+		name string
+		data []int64
+		want byte
+		bad  bool
+	}{
+		{"left", []int64{0}, ExEquipSlotSupport, false},
+		{"right", []int64{1}, ExEquipSlotMagicStone, false},
+		{"earring", []int64{2}, ExEquipSlotEarring, false},
+		{"missing", nil, 0, true},
+		{"negative", []int64{-1}, 0, true},
+		{"unknown", []int64{3}, 0, true},
+		{"multiple", []int64{0, 1}, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog, err := CatalogFromDefinitions([]Definition{{ID: 371, Path: "n_quest/slot.qst", RewardType: "[Slot Expansion]", RewardIntData: tc.data}, {ID: 372, Path: "n_quest/item.qst", RewardType: "[item]"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			bits, err := AdministrationSlotExpansion(catalog, character, "complete", []int64{372, 371})
+			if bits != tc.want || errors.Is(err, ErrQuestRewardMalformed) != tc.bad || (!tc.bad && err != nil) {
+				t.Fatal(bits, err)
+			}
+			if bits, err = AdministrationSlotExpansion(catalog, character, "reset", []int64{371}); err != nil || bits != 0 {
+				t.Fatal("reset generated an unlock", bits, err)
+			}
+			if character.Stats["ex_equip_slot_stat"] != 128 {
+				t.Fatal("planner mutated character")
+			}
+		})
+	}
+}

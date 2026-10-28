@@ -202,6 +202,8 @@ func (s *Server) v1QuestOperationResult(w http.ResponseWriter, r *http.Request, 
 		fail(422, "profession_operation_required", "职业任务需通过职业变更操作完成", false)
 	case errors.Is(err, quest.ErrAdministrationSettlement):
 		fail(422, "settlement_exists", "该任务已有结算记录，请先核对任务详情", false)
+	case errors.Is(err, quest.ErrQuestRewardMalformed):
+		fail(422, "quest_reward_malformed", "当前 PVF 的开槽奖励定义无效", false)
 	case errors.Is(err, quest.ErrQuestNotAcceptable):
 		fail(422, "not_acceptable", "当前角色不满足任务的等级、职业或前置条件", false)
 	case errors.Is(err, quest.ErrQuestCannotGiveUp):

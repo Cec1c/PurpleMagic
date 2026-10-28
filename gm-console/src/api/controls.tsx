@@ -8,6 +8,7 @@ import type { DTO } from "./model";
 import type { Command } from "../domain";
 import { collectRecipients, type RecipientRow } from "./benefit-recipients";
 import { BenefitRecipients } from "./BenefitRecipients";
+import { questSlotSummary } from "../quest-slots";
 
 export function LoginPanel() {
   const api = useLive()!;
@@ -161,6 +162,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           <li key={s.id}>
             {s.done && <CheckCircle2 size={14} />}
             <strong>{s.label}</strong>
+            {s.result?.equipmentSlots && <span>{questSlotSummary(s.result.equipmentSlots, s.done)}</span>}
             {s.done && <span>{s.kind === "activities" ? `配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}` : s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
             {s.kind === "task" && s.result && (
               <span>

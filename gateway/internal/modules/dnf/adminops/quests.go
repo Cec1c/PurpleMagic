@@ -40,18 +40,24 @@ type QuestChange struct {
 	Changed        bool   `json:"changed"`
 }
 type QuestReceipt struct {
-	RequestID     string        `json:"requestId,omitempty"`
-	Kind          string        `json:"kind"`
-	AccountID     string        `json:"accountId"`
-	CharacterID   string        `json:"characterId"`
-	Action        string        `json:"action"`
-	Revision      string        `json:"revision"`
-	PVFChecksum   string        `json:"pvfChecksum"`
-	Changes       []QuestChange `json:"changes"`
-	RewardGranted bool          `json:"rewardGranted"`
-	Reason        string        `json:"reason"`
-	Actor         string        `json:"actor"`
-	CreatedAt     time.Time     `json:"createdAt"`
+	RequestID      string               `json:"requestId,omitempty"`
+	Kind           string               `json:"kind"`
+	AccountID      string               `json:"accountId"`
+	CharacterID    string               `json:"characterId"`
+	Action         string               `json:"action"`
+	Revision       string               `json:"revision"`
+	PVFChecksum    string               `json:"pvfChecksum"`
+	Changes        []QuestChange        `json:"changes"`
+	RewardGranted  bool                 `json:"rewardGranted"`
+	EquipmentSlots *QuestEquipmentSlots `json:"equipmentSlots,omitempty"`
+	Reason         string               `json:"reason"`
+	Actor          string               `json:"actor"`
+	CreatedAt      time.Time            `json:"createdAt"`
+}
+type QuestEquipmentSlots struct {
+	Before    int64 `json:"before"`
+	After     int64 `json:"after"`
+	Requested int64 `json:"requested"`
 }
 type questStored struct {
 	Receipt     QuestReceipt `json:"receipt"`
@@ -106,7 +112,7 @@ func loadQuestReceipt(ctx context.Context, receipts repository.ManagementReceipt
 }
 
 func QuestRevision(c repository.CharacterRecord, q repository.QuestRecord, pvf string) string {
-	raw, _ := json.Marshal([]any{c.CharacterID, c.AccountID, c.Level, c.Job, c.Stats["grow_type"], q.States, q.Progress, pvf})
+	raw, _ := json.Marshal([]any{c.CharacterID, c.AccountID, c.Level, c.Job, c.Stats["grow_type"], c.Stats["ex_equip_slot_stat"], q.States, q.Progress, pvf})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -195,8 +201,29 @@ func RunQuestOperation(ctx context.Context, u repository.CharacterManagementUnit
 			return e
 		}
 		result = QuestReceipt{Kind: "quest-operation", AccountID: c.AccountID, CharacterID: c.CharacterID, Action: c.Action, Revision: revision, PVFChecksum: c.PVFChecksum, Changes: questChanges(q, next, c.QuestIDs), Reason: c.Reason, Actor: c.Actor, CreatedAt: time.Now().UTC().Truncate(time.Microsecond)}
+		bits, e := quest.AdministrationSlotExpansion(catalog, character, c.Action, c.QuestIDs)
+		if e != nil {
+			return e
+		}
+		if bits != 0 {
+			before := character.Stats["ex_equip_slot_stat"]
+			result.EquipmentSlots = &QuestEquipmentSlots{Before: before, After: before | int64(bits), Requested: int64(bits)}
+		}
 		if !commit {
 			return nil
+		}
+		if slots := result.EquipmentSlots; slots != nil && slots.After != slots.Before {
+			writer, ok := g.Character.(repository.CharacterEquipmentSlotWriter)
+			if !ok {
+				return ErrRuntimeUnavailable
+			}
+			if e = writer.UnlockEquipmentSlots(ctx, c.CharacterID, bits); e != nil {
+				return e
+			}
+			if character.Stats == nil {
+				character.Stats = map[string]int64{}
+			}
+			character.Stats["ex_equip_slot_stat"] = slots.After
 		}
 		if e = repository.SaveQuestFields(ctx, g.Quest, next, repository.QuestFieldStates, repository.QuestFieldProgress); e != nil {
 			return e

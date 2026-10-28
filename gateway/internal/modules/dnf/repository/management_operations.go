@@ -23,6 +23,12 @@ type CharacterManagementUnitOfWork interface {
 	CharacterManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)
 }
 
+// CharacterEquipmentSlotWriter updates only the unlock bitset inside a fenced
+// character management transaction. It never saves the aggregate Stats map.
+type CharacterEquipmentSlotWriter interface {
+	UnlockEquipmentSlots(context.Context, string, byte) error
+}
+
 // Gold management has its own durable receipt namespace. Reads select the
 // authoritative wallet columns without loading the character's other records.
 type CharacterGoldReader interface {

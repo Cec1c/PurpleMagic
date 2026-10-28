@@ -15,6 +15,36 @@ var ErrAdministrationAction = errors.New("invalid quest administration action")
 var ErrAdministrationProfession = errors.New("profession quest requires profession operation")
 var ErrAdministrationSettlement = errors.New("quest has an existing reward settlement")
 
+// AdministrationSlotExpansion resolves unlocks from the approved PVF, including
+// quests previously marked completed without their slot reward by older GM code.
+// It is detached; the caller commits these bits with the quest and its receipt.
+func AdministrationSlotExpansion(catalog *Catalog, character repository.CharacterRecord, action string, ids []int64) (byte, error) {
+	if action != "complete" {
+		return 0, nil
+	}
+	job, err := strconv.Atoi(character.Job)
+	if err != nil {
+		return 0, ErrQuestNotAcceptable
+	}
+	eligibility := CharacterEligibility{Level: character.Level, Job: job, GrowType: int(character.Stats["grow_type"])}
+	var bits byte
+	for _, id := range ids {
+		d, found := catalog.Find(id)
+		if !found {
+			return 0, &AdministrationError{id, ErrQuestDefinitionMissing}
+		}
+		if normalizeQuestTag(d.RewardType) != "slot expansion" {
+			continue
+		}
+		plan, err := catalog.PlanFinishReward(eligibility, id, 0, false)
+		if err != nil {
+			return 0, &AdministrationError{id, err}
+		}
+		bits |= plan.SlotExpansionBit
+	}
+	return bits, nil
+}
+
 type AdministrationError struct {
 	QuestID int64
 	Err     error

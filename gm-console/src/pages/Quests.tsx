@@ -71,7 +71,6 @@ export function QuestPage({ state, character, request, selection, setSelection }
       </div>
       {status === "catalog" && <div className="toolbar">
         <button className="secondary" onClick={() => setPicker(true)}>选择操作角色（{targets.length}）</button>
-        <span className="muted">完成任务不发放任务奖励</span>
       </div>}
       {picker && <Modal title="选择任务操作角色" wide onClose={() => setPicker(false)}><PlayerPicker state={state} selection={selection} setSelection={setSelection} /></Modal>}
       <div ref={motion} className="quest-layout">
@@ -216,6 +215,7 @@ export function QuestPage({ state, character, request, selection, setSelection }
               </div>
             </div>
           </div>
+          <p className="muted">完成开槽任务会同步开启对应装备槽；已完成但未开槽的任务也可重新选中完成。金币、经验和道具奖励不发放。</p>
           {detail && (
             <div className="glass quest-detail">
               <BookOpen size={21} />

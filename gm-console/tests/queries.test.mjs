@@ -84,12 +84,14 @@ test('short static view cache excludes write preparation and resets after writes
 test('multi-character task preview freezes targets and lost response retry skips successful characters',async()=>{
  const api=new ConsoleAPI(()=>{});api.state.characters=[{id:'10',accountId:'a',name:'A'},{id:'20',accountId:'b',name:'B'}];api.meta.questPVF='a'.repeat(64);api.meta.quests=[{id:'1',name:'任务'}];
  const calls=[];let lost=true;
- api.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,key:init.headers['Idempotency-Key']});if(path.endsWith('/preview'))return response({revision:'r',planToken:'plan'});if(path.includes('/20/')&&lost){lost=false;throw Error('lost response');}return response({requestId:path});};
+ api.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,key:init.headers['Idempotency-Key']});if(path.endsWith('/preview'))return response({revision:'r',planToken:'plan',equipmentSlots:{before:0,after:3,requested:3}});if(path.includes('/20/')&&lost){lost=false;throw Error('lost response');}return response({requestId:path,equipmentSlots:{before:0,after:3,requested:3}});};
  const selection={accounts:[],characters:['10','20']};
  await api.prepare({kind:'quest',characterId:'',selectedTargets:true,ids:['1'],status:'completed'},selection);
  assert.equal(calls.length,2);assert.ok(calls.every(x=>x.path.endsWith('/preview')));assert.deepEqual(api.meta.pending.recipients.map(x=>x.id),['10','20']);
+ assert.deepEqual(api.meta.pending.steps[0].result.equipmentSlots,{before:0,after:3,requested:3});
  selection.characters.length=0;api.character=async()=>{};api.enter=async()=>{};
  await assert.rejects(api.confirm());assert.equal(api.meta.pending.steps[0].done,true);
  await api.confirm();const writes=calls.filter(x=>!x.path.endsWith('/preview'));
- assert.equal(writes.filter(x=>x.path.includes('/10/')).length,1);assert.deepEqual(writes[1],writes[2]);assert.match(api.meta.pending.summary,/不发任务奖励/);
+ assert.equal(writes.filter(x=>x.path.includes('/10/')).length,1);assert.deepEqual(writes[1],writes[2]);assert.match(api.meta.pending.summary,/同步开槽/);assert.match(api.meta.pending.summary,/不发金币、经验和道具/);
+ assert.deepEqual(api.meta.pending.steps[0].result.equipmentSlots,{before:0,after:3,requested:3});
 });

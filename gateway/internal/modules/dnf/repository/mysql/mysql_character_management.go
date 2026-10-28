@@ -65,11 +65,32 @@ func (s *mysqlCharStore) withinCharacterManagement(ctx context.Context, accountI
 			Pet:       &characterPetScopedPetRepository{characterID: characterID, base: base.Pet},
 		}
 		if receiptTable == "character_management_operations" {
+			g.Character = &managedEquipmentSlotStore{
+				characterSettlementScopedCharacterRepository: &characterSettlementScopedCharacterRepository{characterID: characterID, base: base.Character},
+				router: r,
+			}
 			g.Quest = &managedQuestStore{base: &mysqlQuestStore{mysqlStoreBase{router: r}}, character: characterID}
 		}
 
 		return apply(g, receipts)
 	})
+}
+
+type managedEquipmentSlotStore struct {
+	*characterSettlementScopedCharacterRepository
+	router mysqlRouter
+}
+
+func (s *managedEquipmentSlotStore) UnlockEquipmentSlots(ctx context.Context, id string, bits byte) error {
+	if err := repository.TransactionKeyError(ctx, s.characterID, id); err != nil {
+		return err
+	}
+	table, err := s.router.writeTable(mysqlCharTable, id)
+	if err != nil {
+		return err
+	}
+	_, err = s.router.db.ExecContext(ctx, "UPDATE "+table+" SET ex_equip_slot_stat=ex_equip_slot_stat | ?, updated_at=? WHERE character_id=?", bits, s.router.now(), id)
+	return err
 }
 
 func (s *mysqlCharStore) withinCharacterManagementRouter(ctx context.Context, accountID, characterID, receiptTable string, apply func(mysqlRouter, repository.ManagementReceiptStore) error) error {
