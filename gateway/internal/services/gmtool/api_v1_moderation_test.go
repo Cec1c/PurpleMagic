@@ -52,12 +52,12 @@ func TestModerationV1AuthenticationContractAndRecovery(t *testing.T) {
 	if len(calls) != 0 {
 		t.Fatal("unauthorized write reached game")
 	}
-	for _, path := range []string{"/api/v1/anti-cheat/clears?limit=0", "/api/v1/anti-cheat/clears?offset=-1", "/api/v1/anti-cheat/clears?from=x", "/api/v1/anti-cheat/clears?unknown=1"} {
+	for _, path := range []string{"/api/v1/anti-cheat/clears?limit=0", "/api/v1/anti-cheat/clears?offset=-1", "/api/v1/anti-cheat/clears?from=x", "/api/v1/anti-cheat/clears?unknown=1", "/api/v1/anti-cheat/clears?sortBy=target", "/api/v1/anti-cheat/bans?sortBy=count", "/api/v1/anti-cheat/accounts?sortOrder=DESC", "/api/v1/anti-cheat/clears?sortBy=count%20DESC"} {
 		if code, _ := v1TestCall(t, s, token, "GET", path); code != 400 {
 			t.Fatal(path, code)
 		}
 	}
-	if code, out := v1TestCall(t, s, token, "GET", "/api/v1/anti-cheat/clears?limit=50&minHourlyPeak=60"); code != 200 {
+	if code, out := v1TestCall(t, s, token, "GET", "/api/v1/anti-cheat/clears?limit=50&minHourlyPeak=60&sortBy=fatigueSpent&sortOrder=asc"); code != 200 {
 		t.Fatal(code, out)
 	}
 	for i := 0; i < 2; i++ {
@@ -65,7 +65,7 @@ func TestModerationV1AuthenticationContractAndRecovery(t *testing.T) {
 			t.Fatal(code, out)
 		}
 	}
-	if len(calls) != 3 || calls[0].ModerationQuery.MinHourlyPeak != 60 || calls[1].BanChange.Target != "192.0.2.1" || *calls[1].BanChange != *calls[2].BanChange {
+	if len(calls) != 3 || calls[0].ModerationQuery.MinHourlyPeak != 60 || calls[0].ModerationQuery.SortBy != "fatigueSpent" || calls[0].ModerationQuery.SortOrder != "asc" || calls[1].BanChange.Target != "192.0.2.1" || *calls[1].BanChange != *calls[2].BanChange {
 		t.Fatal(calls)
 	}
 }

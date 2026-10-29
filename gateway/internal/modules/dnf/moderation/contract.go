@@ -19,8 +19,11 @@ type Clear struct {
 	StartedAt     time.Time `json:"startedAt"`
 	FinishedAt    time.Time `json:"finishedAt"`
 	DurationMS    int64     `json:"durationMs"`
+	FatigueSpent  *int64    `json:"fatigueSpent"`
 }
 type Query struct {
+	SortBy        string    `json:"sortBy,omitempty"`
+	SortOrder     string    `json:"sortOrder,omitempty"`
 	Search        string    `json:"search,omitempty"`
 	MaxDurationMS int64     `json:"maxDurationMs,omitempty"`
 	MinHourlyPeak int64     `json:"minHourlyPeak,omitempty"`
@@ -49,17 +52,20 @@ func (q *Query) Normalize(now time.Time) error {
 }
 
 type ClearStats struct {
-	AccountID     string    `json:"accountId"`
-	CharacterID   string    `json:"characterId"`
-	CharacterName string    `json:"characterName"`
-	DungeonID     int64     `json:"dungeonId"`
-	DungeonName   string    `json:"dungeonName"`
-	Difficulty    int       `json:"difficulty"`
-	Count         int64     `json:"count"`
-	PeakHourly    int64     `json:"peakHourly"`
-	LastClearAt   time.Time `json:"lastClearAt"`
-	FastestMS     int64     `json:"fastestMs"`
-	AverageMS     int64     `json:"averageMs"`
+	FatigueSpent   *int64    `json:"fatigueSpent"`
+	AverageFatigue *float64  `json:"averageFatigue"`
+	FatigueSamples int64     `json:"fatigueSamples"`
+	AccountID      string    `json:"accountId"`
+	CharacterID    string    `json:"characterId"`
+	CharacterName  string    `json:"characterName"`
+	DungeonID      int64     `json:"dungeonId"`
+	DungeonName    string    `json:"dungeonName"`
+	Difficulty     int       `json:"difficulty"`
+	Count          int64     `json:"count"`
+	PeakHourly     int64     `json:"peakHourly"`
+	LastClearAt    time.Time `json:"lastClearAt"`
+	FastestMS      int64     `json:"fastestMs"`
+	AverageMS      int64     `json:"averageMs"`
 }
 type ClearPage struct {
 	Rows    []ClearStats `json:"rows"`
@@ -137,4 +143,41 @@ type Account struct {
 type AccountPage struct {
 	Rows    []Account `json:"rows"`
 	HasMore bool      `json:"hasMore"`
+}
+
+// NormalizeSort validates the requested resource before repositories build SQL.
+func (q *Query) NormalizeSort(resource string) error {
+	var allowed string
+	switch resource {
+	case "clears":
+		allowed = " accountId characterId characterName dungeonId dungeonName difficulty count fastestMs averageMs peakHourly lastClearAt fatigueSpent averageFatigue "
+		if q.SortBy == "" {
+			q.SortBy = "count"
+		}
+	case "accounts":
+		allowed = " id name lastLoginIp registrationIp disabled "
+		if q.SortBy == "" {
+			q.SortBy = "id"
+		}
+	case "bans":
+		allowed = " kind target label state reason expiresAt updatedAt "
+		if q.SortBy == "" {
+			q.SortBy = "updatedAt"
+		}
+	default:
+		return errors.New("invalid sort resource")
+	}
+	if !strings.Contains(allowed, " "+q.SortBy+" ") || strings.ContainsAny(q.SortBy, " \t\r\n") {
+		return errors.New("invalid sort field")
+	}
+	if q.SortOrder == "" {
+		q.SortOrder = "asc"
+		if q.SortBy == "count" || q.SortBy == "updatedAt" {
+			q.SortOrder = "desc"
+		}
+	}
+	if q.SortOrder != "asc" && q.SortOrder != "desc" {
+		return errors.New("invalid sort order")
+	}
+	return nil
 }

@@ -46,6 +46,10 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			switch key {
+			case "sortBy":
+				q.SortBy = values[0]
+			case "sortOrder":
+				q.SortOrder = values[0]
 			case "search":
 				q.Search = values[0]
 			case "from", "to":
@@ -82,7 +86,7 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 				valid = false
 			}
 		}
-		if !valid || q.Normalize(time.Now()) != nil {
+		if !valid || q.Normalize(time.Now()) != nil || q.NormalizeSort(r.PathValue("resource")) != nil {
 			v1Fail(w, r, 400, "invalid_query", "请检查查询条件；时间范围最多 31 天", false)
 			return
 		}

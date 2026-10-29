@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {duration,banState,suspicious,readPendingBan,pendingBanKey} from '../src/moderation.ts';
+import {duration,fatigue,nextSort,banState,suspicious,readPendingBan,pendingBanKey} from '../src/moderation.ts';
 import {build} from 'esbuild';
 import {createRequire} from 'node:module';
 import {createElement} from 'react';
@@ -28,6 +28,13 @@ test('anti-cheat renders its tabs without a selected character',async()=>{
  globalThis.localStorage={getItem:()=>null,setItem(){}};globalThis.sessionStorage={getItem:()=>null};
  const html=renderToStaticMarkup(createElement(compiled.exports.App));
  assert.match(html,/href="#anti-cheat"[^>]*aria-current="page"/);
- for(const text of ['通关统计','账号封禁','IP 与封禁记录','单小时峰值','平均'])assert.ok(html.includes(text),text);
+ for(const text of ['通关统计','账号封禁','IP 与封禁记录','单小时峰值','平均','消耗疲劳','平均每次','aria-sort="descending"'])assert.ok(html.includes(text),text);
  assert.doesNotMatch(html,/identity-person/);
+});
+
+test('sort direction toggles and fatigue distinguishes unknown from a free clear',()=>{
+ assert.deepEqual(nextSort({sortBy:'count',sortOrder:'desc'},'count'),{sortBy:'count',sortOrder:'asc'});
+ assert.deepEqual(nextSort({sortBy:'count',sortOrder:'asc'},'count'),{sortBy:'count',sortOrder:'desc'});
+ assert.deepEqual(nextSort({sortBy:'count',sortOrder:'desc'},'averageMs'),{sortBy:'averageMs',sortOrder:'asc'});
+ assert.equal(fatigue(null),'—');assert.equal(fatigue(undefined),'—');assert.equal(fatigue(0),'0');assert.equal(fatigue(2.5,true),'2.5');
 });
