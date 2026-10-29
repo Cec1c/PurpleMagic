@@ -330,6 +330,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["quests.read"] = available && resources && questErr == nil
 	features["activities.read"] = s.deps.Runtime != nil || s.deps.Activities != nil
 	features["activities.write"] = features["activities.read"]
+	features["benefits.delete"] = s.deps.Benefits != nil
 	features["qqBinding.read"] = s.deps.Runtime != nil
 	features["qqBinding.write"] = s.deps.Runtime != nil
 	features["moderation.read"] = s.deps.Runtime != nil

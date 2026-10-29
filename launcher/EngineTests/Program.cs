@@ -48,6 +48,17 @@ try
         return JsonSerializer.SerializeToUtf8Bytes(new SignedEnvelope(Convert.ToBase64String(payload), Convert.ToBase64String(key.SignData(payload, HashAlgorithmName.SHA256, padding ?? RSASignaturePadding.Pss))), CoreJson.Default.SignedEnvelope);
     }
     var envelope = Sign(bootstrap);
+    using(var disabledBindingEngine = new LauncherEngine(root,Path.Combine(temp,"binding-build-default"))) {
+        Check(!disabledBindingEngine.State.QQBindingEnabled,"open-source build hides binding by default");
+        await RejectAsync(()=>disabledBindingEngine.AccountSecurity("binding-code",new("player","fixture-password","")),"disabled build cannot request a binding code");
+    }
+    var featureDir=Path.Combine(temp,"binding-feature-build");Directory.CreateDirectory(featureDir);
+    File.WriteAllBytes(Path.Combine(featureDir,"bootstrap.json"),Sign(bootstrap with {Profile=root with {EnableQQBinding=true}}));
+    using(var disabledBindingEngine = new LauncherEngine(root,featureDir))
+        Check(!disabledBindingEngine.State.QQBindingEnabled,"signed profile cannot enable a feature disabled at build time");
+    using(var optionalBindingEngine = new LauncherEngine(root with {EnableQQBinding=true},Path.Combine(temp,"binding-optional-build")))
+        Check(optionalBindingEngine.State.QQBindingEnabled&&!optionalBindingEngine.State.RequireQQBinding,"binding entry is available without mandatory login binding");
+
     foreach (var required in new[] { false, true })
     {
         var policyDir = Path.Combine(temp, "binding-policy-" + required);

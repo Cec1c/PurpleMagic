@@ -33,6 +33,7 @@ func (s *Server) v1OperationRoutes(read, write *http.ServeMux) {
 	read.HandleFunc("GET /api/v1/tasks/{id}/recipients", s.v1Recipients)
 	write.HandleFunc("POST /api/v1/benefits", s.v1CreateCampaign)
 	write.HandleFunc("POST /api/v1/benefits/{id}/state", s.v1CampaignState)
+	write.HandleFunc("POST /api/v1/benefits/{id}/delete", s.v1CampaignDelete)
 	write.HandleFunc("POST /api/v1/benefits/{id}/preview", s.v1CampaignPreview)
 	write.HandleFunc("POST /api/v1/mail/preview", s.v1MailPreview)
 	write.HandleFunc("POST /api/v1/mail/online-preview", s.v1OnlineMailPreview)
@@ -143,6 +144,8 @@ func (s *Server) v1OperationError(w http.ResponseWriter, r *http.Request, err er
 		v1Fail(w, r, 409, "revision_conflict", err.Error(), false)
 	case errors.Is(err, testbenefits.ErrIdempotency):
 		v1Fail(w, r, 409, "idempotency_conflict", err.Error(), false)
+	case errors.Is(err, testbenefits.ErrCampaignDeleted):
+		v1Fail(w, r, 409, "rule_deleted", err.Error(), false)
 	case errors.Is(err, testbenefits.ErrCampaignDisabled):
 		v1Fail(w, r, 409, "rule_disabled", err.Error(), false)
 	case errors.Is(err, testbenefits.ErrRecipient):
@@ -241,7 +244,7 @@ func v1JobDTO(j testbenefits.JobSummary) map[string]any {
 	return map[string]any{"id": j.ID, "revision": j.Revision, "campaignId": j.CampaignID, "scope": j.Scope, "createdAt": j.CreatedAt, "state": j.State, "total": j.Total, "sent": j.Sent, "failed": j.Failed, "pending": j.Pending, "pvfChecksum": j.PVFChecksum, "recipientSource": j.RecipientSource, "reward": v1RewardDTO(testbenefits.Job{Title: j.Title, Body: j.Body, Gold: j.Gold, Cera: j.Cera, Attachments: j.Attachments, RewardPlan: j.RewardPlan})}
 }
 func v1CampaignDTO(c testbenefits.Campaign) map[string]any {
-	return map[string]any{"id": c.ID, "revision": c.Revision, "scope": c.Reward.Scope.Effective(), "createdAt": c.CreatedAt, "firstEnabledAt": c.FirstEnabledAt, "enabled": c.Enabled, "autoNewCharacters": c.AutoNewCharacters, "autoExistingCharacters": c.AutoExistingCharacters, "itemName": c.ItemName, "pvfChecksum": c.Reward.PVFChecksum, "reward": v1RewardDTO(c.Reward)}
+	return map[string]any{"id": c.ID, "revision": c.Revision, "scope": c.Reward.Scope.Effective(), "createdAt": c.CreatedAt, "firstEnabledAt": c.FirstEnabledAt, "enabled": c.Enabled, "deleted": c.Deleted, "autoNewCharacters": c.AutoNewCharacters, "autoExistingCharacters": c.AutoExistingCharacters, "itemName": c.ItemName, "pvfChecksum": c.Reward.PVFChecksum, "reward": v1RewardDTO(c.Reward)}
 }
 func (s *Server) v1CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -385,6 +388,29 @@ func (s *Server) v1CampaignState(w http.ResponseWriter, r *http.Request) {
 	}
 	s.v1OperationReply(w, r, v1CampaignDTO(c))
 }
+func (s *Server) v1CampaignDelete(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Revision *uint64 `json:"revision"`
+		Confirm  bool    `json:"confirm"`
+	}
+	if !v1Decode(w, r, &in) || !s.v1OperationReady(w, r) {
+		return
+	}
+	if in.Revision == nil || !in.Confirm {
+		v1Fail(w, r, 422, "confirmation_required", "请确认删除福利规则", false)
+		return
+	}
+	c, err := s.deps.Benefits.DeleteCampaign(r.Context(), r.PathValue("id"), *in.Revision)
+	if err != nil {
+		s.v1OperationError(w, r, err)
+		return
+	}
+	if s.cfg.Logger != nil {
+		s.cfg.Logger("gm-benefit-rule-deleted", "campaign_id", c.ID, "revision", c.Revision)
+	}
+	s.v1OperationReply(w, r, v1CampaignDTO(c))
+}
+
 func (s *Server) v1CampaignPreview(w http.ResponseWriter, r *http.Request) {
 	var in struct{}
 	if !v1Decode(w, r, &in) || !s.v1OperationReady(w, r) {

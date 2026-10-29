@@ -35,6 +35,7 @@ type Config struct {
 	GMPassword       string                `json:"gm_password,omitempty"`
 }
 type Profile struct {
+	EnableQQBinding         bool     `json:"EnableQQBinding,omitempty"`
 	RequireQQBinding        bool     `json:"RequireQQBinding,omitempty"`
 	ApiURL                  string   `json:"ApiUrl"`
 	CertificateSHA256       string   `json:"CertificateSha256"`

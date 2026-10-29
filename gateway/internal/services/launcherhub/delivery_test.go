@@ -149,6 +149,7 @@ func bundleFixture(t *testing.T, extra string) []byte {
 
 func TestBundlePublicationRangeAndRejection(t *testing.T) {
 	h, _ := fixture(t)
+	h.profile.EnableQQBinding = true
 	h.profile.RequireQQBinding = true
 	cookie, csrf := auth(t, h, true)
 	upload := func(version string, raw []byte) *httptest.ResponseRecorder {
@@ -173,7 +174,12 @@ func TestBundlePublicationRangeAndRejection(t *testing.T) {
 		t.Fatal("bundle publication failed", w.Code, w.Body.String())
 	}
 	sequence := h.state.Published.Sequence
-	if !h.state.Published.Profile.RequireQQBinding { t.Fatal("launcher binding policy was not published") }
+	if !h.state.Published.Profile.EnableQQBinding {
+		t.Fatal("launcher binding availability was not published")
+	}
+	if !h.state.Published.Profile.RequireQQBinding {
+		t.Fatal("launcher binding policy was not published")
+	}
 	for _, version := range []string{"0.2.1", "0.2.0"} {
 		if w = upload(version, raw); w.Code != 409 || h.state.Published.Sequence != sequence {
 			t.Fatal("non-increasing bundle version accepted", version, w.Code)

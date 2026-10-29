@@ -43,3 +43,16 @@ test('malformed binding command receives instructions without write',async()=>{
 test('OneBot string CQ format uses exact QQ mention',()=>{
  const parsed=parseCommand(event('group',{message:`[CQ:at,qq=${self}] /绑定 player ${code}`}),self);assert.ok(parsed.mentioned);assert.equal(parsed.match[1],'player');
 });
+
+test('optional binding accepts a group command without requiring login binding',async()=>{
+ policy.enabled=false;policy.allowBinding=true;await run(ctx(event()));
+ assert.equal(fetches.length,2);assert.match(sent[0].text[0],/绑定成功/);
+});
+test('optional private binding still verifies group membership',async()=>{
+ policy.enabled=false;policy.allowBinding=true;await run(ctx(event('private')));
+ assert.equal(calls[0].action,'get_group_member_info');assert.equal(fetches.length,2);
+});
+test('closed binding does not consume the code',async()=>{
+ policy.enabled=false;policy.allowBinding=false;await run(ctx(event()));
+ assert.equal(fetches.length,1);assert.match(sent[0].text[0],/未启用/);
+});

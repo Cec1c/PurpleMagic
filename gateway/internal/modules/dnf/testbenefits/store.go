@@ -54,7 +54,11 @@ func (s *Store) payloadListQuery(kind string) string {
 func (s *Store) payloadUnion(kind string) string {
 	parts := []string{}
 	for _, table := range s.payloadTables(kind) {
-		parts = append(parts, "SELECT id,created_at,payload FROM "+table)
+		query := "SELECT id,created_at,payload FROM " + table
+		if kind == "campaigns" {
+			query += " WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.deleted')), 'false') <> 'true'"
+		}
+		parts = append(parts, query)
 	}
 	return strings.Join(parts, " UNION ALL ")
 }

@@ -10,7 +10,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.1";
+    public const string VersionText = "1.0.2";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -62,7 +62,7 @@ public sealed class LauncherEngine : IDisposable
         State = new(phase, message, total == 0 ? 0 : Math.Clamp((double)current / total, 0, 1), current, total,
             !busy && phase != "paused" && plan.Length == 0 && preferences.ClientDirectory != "" && SupportsContent(Profile), plan.Length != 0,
             bootstrap?.Launcher is { } b && System.Version.Parse(b.Version) > System.Version.Parse(VersionText),
-            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion, RequireQQBinding = Profile.RequireQQBinding };
+            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion, QQBindingEnabled = root.EnableQQBinding, RequireQQBinding = Profile.RequireQQBinding };
         Changed?.Invoke(State);
     }
     private void RefreshClientVersion() => clientVersion = InstalledClientVersion.Read(preferences.ClientDirectory, root, bootstrap);
@@ -272,6 +272,7 @@ public sealed class LauncherEngine : IDisposable
     public async Task<LoginReply> AccountSecurity(string action, PasswordChange input)
     {
         if (action is not ("binding-code" or "password")) throw new ArgumentException(nameof(action));
+        if (action == "binding-code" && !root.EnableQQBinding) throw new InvalidOperationException("此登录器未启用 QQ 绑定功能。");
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("已有操作正在进行。");
         try {
             ValidateCredentials(new(input.Account, input.Password));

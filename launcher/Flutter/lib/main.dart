@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'launcher_controller.dart';
 import 'diagnostics_panel.dart';
 import 'account_security_panel.dart';
+import 'launcher_account_field.dart';
 export 'launcher_controller.dart';
 
 List<String> launchArguments = const [];
@@ -110,7 +111,9 @@ class _PreviewHomeState extends State<PreviewHome> {
   final account = TextEditingController(),
       password = TextEditingController(),
       confirmation = TextEditingController();
-  bool registering = false, obscure = true, remember = true, submitting = false;
+  int accountTab = 0;
+  bool get registering => accountTab == 1;
+  bool remember = true, submitting = false, securityBusy = false;
   int category = 0, featured = 0;
   String error = '', directory = '';
   @override
@@ -619,220 +622,250 @@ class _PreviewHomeState extends State<PreviewHome> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _tab('开始游戏', !registering, () => _mode(false)),
-              const SizedBox(width: 40),
-              _tab('账号注册', registering, () => _mode(true)),
+              Expanded(
+                child: _tab(
+                  '开始游戏',
+                  accountTab == 0,
+                  () => _mode(false),
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: _tab(
+                  '账号注册',
+                  accountTab == 1,
+                  () => _mode(true),
+                  compact: true,
+                ),
+              ),
+              Expanded(
+                child: _tab(
+                  '修改密码',
+                  accountTab == 2,
+                  () => _accountSecurity(true),
+                  compact: true,
+                ),
+              ),
+              if (model.qqBindingEnabled)
+                Expanded(
+                  child: _tab(
+                    '绑定 QQ',
+                    accountTab == 3,
+                    () => _accountSecurity(false),
+                    compact: true,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 15),
-          _field(
-            '账号',
-            '请输入游戏账号',
-            account,
-            Icons.person_outline_rounded,
-            'account',
-          ),
-          const SizedBox(height: 14),
-          _field(
-            '密码',
-            '请输入密码',
-            password,
-            Icons.lock_outline_rounded,
-            'password',
-            secret: true,
-          ),
-          if (registering) ...[
+          if (accountTab >= 2)
+            AccountSecurityPanel(
+              key: ValueKey(accountTab),
+              model: model,
+              changing: accountTab == 2,
+              initialAccount: account.text,
+              inline: true,
+              onBusyChanged: (value) {
+                if (mounted) setState(() => securityBusy = value);
+              },
+            )
+          else ...[
+            _field(
+              '账号',
+              '请输入游戏账号',
+              account,
+              Icons.person_outline_rounded,
+              'account',
+            ),
             const SizedBox(height: 14),
             _field(
-              '确认密码',
-              '再次输入密码',
-              confirmation,
+              '密码',
+              '请输入密码',
+              password,
               Icons.lock_outline_rounded,
-              'confirmation',
+              'password',
               secret: true,
-              toggle: false,
             ),
-          ],
-          const SizedBox(height: 5),
-          SizedBox(
-            height: 32,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 28,
-                  child: Checkbox(
-                    key: const Key('remember'),
-                    value: remember,
-                    onChanged: (value) => setState(() => remember = value!),
-                    activeColor: gold,
-                    checkColor: const Color(0xff292432),
-                    side: const BorderSide(color: Color(0xff8d869b)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                GestureDetector(
-                  onTap: () => setState(() => remember = !remember),
-                  child: const Text(
-                    '记住账号',
-                    style: TextStyle(fontSize: 11, color: muted),
-                  ),
-                ),
-                const Spacer(),
-                _link(
-                  registering ? '已有账号？去登录' : '还没有账号？注册',
-                  () => _mode(!registering),
-                ),
-              ],
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (model.requireQQBinding) ...[
-                _link(
-                  '绑定 QQ',
-                  () => _accountSecurity(false),
-                  key: 'qq-binding',
-                ),
-                const SizedBox(width: 18),
-              ],
-              _link(
-                '修改密码',
-                () => _accountSecurity(true),
-                key: 'change-password',
+            if (registering) ...[
+              const SizedBox(height: 14),
+              _field(
+                '确认密码',
+                '再次输入密码',
+                confirmation,
+                Icons.lock_outline_rounded,
+                'confirmation',
+                secret: true,
+                toggle: false,
               ),
             ],
-          ),
-          SizedBox(
-            height: 20,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                error,
-                key: const Key('form-error'),
-                style: const TextStyle(fontSize: 10, color: Color(0xffffb9b4)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          if (!registering) ...[
-            Material(
-              color: const Color(0x44201d2e),
-              borderRadius: BorderRadius.circular(9),
-              child: InkWell(
-                key: const Key('directory'),
-                onTap: _chooseDirectory,
-                borderRadius: BorderRadius.circular(9),
-                child: Container(
-                  height: 43,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0x26ded3f0)),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.folder_open_rounded,
-                        color: muted,
-                        size: 17,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          directory,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xffd2cadc),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      const Text(
-                        '更改',
-                        style: TextStyle(fontSize: 10, color: gold),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _updateStatus(),
-            const SizedBox(height: 15),
-          ] else
-            const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 51,
-            child: FilledButton(
-              key: const Key('primary'),
-              onPressed:
-                  submitting || model.busy || (!registering && !model.canLogin)
-                  ? null
-                  : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xff705038),
-                foregroundColor: const Color(0xffffe6bb),
-                disabledBackgroundColor: const Color(0xff423a48),
-                disabledForegroundColor: const Color(0xffb5adbf),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
-                  side: BorderSide(
-                    color: model.canLogin
-                        ? const Color(0xffb88a54)
-                        : const Color(0xff666070),
-                  ),
-                ),
-                elevation: 8,
-                shadowColor: const Color(0x50000000),
-              ),
+            const SizedBox(height: 5),
+            SizedBox(
+              height: 32,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (submitting) ...[
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: gold,
+                  SizedBox(
+                    width: 24,
+                    height: 28,
+                    child: Checkbox(
+                      key: const Key('remember'),
+                      value: remember,
+                      onChanged: (value) => setState(() => remember = value!),
+                      activeColor: gold,
+                      checkColor: const Color(0xff292432),
+                      side: const BorderSide(color: Color(0xff8d869b)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  Text(
-                    submitting
-                        ? '正在验证…'
-                        : registering
-                        ? '创建账号'
-                        : model.canLogin
-                        ? '登录并进入游戏'
-                        : model.hasUpdate
-                        ? '请先安装客户端更新'
-                        : '等待客户端就绪',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.4,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
-                  if (!submitting && model.canLogin) ...[
-                    const SizedBox(width: 12),
-                    const Icon(Icons.arrow_forward_rounded, size: 18),
-                  ],
+                  const SizedBox(width: 5),
+                  GestureDetector(
+                    onTap: () => setState(() => remember = !remember),
+                    child: const Text(
+                      '记住账号',
+                      style: TextStyle(fontSize: 11, color: muted),
+                    ),
+                  ),
+                  const Spacer(),
+                  _link(
+                    registering ? '已有账号？去登录' : '还没有账号？注册',
+                    () => _mode(!registering),
+                  ),
                 ],
               ),
             ),
-          ),
+            SizedBox(
+              height: 20,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  error,
+                  key: const Key('form-error'),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xffffb9b4),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (!registering) ...[
+              Material(
+                color: const Color(0x44201d2e),
+                borderRadius: BorderRadius.circular(9),
+                child: InkWell(
+                  key: const Key('directory'),
+                  onTap: _chooseDirectory,
+                  borderRadius: BorderRadius.circular(9),
+                  child: Container(
+                    height: 43,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0x26ded3f0)),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.folder_open_rounded,
+                          color: muted,
+                          size: 17,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            directory,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xffd2cadc),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        const Text(
+                          '更改',
+                          style: TextStyle(fontSize: 10, color: gold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _updateStatus(),
+              const SizedBox(height: 15),
+            ] else
+              const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 51,
+              child: FilledButton(
+                key: const Key('primary'),
+                onPressed:
+                    submitting ||
+                        model.busy ||
+                        (!registering && !model.canLogin)
+                    ? null
+                    : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xff705038),
+                  foregroundColor: const Color(0xffffe6bb),
+                  disabledBackgroundColor: const Color(0xff423a48),
+                  disabledForegroundColor: const Color(0xffb5adbf),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                    side: BorderSide(
+                      color: model.canLogin
+                          ? const Color(0xffb88a54)
+                          : const Color(0xff666070),
+                    ),
+                  ),
+                  elevation: 8,
+                  shadowColor: const Color(0x50000000),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (submitting) ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: gold,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      submitting
+                          ? '正在验证…'
+                          : registering
+                          ? '创建账号'
+                          : model.canLogin
+                          ? '登录并进入游戏'
+                          : model.hasUpdate
+                          ? '请先安装客户端更新'
+                          : '等待客户端就绪',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    if (!submitting && model.canLogin) ...[
+                      const SizedBox(width: 12),
+                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 15),
           Text(
             model.launcherVersion.isEmpty
@@ -940,68 +973,16 @@ class _PreviewHomeState extends State<PreviewHome> {
     String key, {
     bool secret = false,
     bool toggle = true,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: const TextStyle(fontSize: 11, color: Color(0xffd0c8db)),
-      ),
-      const SizedBox(height: 7),
-      SizedBox(
-        height: 42,
-        child: TextField(
-          key: Key(key),
-          controller: controller,
-          obscureText: secret && obscure,
-          enabled: !submitting,
-          autocorrect: false,
-          enableSuggestions: false,
-          textInputAction: secret ? TextInputAction.done : TextInputAction.next,
-          onSubmitted: secret ? (_) => _submit() : null,
-          style: const TextStyle(fontSize: 12, color: ink),
-          cursorColor: gold,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(fontSize: 12, color: Color(0xff8f879e)),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            filled: true,
-            fillColor: const Color(0x58201e2b),
-            prefixIcon: Icon(icon, size: 17, color: const Color(0xffa99fb8)),
-            prefixIconConstraints: const BoxConstraints(minWidth: 42),
-            suffixIcon: secret && toggle
-                ? IconButton(
-                    key: const Key('password-visibility'),
-                    tooltip: obscure ? '显示密码' : '隐藏密码',
-                    onPressed: () => setState(() => obscure = !obscure),
-                    icon: Icon(
-                      obscure
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 16,
-                      color: muted,
-                    ),
-                  )
-                : null,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: const BorderSide(color: Color(0x33c8bdd9)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: const BorderSide(color: violet, width: 1.2),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: const BorderSide(color: Color(0x22c8bdd9)),
-            ),
-          ),
-        ),
-      ),
-    ],
+  }) => LauncherAccountField(
+    label: label,
+    hint: hint,
+    controller: controller,
+    icon: icon,
+    fieldKey: key,
+    secret: secret,
+    toggle: toggle,
+    enabled: !submitting,
+    onSubmitted: secret ? (_) => _submit() : null,
   );
   Widget _tab(
     String text,
@@ -1011,7 +992,7 @@ class _PreviewHomeState extends State<PreviewHome> {
   }) => Material(
     color: Colors.transparent,
     child: InkWell(
-      onTap: submitting ? null : action,
+      onTap: submitting || securityBusy ? null : action,
       borderRadius: BorderRadius.circular(5),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -1070,25 +1051,26 @@ class _PreviewHomeState extends State<PreviewHome> {
     child: Text(text, style: const TextStyle(fontSize: 10)),
   );
   void _mode(bool value) {
-    if (!submitting) {
+    if (!submitting && !securityBusy) {
       setState(() {
-        registering = value;
+        accountTab = value ? 1 : 0;
+        password.clear();
         error = '';
         confirmation.clear();
       });
     }
   }
 
-  Future<void> _accountSecurity(bool changing) async {
-    if (submitting || model.busy) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => AccountSecurityPanel(
-        model: model,
-        changing: changing,
-        initialAccount: account.text,
-      ),
-    );
+  void _accountSecurity(bool changing) {
+    if (submitting || securityBusy || (!changing && !model.qqBindingEnabled)) {
+      return;
+    }
+    setState(() {
+      accountTab = changing ? 2 : 3;
+      password.clear();
+      confirmation.clear();
+      error = '';
+    });
   }
 
   Future<void> _submit() async {

@@ -87,6 +87,46 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
+  testWidgets('default build hides QQ tab and password uses the account card', (
+    tester,
+  ) async {
+    await start(tester);
+    expect(find.text('绑定 QQ'), findsNothing);
+    await tester.tap(find.text('修改密码'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byKey(const Key('security-原密码')), findsOneWidget);
+    expect(find.byKey(const Key('security-新密码')), findsOneWidget);
+    await screenshot(tester, 'account-password-tab');
+    await tester.tap(find.text('开始游戏'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('account')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  for (final size in [const Size(1440, 810), const Size(1120, 700)]) {
+    testWidgets('optional binding tab shares card at ${size.width}', (
+      tester,
+    ) async {
+      final core = FakeCore();
+      core.state['qqBindingEnabled'] = true;
+      await start(
+        tester,
+        controller: LauncherController(client: core),
+        size: size,
+      );
+      expect(find.text('绑定 QQ'), findsOneWidget);
+      await tester.tap(find.text('绑定 QQ'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byKey(const Key('security-账号密码')), findsOneWidget);
+      await screenshot(tester, 'account-binding-tab-${size.width.toInt()}');
+      await tester.tap(find.text('修改密码'));
+      await tester.pumpAndSettle();
+      await screenshot(tester, 'account-password-tab-${size.width.toInt()}');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('installed EXE version appears beside client status', (
     tester,
   ) async {
@@ -161,10 +201,10 @@ void main() {
       'enabled': true,
       'consentVersion': 1,
     };
-      fake.state['diagnostics'] = {
-        'enabled': true,
-        'message': '基础日志正在记录',
-        'instances': [
+    fake.state['diagnostics'] = {
+      'enabled': true,
+      'message': '基础日志正在记录',
+      'instances': [
         {'id': 'needs-permission', 'crashStatus': 'access_denied'},
       ],
       'clips': [],

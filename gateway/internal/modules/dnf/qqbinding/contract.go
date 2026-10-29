@@ -8,15 +8,18 @@ import (
 )
 
 type Settings struct {
-	Enabled  bool     `json:"enabled"`
-	Groups   []string `json:"groups"`
-	Revision uint64   `json:"revision"`
+	Enabled      bool     `json:"enabled"` // Require binding at login; retained for existing clients.
+	AllowBinding bool     `json:"allowBinding"`
+	Groups       []string `json:"groups"`
+	Revision     uint64   `json:"revision"`
 }
 
 var Number = regexp.MustCompile(`^[1-9][0-9]{4,11}$`)
 
+func (s Settings) BindingAllowed() bool { return s.Enabled || s.AllowBinding }
+
 func (s *Settings) Normalize() error {
-	if len(s.Groups) > 32 || (s.Enabled && len(s.Groups) == 0) {
+	if len(s.Groups) > 32 || (s.BindingAllowed() && len(s.Groups) == 0) {
 		return errors.New("请配置 1 至 32 个允许绑定的群")
 	}
 	seen := map[string]bool{}

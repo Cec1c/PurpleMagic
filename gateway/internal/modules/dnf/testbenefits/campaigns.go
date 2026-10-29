@@ -21,6 +21,7 @@ type Campaign struct {
 	CreatedAt              time.Time `json:"createdAt"`
 	FirstEnabledAt         time.Time `json:"firstEnabledAt"`
 	Enabled                bool      `json:"enabled"`
+	Deleted                bool      `json:"deleted,omitempty"`
 	AutoNewCharacters      bool      `json:"autoNewCharacters"`
 	AutoExistingCharacters bool      `json:"autoExistingCharacters,omitempty"`
 	ExistingThrough        time.Time `json:"existingThrough,omitempty"`
@@ -113,6 +114,9 @@ func (s *Store) enableCampaign(ctx context.Context, id string, revision uint64, 
 	if err = json.Unmarshal(raw, &c); err != nil {
 		return Campaign{}, err
 	}
+	if c.Deleted {
+		return Campaign{}, ErrCampaignDeleted
+	}
 	if c.Revision != revision {
 		return Campaign{}, ErrRevision
 	}
@@ -143,6 +147,9 @@ func (s *Store) PreviewCampaign(ctx context.Context, group repository.Group, id 
 	if err != nil {
 		return Job{}, err
 	}
+	if c.Deleted {
+		return Job{}, ErrCampaignDeleted
+	}
 	return s.Preview(ctx, group, c.Reward)
 }
 
@@ -158,7 +165,7 @@ func (s *Store) lockCampaign(ctx context.Context, tx *sql.Tx, id string) (Campai
 }
 
 func EligibleNewCharacter(c Campaign, character repository.CharacterRecord) bool {
-	if !c.Enabled || c.FirstEnabledAt.IsZero() || character.CreatedAt.IsZero() || character.Stats["delete_flag"] != 0 {
+	if c.Deleted || !c.Enabled || c.FirstEnabledAt.IsZero() || character.CreatedAt.IsZero() || character.Stats["delete_flag"] != 0 {
 		return false
 	}
 	through := c.ExistingThrough

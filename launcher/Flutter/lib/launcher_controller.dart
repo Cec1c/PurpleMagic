@@ -138,6 +138,7 @@ class LauncherController extends ChangeNotifier {
   String source = '本服批准源', message = '正在连接登录器核心…', version = '';
   String launcherVersion = '';
   String clientVersion = '';
+  bool qqBindingEnabled = false;
   bool requireQQBinding = false;
   final _accountCooldowns = <String, DateTime>{};
   int accountCooldown(String account) {
@@ -234,6 +235,7 @@ class LauncherController extends ChangeNotifier {
   };
   void _receive(Map<String, dynamic> state) {
     if (_disposed) return;
+    qqBindingEnabled = state["qqBindingEnabled"] == true;
     requireQQBinding = state["requireQQBinding"] == true;
     phase = switch (state['phase']) {
       'checking' => UpdatePhase.checking,

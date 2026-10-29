@@ -16,6 +16,7 @@ import (
 var (
 	ErrIdempotency      = errors.New("请求编号已用于其他内容，请重新预览")
 	ErrRevision         = errors.New("记录已更新，请刷新后继续")
+	ErrCampaignDeleted  = errors.New("福利规则已删除")
 	ErrCampaignDisabled = errors.New("福利规则已停用，请先启用再发放")
 	ErrRecipient        = errors.New("角色不存在、已删除或归属已改变，请重新选择")
 	ErrPreviewEmpty     = errors.New("没有可接收邮件的角色")
@@ -113,6 +114,9 @@ func (s *Store) PreviewCampaignOnce(ctx context.Context, group repository.Group,
 		c, err := s.Campaign(ctx, id)
 		if err != nil {
 			return "", nil, err
+		}
+		if c.Deleted {
+			return "", nil, ErrCampaignDeleted
 		}
 		j, err := s.freezeRecipients(ctx, group, c.Reward)
 		if err != nil {

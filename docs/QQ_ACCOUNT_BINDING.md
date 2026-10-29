@@ -1,6 +1,6 @@
 # QQ 账号绑定与密码管理
 
-PurpleMagic 1.0.0 支持由 QQ 机器人确认玩家身份。开源配置默认关闭；单机、局域网和公网服都可独立选择是否启用。
+QQ 绑定是可选功能。仓库示例和登录器构建默认关闭，单机、局域网和公网服都可独立选择是否启用。1.0.2 增加自愿绑定：玩家可以主动绑定，未绑定也能登录游戏。
 
 ## 玩家使用
 
@@ -14,15 +14,27 @@ PurpleMagic 1.0.0 支持由 QQ 机器人确认玩家身份。开源配置默认�
 
 ## 管理与默认配置
 
-GM → **反作弊 → 账号与 QQ 号** 可保存允许群列表、打开登录绑定要求，并按完整账号、账号 ID 或 QQ 号查询绑定关系。配置启用后，游戏账号接口和游戏令牌准入都会核对绑定状态。
+GM → **反作弊 → 账号与 QQ 号** 可逐条添加或移除允许群，点击右侧 **保存配置** 生效，并按完整账号、账号 ID 或 QQ 号查询绑定关系。
+
+| 绑定方式 | `enabled` | `allowBinding` | 玩家行为 |
+| --- | --- | --- | --- |
+| 关闭绑定（默认） | false | false | 可直接登录，暂停新绑定 |
+| 自愿绑定 | false | true | 可绑定，也可不绑定直接登录 |
+| 必须绑定 | true | true | 绑定后才能登录 |
+
+切换方式保留已有绑定关系。历史 `enabled=true` 的配置仍表示必须绑定。
 
 登录器构建输入 [profile.example.json](../launcher/profile.example.json) 包含：
 
 ```json
-{"RequireQQBinding": false}
+{"EnableQQBinding": false, "RequireQQBinding": false}
 ```
 
-构建专用服登录器时设为 `true`，并在当前 Hub profile 中同步配置。1.0.1 起，验签后的服务器 profile 会覆盖构建默认值；临时关闭绑定时，同时关闭 GM 开关并发布 `RequireQQBinding=false` 的签名配置。登录器会显示绑定入口，要求账号服务返回已验证的绑定结果。服务端的启用开关仍在 GM；开启后旧登录器也需要绑定账号。发布带绑定功能的新登录器后，再启用本服要求。
+`EnableQQBinding` 是编译输入开关：设为 `true` 后，登录器顶部与“开始游戏”“账号注册”“修改密码”并列显示“绑定 QQ”。默认构建隐藏该入口且不提供获取绑定码操作；服务器签名配置不能开启编译时关闭的功能。
+
+`RequireQQBinding` 是登录策略的构建默认值。1.0.1 起，实际策略以验签后的服务器 profile 为准。自愿绑定使用 `EnableQQBinding=true`、`RequireQQBinding=false`，并在 GM 选择 **自愿绑定**。必须绑定时，GM 选择 **必须绑定**，Hub 发布 `RequireQQBinding=true` 的签名配置。恢复自愿或关闭时，将 GM 和签名 profile 的强制要求同时关闭。
+
+其他服主从仓库构建时，保留示例中的两个 `false` 即可使用普通账号登录和修改密码，无需部署 QQ 机器人。群号、机器人凭据与正式 profile 使用各自部署的私有配置。
 
 ## QQ Agent 安装
 
@@ -40,7 +52,7 @@ GM → **反作弊 → 账号与 QQ 号** 可保存允许群列表、打开登�
    ```
 
 4. 在 QQ Agent 的 **插件 → PurpleMagic 账号绑定** 填写本机接口 `http://127.0.0.1:8782` 和同一凭据，启用插件。允许群在 GM 内维护，机器人每次绑定读取当前配置。
-5. 先部署游戏侧账号适配、PlayerGateway、GMService 和 `gm-console/dist`，再发布登录器，最后在 GM 保存允许群并启用。机器人须已加入允许群，私聊绑定才可查询群成员。
+5. 先部署游戏侧账号适配、PlayerGateway、GMService 和 `gm-console/dist`，再发布开启绑定入口的登录器，最后在 GM 保存允许群并选择绑定方式。机器人须已加入允许群，私聊绑定才可查询群成员。
 
 插件仅访问回环接口。`GET /api/bot/qq-binding/settings` 读取群规则，`POST /api/bot/qq-binding/complete` 消费绑定码；该凭据不能调用 GM 管理操作。玩家监听不提供这两个路径。群号、QQ 关系、凭据、数据库和正式 profile 由部署方私有保存。
 
@@ -50,7 +62,7 @@ PurpleMagic 网关将以下玩家请求转发到配置的游戏账号 API：
 
 | 路径 | 请求 | 结果 |
 | --- | --- | --- |
-| `POST /api/account/login` | `account,password,device,requireQQBinding` | 认证成功返回 `token,account_id,boundQQ`；未绑定返回 `qq_binding_required` |
+| `POST /api/account/login` | `account,password,device,requireQQBinding` | 认证成功返回 `token,account_id,boundQQ`；仅强制绑定时未绑定返回 `qq_binding_required` |
 | `POST /api/account/binding-code` | `account,password,device` | 返回 `bindingCode,expiresAt,groups`，已绑定返回 `boundQQ` |
 | `POST /api/account/password` | `account,password,newPassword,device` | 校验原密码后定点更新密码摘要，撤销原令牌 |
 

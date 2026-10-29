@@ -448,6 +448,14 @@ export async function prepareOperation(
     p.target = rule.reward.title;
     p.summary = `按原规则检查本次开始前已创建的${rule.scope === "account" ? "账号及其收件角色" : "角色"}，补发符合条件且尚未收到的奖励。已领取记录保持，${rule.scope === "account" ? "每账号" : "每角色"}仅发一次。任务在后台继续，进度可在发放详情查看。`;
     add("开始后台补发", path + "/redelivery", { revision: rule.revision, confirm: true });
+  } else if (command.kind === "benefit-delete") {
+    if (!api.meta.features["benefits.delete"]) throw new Error("删除功能尚未就绪，请刷新后重试");
+    const path = `/api/v1/benefits/${segment(command.id)}`;
+    const {data: rule} = await api.http.get(path);
+    p.title = "删除福利规则";
+    p.target = rule.reward.title;
+    p.summary = "删除后停止后续发放，并从规则列表移除。已发放的奖励和领取记录保留。";
+    add("删除福利规则", path + "/delete", {revision: rule.revision, confirm: true});
   } else if (command.kind === "benefit-toggle") {
     const b = api.state.benefits.find((b) => b.id === command.id);
     if (!b) throw new Error("规则不存在");

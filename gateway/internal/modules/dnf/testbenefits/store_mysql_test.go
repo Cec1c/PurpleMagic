@@ -276,6 +276,37 @@ func TestBenefitsMySQL(t *testing.T) {
 		t.Fatal("resume failed")
 	}
 	testAccountScopeMySQL(t, ctx, db, g, s)
+	testDeletedCampaignMySQL(t, ctx, g, s)
+}
+
+func testDeletedCampaignMySQL(t *testing.T, ctx context.Context, g repository.Group, s *testbenefits.Store) {
+	t.Helper()
+	c, err := s.CreateCampaign(ctx, testbenefits.Job{Gold: 15, Title: "delete fixture"}, "delete fixture", true)
+	require(t, err)
+	c, err = s.EnableAutomaticCampaign(ctx, c.ID, c.Revision, true)
+	require(t, err)
+	j, err := s.PreviewCampaign(ctx, g, c.ID)
+	require(t, err)
+	before, _, err := g.Mailbox.Load(ctx, "1")
+	require(t, err)
+	c, err = s.DeleteCampaign(ctx, c.ID, c.Revision)
+	require(t, err)
+	if _, err = s.Run(ctx, g, j.ID, false); err == nil {
+		t.Fatal("queued task delivered deleted rule")
+	}
+	role, _, err := g.Character.Load(ctx, "1")
+	require(t, err)
+	if testbenefits.EligibleNewCharacter(c, role) {
+		t.Fatal("deleted rule eligible")
+	}
+	if _, err = s.RedeliverCampaignRecipient(ctx, g, c.ID, c.Revision, j.Recipients[0], nil); err == nil {
+		t.Fatal("redelivery accepted deleted rule")
+	}
+	after, _, err := g.Mailbox.Load(ctx, "1")
+	require(t, err)
+	if len(before.Mails) != len(after.Mails) {
+		t.Fatal("deleted rule changed mailbox")
+	}
 }
 
 func testAccountScopeMySQL(t *testing.T, ctx context.Context, db *sql.DB, g repository.Group, s *testbenefits.Store) {

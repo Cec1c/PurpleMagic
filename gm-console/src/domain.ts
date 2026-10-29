@@ -192,6 +192,7 @@ export type Command =
       scope: "existing" | "future";
     }
   | { kind: "benefit-toggle"; id: string }
+  | { kind: "benefit-delete"; id: string }
   | { kind: "benefit-redeliver"; id: string }
   | { kind: "task-control"; id: string; action: "resume" | "retry" | "pause" }
   | {
@@ -433,6 +434,13 @@ export function applyCommand(
     }
     case "benefit-redeliver": {
       throw new Error("请连接服务后补发福利");
+    }
+    case "benefit-delete": {
+      const b = s.benefits.find(b => b.id === command.id);
+      if (!b) throw new Error("规则不存在");
+      target = b.name; summary = "福利规则已删除";
+      s.benefits = s.benefits.filter(b => b.id !== command.id);
+      break;
     }
     case "benefit-toggle": {
       const b = s.benefits.find((b) => b.id === command.id);

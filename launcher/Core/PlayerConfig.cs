@@ -9,6 +9,7 @@ public sealed record PlayerProfile(string ApiUrl, string CertificateSha256, stri
 {
     public ChannelHistoryCompatibility? ChannelHistory { get; init; }
     public string MinimumLauncherVersion { get; init; } = "";
+    public bool EnableQQBinding { get; init; } = false;
     public bool RequireQQBinding { get; init; } = false;
     public int ChannelServerId { get; init; }
     // Explicit temporary compatibility during a staged server migration.

@@ -18,6 +18,7 @@ public sealed record State(string Phase, string Message, double Progress, long D
 {
     public string LauncherVersion => LauncherEngine.VersionText;
     public string ClientVersion { get; init; } = "";
+    public bool QQBindingEnabled { get; init; }
     public bool RequireQQBinding { get; init; }
     public DiagnosticStatus? Diagnostics { get; init; }
 }

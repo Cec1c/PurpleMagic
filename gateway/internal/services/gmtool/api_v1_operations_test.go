@@ -308,6 +308,41 @@ func testV1OperationsWithGroup(t *testing.T, s *Server, g repository.Group, db *
 	if status, _ := v1TestCall(t, s, token, "GET", "/api/v1/tasks/"+jobID+"/recipients?limit=2&cursor="+url.QueryEscape(cursor)); status != 400 {
 		t.Fatal("changed page size accepted")
 	}
+	// Deletion keeps the original identity, completed jobs and permanent receipts.
+	post(base+"/delete", `{"revision":1}`, "", 422)
+	post(base+"/delete", `{"revision":0,"confirm":true}`, "", 409)
+	deleted := post(base+"/delete", `{"revision":1,"confirm":true}`, "", 200)
+	if deleted["deleted"] != true || deleted["enabled"] != false {
+		t.Fatal("rule still active", deleted)
+	}
+	if again := post(base+"/delete", `{"revision":1,"confirm":true}`, "", 200); again["revision"] != deleted["revision"] {
+		t.Fatal("delete retry changed revision", again)
+	}
+	post(base+"/state", `{"revision":2,"enabled":true,"confirm":true}`, "", 409)
+	post(base+"/preview", `{}`, "deleted-preview-key", 409)
+	if replay := post("benefits", create, "concurrent-rule-key", 200); replay["id"] != id || replay["deleted"] != true {
+		t.Fatal("old create resurrected deleted rule", replay)
+	}
+	for _, raw := range get("benefits?limit=1")["data"].([]any) {
+		if raw.(map[string]any)["id"] == id {
+			t.Fatal("deleted rule remained in first page")
+		}
+	}
+	rows, err := store.Campaigns(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.ID == id {
+			t.Fatal("deleted rule remained in scanner")
+		}
+	}
+	if saved := get("tasks/" + jobID)["data"].(map[string]any); saved["sent"] != float64(28) {
+		t.Fatal("delete erased job progress", saved)
+	}
+	if saved := get("tasks/" + jobID + "/recipients?limit=1")["data"].([]any)[0].(map[string]any); saved["mailId"] != rec["mailId"] {
+		t.Fatal("delete erased receipt", saved)
+	}
 }
 
 func TestV1OperationRestartReader(t *testing.T) {

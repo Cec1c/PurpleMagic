@@ -120,6 +120,7 @@ func (h *Hub) uploadBundle(w http.ResponseWriter, r *http.Request) {
 	h.state.Published.Launcher = &Bundle{Version: version, URL: strings.TrimRight(h.profile.ApiURL, "/") + "/launcher/v2/bundles/" + sha + ".zip", Size: size, SHA256: sha}
 	// Publish the compiled account-binding policy with the new launcher, while
 	// preserving the current game endpoints and signed content compatibility.
+	h.state.Published.Profile.EnableQQBinding = h.profile.EnableQQBinding
 	h.state.Published.Profile.RequireQQBinding = h.profile.RequireQQBinding
 	h.state.Published.Sequence++
 	if e = h.save(); e != nil {

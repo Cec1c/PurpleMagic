@@ -63,7 +63,7 @@ export const providers = {
     const chat=cmd.kind+':'+(cmd.kind==='group'?cmd.group:cmd.qq);
     try {
       const cfg=await request('settings');
-      if(!cfg.enabled)throw Error('当前服务器未启用 QQ 绑定');
+      if(!cfg.enabled&&!cfg.allowBinding)throw Error('当前服务器未启用 QQ 绑定');
       if(cmd.kind==='group'&&!cfg.groups.includes(cmd.group))return {handled:true};
       let group=cmd.kind==='group'?cmd.group:'';
       if(cmd.kind==='private') {

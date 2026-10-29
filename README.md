@@ -25,7 +25,10 @@ One source repository with independently built components, from player login and
 
 GM queries show base rows before bounded parallel supplements, cancel reads when navigating, and support timeouts and retries. Query includes a PVF item library; the quest library supports selected characters. Settings can load the approved PVF into memory. See [query behavior and PVF modes](docs/GM_QUERY_PERFORMANCE.md). [Game activities](docs/GM_ACTIVITY_MANAGEMENT.md) have their own sidebar entry, with search, status filters and batch enable/disable after one confirmation. Saved configuration takes effect at the next game-service restart; the page shows configured and running states separately.
 
-QQ account binding and password changes are available in launcher **1.0.0**. Binding is disabled in the public example configuration. The GM **Anti-cheat → Account and QQ** page manages allowed groups and binding records; players obtain a one-time code in the launcher and send it to the QQ bot. Each QQ can bind one account. Three consecutive credential failures trigger a persistent ten-minute cooldown. See [setup and account API contracts](docs/QQ_ACCOUNT_BINDING.md).
+The launcher has account tabs for login, registration, password changes, and optional QQ binding. The GM **Anti-cheat → Account and QQ** page manages allowed groups, binding records, and three modes: disabled, optional, or required. In optional mode, players can bind a QQ account or log in without binding. Each QQ can bind one account using a one-time code. Three consecutive credential failures trigger a persistent ten-minute cooldown. See [setup and account API contracts](docs/QQ_ACCOUNT_BINDING.md).
+
+> [!NOTE]
+> QQ binding is **disabled by default in repository builds**: [profile.example.json](launcher/profile.example.json) sets both `EnableQQBinding` and `RequireQQBinding` to `false`. Ordinary account login and password changes work without a QQ bot. Server operators can opt in by building with `EnableQQBinding=true`; optional binding keeps `RequireQQBinding=false` and selects **Optional** in GM. Server profiles cannot turn on a binding feature disabled at build time.
 
 ## What it does
 

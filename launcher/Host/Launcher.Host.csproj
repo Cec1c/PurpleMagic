@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>DNF90.Core</AssemblyName><Version>1.0.1</Version>
+    <AssemblyName>DNF90.Core</AssemblyName><Version>1.0.2</Version>
     <Product>PurpleMagic</Product><Title>PurpleMagic</Title><Description>PurpleMagic</Description>
     <PublishAot>true</PublishAot><InvariantGlobalization>false</InvariantGlobalization>
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>

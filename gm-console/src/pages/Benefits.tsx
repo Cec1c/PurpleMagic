@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLive } from "../api/context";
 import { catalog as demoCatalog } from "../fixtures";
 import { LoadMore, TaskDetail } from "../api/controls";
-import { Gift, Pause, Play, Plus } from "lucide-react";
+import { Gift, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { Field, CheckBox, Pill, number, type PageProps } from "../ui";
 import { BenefitReconciliation } from "../api/BenefitReconciliation";
 
@@ -204,6 +204,8 @@ export function BenefitsPage({ state, request }: PageProps) {
                           {b.enabled ? <Pause size={14} /> : <Play size={14} />}{" "}
                           {b.enabled ? "暂停" : "启用"}
                         </button>
+                        <button className="secondary" disabled={!!live&&!state.api?.features["benefits.delete"]}
+                          onClick={() => request({kind:"benefit-delete",id:b.id})}><Trash2 size={14}/>删除</button>
                       </td>
                     </tr>
                   ))}

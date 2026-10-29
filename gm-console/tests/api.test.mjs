@@ -33,6 +33,19 @@ test('benefit list preserves currency values and account scope on reload',async(
  await api.benefits();assert.equal(api.state.benefits[0].cera,500);assert.equal(api.state.benefits[0].grantScope,'account');assert.equal(api.state.benefits[0].rewardSummary,'点券 500');
 });
 
+test('delete benefit confirms once and reloads rules without a selected character',async()=>{
+ const api=new ConsoleAPI(()=>{});api.meta.authenticated=true;api.meta.features={'benefits.write':true,'benefits.delete':true};api.sectionId='benefits';const calls=[];
+ api.http.fetcher=async(path,init)=>{calls.push([path.split('?')[0],init.method]);
+  if(path==='/api/v1/benefits/rule')return response({id:'rule',revision:8,reward:{title:'福利'}});
+  if(path==='/api/v1/benefits/rule/delete'){assert.deepEqual(JSON.parse(init.body),{revision:8,confirm:true});return response({id:'rule',deleted:true,enabled:false});}
+  return response([]);
+ };
+ await api.prepare({kind:'benefit-delete',id:'rule'},{accounts:[],characters:[]});
+ assert.deepEqual(calls,[['/api/v1/benefits/rule','GET']]);assert.match(api.meta.pending.summary,/领取记录保留/);
+ await api.confirm();assert.equal(api.meta.pending.completed,true);assert.equal(api.state.benefits.length,0);
+ assert.deepEqual(calls,[['/api/v1/benefits/rule','GET'],['/api/v1/benefits/rule/delete','POST'],['/api/v1/benefits','GET']]);
+});
+
 test('token login requests 30-day memory by default and honors opting out',async()=>{
  const api=new ConsoleAPI(()=>{});const bodies=[];
  api.http.fetcher=async(path,init)=>{
