@@ -3,6 +3,7 @@ import { Mail, ArrowUpRight, Users, UserRound, Search } from "lucide-react";
 import { useLive } from "../api/context";
 import { LoadMore } from "../api/controls";
 import { resolveRecipients } from "../domain";
+import { ResetPassword } from "./ResetPassword";
 import type { State, Selection } from "../domain";
 import {
   SearchField,
@@ -169,6 +170,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
     go,
     accountMode = false,
   } = props;
+  const [resetAccount, setResetAccount] = useState<{ id: string; name: string } | null>(null);
   const [mode, setMode] = useState<"characters" | "accounts">(
       accountMode ? "accounts" : "characters",
     ),
@@ -320,6 +322,11 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                           查看角色
                           <ArrowUpRight size={14} />
                         </button>
+                        {accountMode && live?.meta.features["accounts.password-reset"] && (
+                          <button className="text-button" onClick={() => setResetAccount({ id: a.id, name: a.name })}>
+                            重置密码
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -411,6 +418,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           void live?.guard(() => live.directory(mode, q, true, accountScope, online))
         }
       />
+      {resetAccount && <ResetPassword account={resetAccount} onClose={() => setResetAccount(null)} />}
       {accountScope && (
         <button className="text-button" onClick={() => setAccountScope("")}>
           查看全部角色

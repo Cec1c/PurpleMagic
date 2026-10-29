@@ -123,6 +123,7 @@ func (s *Server) v1Routes() http.Handler {
 	writes.HandleFunc("POST /api/v1/anti-cheat/qq/settings", s.v1QQBinding)
 	mux.HandleFunc("GET /api/v1/anti-cheat/qq/bindings", s.v1QQBinding)
 	writes.HandleFunc("POST /api/v1/anti-cheat/bans", s.v1Moderation)
+	writes.HandleFunc("POST /api/v1/accounts/{accountId}/password-reset", s.v1ResetPassword)
 	mux.HandleFunc("GET /api/v1/activities", s.v1Activities)
 	writes.HandleFunc("POST /api/v1/activities", s.v1SaveActivities)
 	mux.HandleFunc("GET /api/v1/settings/pvf", s.v1PVFMode)
@@ -331,6 +332,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["activities.read"] = s.deps.Runtime != nil || s.deps.Activities != nil
 	features["activities.write"] = features["activities.read"]
 	features["benefits.delete"] = s.deps.Benefits != nil
+	features["accounts.password-reset"] = s.deps.Runtime != nil
 	features["qqBinding.read"] = s.deps.Runtime != nil
 	features["qqBinding.write"] = s.deps.Runtime != nil
 	features["moderation.read"] = s.deps.Runtime != nil
