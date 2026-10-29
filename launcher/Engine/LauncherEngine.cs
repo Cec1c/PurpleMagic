@@ -335,7 +335,7 @@ public sealed class LauncherEngine : IDisposable
             Emit("logging-in", "游戏进程已创建，正在等待客户端启动…");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             try { await game.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
-            if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 90 秒后重试。");
+            if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。");
             Emit("ready", channels.Message + " 客户端正在运行。");
         }
         catch (Exception error) { diagnostics.Failure("login_error", error); Emit("error", "登录未完成，请查看提示。"); throw; }

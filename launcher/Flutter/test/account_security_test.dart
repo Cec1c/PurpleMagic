@@ -13,7 +13,7 @@ class BindingCore extends CoreClient {
     Map<String, dynamic>? args,
   ]) async {
     calls.add(method);
-    if (fail) throw AccountFailure('冷却中', 'account_cooldown', 600);
+    if (fail) throw AccountFailure('冷却中', 'account_cooldown', 60);
     return {
       'accountResult': {
         'message': '绑定码已生成',
@@ -43,7 +43,7 @@ void main() {
         throwsA(isA<AccountFailure>()),
       );
       expect(core.calls, ['login']);
-      expect(model.accountCooldown('player'), greaterThan(590));
+      expect(model.accountCooldown('player'), greaterThan(50));
       core.fail = false;
       await model.accountSecurity(false, 'other', 'secret', '');
       expect(core.calls.length, 2);

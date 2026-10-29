@@ -197,7 +197,7 @@ class _AccountSecurityPanelState extends State<AccountSecurityPanel> {
           ),
         const SizedBox(height: 8),
         Text(
-          cooldown > 0 ? '验证冷却：$cooldown 秒' : '连续验证失败 3 次，冷却 10 分钟。',
+          cooldown > 0 ? '验证冷却：$cooldown 秒' : '连续验证失败 3 次，冷却 1 分钟。',
           style: const TextStyle(fontSize: 10, color: Color(0xffb3aebf)),
         ),
       ],
