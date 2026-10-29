@@ -48,6 +48,15 @@ try
         return JsonSerializer.SerializeToUtf8Bytes(new SignedEnvelope(Convert.ToBase64String(payload), Convert.ToBase64String(key.SignData(payload, HashAlgorithmName.SHA256, padding ?? RSASignaturePadding.Pss))), CoreJson.Default.SignedEnvelope);
     }
     var envelope = Sign(bootstrap);
+    foreach (var required in new[] { false, true })
+    {
+        var policyDir = Path.Combine(temp, "binding-policy-" + required);
+        Directory.CreateDirectory(policyDir);
+        File.WriteAllBytes(Path.Combine(policyDir, "bootstrap.json"), Sign(bootstrap with { Profile = root with { RequireQQBinding = required } }));
+        using var policyEngine = new LauncherEngine(root with { RequireQQBinding = !required }, policyDir);
+        Check(policyEngine.State.RequireQQBinding == required, "verified server binding policy overrides embedded default: " + required);
+    }
+
     Check(Trust.Verify(envelope, root).Content!.Files.Length == 2, "own PSS bootstrap and content contract");
     var transition = bootstrap with { Profile = root with { ChannelServerId = 1, PreviousChannelServerId = 0 } };
     var migrated = Trust.Verify(Sign(transition), root).Profile;

@@ -10,7 +10,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.0";
+    public const string VersionText = "1.0.1";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -27,7 +27,7 @@ public sealed class LauncherEngine : IDisposable
     public event Action<State>? Changed;
     private State state = new("ready", "正在读取本机设置…", 0, 0, 0, false, false, false, "本服批准源", "", new(), []);
     public State State { get => state with { Diagnostics = diagnostics?.Status }; private set => state = value; }
-    private PlayerProfile Profile => (bootstrap?.Profile ?? root) with { RequireQQBinding = root.RequireQQBinding || bootstrap?.Profile.RequireQQBinding == true };
+    private PlayerProfile Profile => bootstrap?.Profile ?? root;
     public LauncherEngine(PlayerProfile trusted, string dataDirectory)
     {
         root = trusted; stateRoot = dataDirectory; SafeFiles.NoLinks(stateRoot); Directory.CreateDirectory(stateRoot);
