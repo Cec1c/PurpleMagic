@@ -25,13 +25,15 @@ One source repository with independently built components, from player login and
 
 GM queries show base rows before bounded parallel supplements, cancel reads when navigating, and support timeouts and retries. Query includes a PVF item library; the quest library supports selected characters. Settings can load the approved PVF into memory. See [query behavior and PVF modes](docs/GM_QUERY_PERFORMANCE.md). [Game activities](docs/GM_ACTIVITY_MANAGEMENT.md) have their own sidebar entry, with search, status filters and batch enable/disable after one confirmation. Saved configuration takes effect at the next game-service restart; the page shows configured and running states separately.
 
+QQ account binding and password changes are available in launcher **1.0.0**. Binding is disabled in the public example configuration. The GM **Anti-cheat → Account and QQ** page manages allowed groups and binding records; players obtain a one-time code in the launcher and send it to the QQ bot. Each QQ can bind one account. Three consecutive credential failures trigger a persistent ten-minute cooldown. See [setup and account API contracts](docs/QQ_ACCOUNT_BINDING.md).
+
 ## What it does
 
 GM diagnostics correlate requests across services and time account queries, benefit details and delivery transactions. See the [logging contract and troubleshooting guide](docs/GM_DIAGNOSTICS.md).
 
 | Workflow | Current capabilities |
 | --- | --- |
-| Player login | Windows registration and login, client-directory discovery, channel checks and game launch; launcher source version 0.2.20 |
+| Player login | Windows registration and login, client-directory discovery, channel checks and game launch; launcher source version 1.0.0 |
 | Updates | Configurable sources, signed manifests and file hashes, progress, pause, installation and rollback; launcher and game-content updates have separate contracts |
 | Accounts and characters | Search, cursor pagination, online filtering, account expansion and deduplicated recipient selection |
 | Inventory | Eight views for bags, equipment, pet equipment, character/account storage, pets, avatars and emblems; inspect instances and edit supported attributes, replace compatible items or delete selected batches |
@@ -110,8 +112,8 @@ The existing command-line pipeline prepares a profile from a connection configur
 
 ```text
 python scripts/prepare_launcher_profile.py --connection runtime/launcher-input/server.json --client D:/GameClient --certificate runtime/launcher-input/player-fullchain.pem --public-key runtime/launcher-input/update-public.pem --output runtime/launcher-input/profile.json
-BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.20
-BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.20.zip --output dist/PurpleMagic-0.2.20.exe --dotnet dotnet
+BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-1.0.0
+BUILD_PORTABLE.bat --bundle dist/PurpleMagic-1.0.0.zip --output dist/PurpleMagic-1.0.0.exe --dotnet dotnet
 ```
 
 The profile tool hashes the EXE/PVF and certificate and preserves explicit channel compatibility settings. Configure the account `ApiUrl`, direct game `GameHost:BootstrapPort` and update sources separately. The Windows application is named PurpleMagic and uses the native folder picker.

@@ -3,8 +3,9 @@ import {ShieldCheck,Timer,Search,RefreshCw,ArrowUpDown,ArrowUp,ArrowDown,Zap,Ban
 import {useLive} from "../api/context";
 import {ApiError} from "../api/http";
 import {Empty,Field,Modal,Tabs,type PageProps} from "../ui";
-import {banState,duration,fatigue,nextSort,type Sort,pendingBanKey,readPendingBan,suspicious,type Ban,type BanChange,type ClearStats,type ModerationAccount,type Page,type PendingBan} from "../moderation";
+import {qqActionLabel,banState,duration,fatigue,nextSort,type Sort,pendingBanKey,readPendingBan,suspicious,type Ban,type BanChange,type ClearStats,type ModerationAccount,type Page,type PendingBan} from "../moderation";
 import "../moderation.css";
+import {QQBindingPage} from "./QQBinding";
 
 const stamp=(raw:string)=>new Date(raw).toLocaleString();
 const dateInput=(date:Date)=>new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
@@ -13,9 +14,13 @@ export function SortHeader({fields,sort,onSort,disabled}:{fields:[string,string]
  const active=fields.some(([key])=>key===sort.sortBy);
  return <th aria-sort={active?(sort.sortOrder==="asc"?"ascending":"descending"):"none"}><div className="moderation-sort-fields">{fields.map(([key,label])=><button key={key} className="moderation-sort" disabled={disabled} onClick={()=>onSort(key)} title={`按${label}${sort.sortBy===key&&sort.sortOrder==="asc"?"降序":"升序"}排列`}>{label}{sort.sortBy===key?(sort.sortOrder==="asc"?<ArrowUp size={12}/>:<ArrowDown size={12}/>):<ArrowUpDown size={12}/>}</button>)}</div></th>;
 }
-export function AntiCheatPage({state}:PageProps){
+export function AntiCheatPage(props:PageProps){
+ const [tab,setTab]=useState<Tab|"qq">("clears");
+ return <div className="moderation-page"><Tabs label="反作弊功能" items={[{id:"clears",label:"通关统计"},{id:"accounts",label:"账号封禁"},{id:"bans",label:"IP 与封禁记录"},{id:"qq",label:"账号与 QQ 号"}]} value={tab} onChange={v=>setTab(v as Tab|"qq")}/>{tab==="qq"?<QQBindingPage {...props}/>:<ModerationPage {...props} tab={tab}/>}</div>;
+}
+function ModerationPage({state,tab}:PageProps & {tab:Tab}){
  const live=useLive();
- const [tab,setTab]=useState<Tab>("clears"),[q,setQ]=useState(""),[from,setFrom]=useState(()=>dateInput(new Date(Date.now()-86400000))),[to,setTo]=useState(()=>dateInput(new Date()));
+ const [q,setQ]=useState(""),[from,setFrom]=useState(()=>dateInput(new Date(Date.now()-86400000))),[to,setTo]=useState(()=>dateInput(new Date()));
  const [seconds,setSeconds]=useState(30),[hourly,setHourly]=useState(60),[filter,setFilter]=useState("all");
  const [page,setPage]=useState<Page<any>>({rows:[],hasMore:false}),[offset,setOffset]=useState(0),[loaded,setLoaded]=useState(false),[loading,setLoading]=useState(false);
  const [ip,setIP]=useState(""),[pending,setPending]=useState<PendingBan|null>(()=>readPendingBan(sessionStorage)),[show,setShow]=useState(()=>!!readPendingBan(sessionStorage)),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
@@ -43,7 +48,8 @@ export function AntiCheatPage({state}:PageProps){
   await live.guard(async()=>{
    const result=existing?{rows:[existing]}:await live.moderation("bans",{search:target,limit:100});
    const prior=(result.rows as Ban[]).find(v=>v.kind===kind&&(kind==="ip"||v.target===target));
-   setPending({change:{requestId:crypto.randomUUID(),kind,target:prior?.target||target,reason:"",expiresAt:null,revoke,revision:prior?.revision||0},label,confirmed:false});setShow(true);
+   const targets=kind==="account"&&!revoke?await live.banTargets(target):undefined;
+   setPending({targets,change:{requestId:crypto.randomUUID(),kind,target:prior?.target||target,reason:"",expiresAt:null,revoke,revision:prior?.revision||0},label,confirmed:false});setShow(true);
   });
  }
  async function confirm(){
@@ -59,7 +65,7 @@ export function AntiCheatPage({state}:PageProps){
   try{
    const result=await live.changeBan(operation.change);
    sessionStorage.removeItem(pendingBanKey);setPending(null);setShow(false);
-   setMessage(`${result.label}：${banState(result)}`);void load(offset);
+   setMessage([`${result.label}：${banState(result)}`,...(result.linkedIps||[]).map(ip=>`IP ${ip}：已封禁`),...(result.qqActions||[]).map(qqActionLabel)].join("；"));void load(offset);
   }catch(e){
    if(e instanceof ApiError&&(e.status===400||e.status===409)){sessionStorage.removeItem(pendingBanKey);setPending(null);setShow(false);setMessage(e.message);void load(0);}
    else{setWriteError((e as Error).message);if(e instanceof ApiError&&e.status===401)live.error(e);}
@@ -72,7 +78,7 @@ export function AntiCheatPage({state}:PageProps){
  const sampled=rows.reduce((n,c)=>n+(c.fatigueSamples||0),0);
  const spent=rows.reduce((n,c)=>n+(c.fatigueSpent||0),0);
  return <div className="motion-section moderation-page">
-  <Tabs label="反作弊功能" items={[{id:"clears",label:"通关统计"},{id:"accounts",label:"账号封禁"},{id:"bans",label:"IP 与封禁记录"}]} value={tab} onChange={v=>setTab(v as Tab)}/>
+
   {pending?.confirmed&&!show&&<div className="moderation-notice glass">有一笔操作等待回执<button className="secondary" onClick={()=>setShow(true)}>继续查询</button></div>}
   {message&&<div role="status" className="moderation-notice glass">{message}</div>}
   <div className="moderation-filters glass">
@@ -92,12 +98,18 @@ export function AntiCheatPage({state}:PageProps){
    <div className="table-panel glass moderation-table"><div className="table-scroll"><table><thead><tr>{header([["characterName","角色"],["characterId","角色 ID"],["accountId","账号"]])}{header([["dungeonName","地下城"],["dungeonId","ID"],["difficulty","难度"]])}{header([["count","次数"]])}{header([["fastestMs","最快"],["averageMs","平均"]])}{header([["fatigueSpent","消耗疲劳"],["averageFatigue","平均每次"]])}{header([["peakHourly","单小时峰值"]])}{header([["lastClearAt","最近通关"]])}<th>操作</th></tr></thead><tbody>{rows.map(c=><tr key={`${c.characterId}/${c.dungeonId}/${c.difficulty}`}><td><strong>{c.characterName||c.characterId}</strong><small>角色 {c.characterId} · {c.accountId}</small></td><td>{c.dungeonName||c.dungeonId}<small>ID {c.dungeonId} · 难度 {c.difficulty}</small></td><td>{c.count}</td><td className={c.fastestMs>0&&c.fastestMs<=seconds*1000?"moderation-flag":""}>{duration(c.fastestMs)}<small>{duration(c.averageMs)}</small></td><td>{fatigue(c.fatigueSpent)}<small>平均 {fatigue(c.averageFatigue,true)} · {c.fatigueSamples||0}/{c.count} 局已采集</small></td><td className={c.peakHourly>=hourly?"moderation-flag":""}>{c.peakHourly} 次</td><td>{stamp(c.lastClearAt)}</td><td><button className="text-button" disabled={!canWrite||!!pending?.confirmed} onClick={()=>void prepare("account",c.accountId,c.accountId)}>封禁账号</button></td></tr>)}</tbody></table></div>{loaded&&!rows.length&&<Empty title="当前条件下没有通关记录"/>}</div>
   </>:tab==="accounts"?<div className="table-panel glass moderation-table"><div className="table-scroll"><table><thead><tr>{header([["name","账号"],["id","ID"]])}{header([["lastLoginIp","最近登录 IP"]])}{header([["registrationIp","注册 IP"]])}{header([["disabled","登录限制"]])}<th>操作</th></tr></thead><tbody>{(page.rows as ModerationAccount[]).map(a=><tr key={a.id}><td><strong>{a.name}</strong><small>{a.id}</small></td><td>{a.lastLoginIp||"—"}</td><td>{a.registrationIp||"—"}</td><td>{a.disabled?"已限制":"正常"}</td><td><div className="moderation-actions"><button className="text-button" disabled={!canWrite||!!pending?.confirmed} onClick={()=>void prepare("account",a.id,a.name)}>封禁账号</button>{a.lastLoginIp&&<button className="text-button" disabled={!canWrite||!!pending?.confirmed} onClick={()=>void prepare("ip",a.lastLoginIp,a.lastLoginIp)}>封禁登录 IP</button>}</div></td></tr>)}</tbody></table></div>{loaded&&!page.rows.length&&<Empty title="没有匹配的账号"/>}</div>:<>
    <div className="moderation-ip glass"><Field label="封禁 IP"><input value={ip} onChange={e=>setIP(e.target.value)} placeholder="IPv4 或 IPv6 地址"/></Field><button className="secondary" disabled={!canWrite||!ip.trim()||!!pending?.confirmed} onClick={()=>void prepare("ip",ip.trim(),ip.trim())}><BanIcon size={15}/>封禁 IP</button></div>
-   <div className="table-panel glass moderation-table"><div className="table-scroll"><table><thead><tr>{header([["label","目标"],["kind","类型"],["target","ID / IP"]])}{header([["state","状态"]])}{header([["reason","原因"]])}{header([["expiresAt","到期时间"]])}{header([["updatedAt","更新时间"]])}<th>操作</th></tr></thead><tbody>{(page.rows as Ban[]).map(b=><tr key={`${b.kind}/${b.target}`}><td><strong>{b.label}</strong><small>{b.kind==="ip"?"IP 地址":"账号"} · {b.target}</small></td><td>{banState(b)}</td><td>{b.reason}</td><td>{b.expiresAt?stamp(b.expiresAt):"永久"}</td><td>{stamp(b.updatedAt)}</td><td><button className="text-button" disabled={!canWrite||!!pending?.confirmed} onClick={()=>void prepare(b.kind,b.target,b.label,banState(b)==="封禁中",b)}>{banState(b)==="封禁中"?<><UnlockKeyhole size={14}/>解除封禁</>:"重新封禁"}</button></td></tr>)}</tbody></table></div>{loaded&&!page.rows.length&&<Empty title="没有封禁记录"/>}</div>
+   <div className="table-panel glass moderation-table"><div className="table-scroll"><table><thead><tr>{header([["label","目标"],["kind","类型"],["target","ID / IP"]])}{header([["state","状态"]])}{header([["reason","原因"]])}{header([["expiresAt","到期时间"]])}{header([["updatedAt","更新时间"]])}<th>操作</th></tr></thead><tbody>{(page.rows as Ban[]).map(b=><tr key={`${b.kind}/${b.target}`}><td><strong>{b.label}</strong><small>{b.kind==="ip"?"IP 地址":"账号"} · {b.target}</small></td><td>{banState(b)}</td><td>{b.reason}{b.qqActions?.map(a=><small key={a.id}>{qqActionLabel(a)}</small>)}</td><td>{b.expiresAt?stamp(b.expiresAt):"永久"}</td><td>{stamp(b.updatedAt)}</td><td><button className="text-button" disabled={!canWrite||!!pending?.confirmed} onClick={()=>void prepare(b.kind,b.target,b.label,banState(b)==="封禁中",b)}>{banState(b)==="封禁中"?<><UnlockKeyhole size={14}/>解除封禁</>:"重新封禁"}</button></td></tr>)}</tbody></table></div>{loaded&&!page.rows.length&&<Empty title="没有封禁记录"/>}</div>
   </>}
   <div className="moderation-pagination"><span>第 {offset/50+1} 页 · 当前 {page.rows.length} 条</span><button className="secondary" disabled={loading||offset===0} onClick={()=>void load(Math.max(0,offset-50))}>上一页</button><button className="secondary" disabled={loading||!page.hasMore} onClick={()=>void load(offset+50)}>下一页</button><button className="text-button" disabled={loading} onClick={()=>void load(offset)}><RefreshCw size={14}/>刷新</button></div>
   {pending&&show&&<Modal title={pending.change.revoke?"解除封禁":"确认封禁"} onClose={close} dismissOnBackdrop={!busy} footer={<><button className="secondary" disabled={busy} onClick={close}>{pending.confirmed?"稍后继续":"取消"}</button><button className="primary" disabled={busy||(!pending.confirmed&&!reason.trim())} onClick={()=>void confirm()}>{busy?<LoaderCircle size={16} className="spin"/>:null}{pending.confirmed?"使用原请求重试":pending.change.revoke?"确认解除":"确认封禁"}</button></>}>
    <div className="moderation-confirm"><strong>{pending.label}</strong><p>{pending.change.kind==="ip"?"IP":"账号"}：{pending.change.target}</p><p>{pending.change.revoke?"解除本条封禁记录。":pending.change.kind==="ip"?"阻止此 IP 注册、登录和进入游戏，并断开匹配的游戏连接。":"阻止此账号登录和进入游戏，并断开当前游戏连接。"}</p>
    {pending.confirmed?<><p>原因：{pending.change.reason}</p><p>期限：{pending.change.expiresAt?stamp(pending.change.expiresAt):"永久"}</p></>:<><Field label="原因"><textarea maxLength={160} value={reason} onChange={e=>setReason(e.target.value)} autoFocus/></Field>{!pending.change.revoke&&<Field label="封禁期限"><select value={hours} onChange={e=>setHours(e.target.value)}><option value="1">1 小时</option><option value="24">1 天</option><option value="168">7 天</option><option value="720">30 天</option><option value="0">永久</option></select></Field>}</>}
+   {pending.targets&&!pending.change.revoke&&<div className="moderation-linked">
+    <strong>同时处理</strong>
+    {([['lastLoginIp','最近登录 IP'],['registrationIp','注册 IP']] as const).map(([key,label])=><label key={key}><input type="checkbox" disabled={busy||pending.confirmed||!pending.targets?.[key]} checked={!!pending.change.linked?.[key]} onChange={e=>setPending({...pending,change:{...pending.change,linked:{...pending.change.linked,[key]:e.target.checked?pending.targets?.[key]:undefined}}})}/>{label}：{pending.targets?.[key]||"无记录"}</label>)}
+    <label><input type="checkbox" disabled={busy||pending.confirmed||!pending.targets.qq||!pending.targets.groups?.length} checked={!!pending.change.linked?.qq} onChange={e=>setPending({...pending,change:{...pending.change,linked:{...pending.change.linked,qq:e.target.checked?pending.targets?.qq:undefined,groups:e.target.checked?pending.targets?.groups:undefined,settingsRevision:e.target.checked?pending.targets?.settingsRevision:undefined}}})}/>踢出群聊并加入黑名单：{pending.targets.qq||"未绑定 QQ"}</label>
+    {pending.targets.qq&&<small>群：{pending.targets.groups?.join("、")||"未配置"}。QQ 黑名单持续生效；解除账号封禁后仍保留。</small>}
+   </div>}
    {writeError&&<p role="alert">{writeError}</p>}</div>
   </Modal>}
  </div>;

@@ -13,4 +13,8 @@ namespace ServerS5A3;
 [JsonSerializable(typeof(ReleaseManifest))]
 public partial class CoreJson : JsonSerializerContext { }
 
-public sealed record AccountRequest(string account, string password, string device);
+public sealed record AccountRequest(string account, string password, string device)
+{
+    public string? newPassword { get; init; }
+    public bool requireQQBinding { get; init; }
+}

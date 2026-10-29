@@ -5,6 +5,7 @@ package adminapi
 import (
 	"dnf90.local/gateway/internal/modules/dnf/moderation"
 	"dnf90.local/gateway/internal/modules/dnf/onlineevent"
+	"dnf90.local/gateway/internal/modules/dnf/qqbinding"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
@@ -12,6 +13,11 @@ const Version = 1
 const Path = "/api/game/admin"
 
 type Request struct {
+	QQAck           *moderation.QQAck           `json:"qqAck,omitempty"`
+	QQ              string                      `json:"qq,omitempty"`
+	QQSettings      *qqbinding.Settings         `json:"qqSettings,omitempty"`
+	QQComplete      *qqbinding.Complete         `json:"qqComplete,omitempty"`
+	QQQuery         *qqbinding.Query            `json:"qqQuery,omitempty"`
 	ModerationQuery *moderation.Query           `json:"moderationQuery,omitempty"`
 	BanChange       *moderation.BanChange       `json:"banChange,omitempty"`
 	AccountID       string                      `json:"accountId,omitempty"`
@@ -26,6 +32,12 @@ type Request struct {
 }
 
 type Response struct {
+	BanTargets         *moderation.BanTargets       `json:"banTargets,omitempty"`
+	QQActions          []moderation.QQAction        `json:"qqActions,omitempty"`
+	QQBlocked          bool                         `json:"qqBlocked,omitempty"`
+	QQSettings         *qqbinding.Settings          `json:"qqSettings,omitempty"`
+	QQBinding          *qqbinding.Binding           `json:"qqBinding,omitempty"`
+	QQBindings         *qqbinding.Page              `json:"qqBindings,omitempty"`
 	Clears             *moderation.ClearPage        `json:"clears,omitempty"`
 	Bans               *moderation.BanPage          `json:"bans,omitempty"`
 	Ban                *moderation.Ban              `json:"ban,omitempty"`

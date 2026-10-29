@@ -73,7 +73,32 @@ type ClearPage struct {
 	From    time.Time    `json:"from"`
 	To      time.Time    `json:"to"`
 }
+type BanTargets struct {
+	LastLoginIP      string   `json:"lastLoginIp,omitempty"`
+	RegistrationIP   string   `json:"registrationIp,omitempty"`
+	QQ               string   `json:"qq,omitempty"`
+	Groups           []string `json:"groups,omitempty"`
+	SettingsRevision uint64   `json:"settingsRevision,omitempty"`
+}
+type QQAction struct {
+	ID        string `json:"id"`
+	AccountID string `json:"accountId"`
+	QQ        string `json:"qq"`
+	Group     string `json:"group"`
+	State     string `json:"state"`
+	Attempts  int    `json:"attempts"`
+	Cause     string `json:"cause"`
+	Lease     string `json:"lease,omitempty"`
+}
+type QQAck struct {
+	ID      string `json:"id"`
+	Lease   string `json:"lease"`
+	Success bool   `json:"success"`
+	Cause   string `json:"cause"`
+}
 type Ban struct {
+	LinkedIPs []string   `json:"linkedIps,omitempty"`
+	QQActions []QQAction `json:"qqActions,omitempty"`
 	Kind      string     `json:"kind"`
 	Target    string     `json:"target"`
 	Label     string     `json:"label"`
@@ -85,13 +110,14 @@ type Ban struct {
 	UpdatedAt time.Time  `json:"updatedAt"`
 }
 type BanChange struct {
-	RequestID string     `json:"requestId"`
-	Kind      string     `json:"kind"`
-	Target    string     `json:"target"`
-	Reason    string     `json:"reason"`
-	ExpiresAt *time.Time `json:"expiresAt"`
-	Revoke    bool       `json:"revoke"`
-	Revision  uint64     `json:"revision"`
+	Linked    *BanTargets `json:"linked,omitempty"`
+	RequestID string      `json:"requestId"`
+	Kind      string      `json:"kind"`
+	Target    string      `json:"target"`
+	Reason    string      `json:"reason"`
+	ExpiresAt *time.Time  `json:"expiresAt"`
+	Revoke    bool        `json:"revoke"`
+	Revision  uint64      `json:"revision"`
 }
 
 func CanonicalIP(raw string) (string, error) {
@@ -102,6 +128,21 @@ func CanonicalIP(raw string) (string, error) {
 	return ip.Unmap().String(), nil
 }
 func (c *BanChange) Normalize(now time.Time) error {
+	if c.Linked != nil {
+		if c.Kind != "account" || c.Revoke || len(c.Linked.Groups) > 32 {
+			return errors.New("invalid linked ban")
+		}
+		for _, ip := range []string{c.Linked.LastLoginIP, c.Linked.RegistrationIP} {
+			if ip != "" {
+				if canonical, err := CanonicalIP(ip); err != nil || canonical != ip {
+					return errors.New("invalid linked IP")
+				}
+			}
+		}
+		if c.Linked.QQ != "" && (len(c.Linked.Groups) == 0 || len(c.Linked.QQ) > 16) {
+			return errors.New("invalid linked QQ")
+		}
+	}
 	c.Target = strings.TrimSpace(c.Target)
 	c.Reason = strings.TrimSpace(c.Reason)
 	if len(c.RequestID) < 16 || len(c.RequestID) > 80 || c.Target == "" || len(c.Target) > 128 || len(c.Reason) == 0 || len(c.Reason) > 512 {

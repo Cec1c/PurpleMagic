@@ -15,6 +15,14 @@ enum UpdatePhase {
   error,
 }
 
+class AccountFailure implements Exception {
+  AccountFailure(this.message, this.code, this.retryAfter);
+  final String message, code;
+  final int retryAfter;
+  @override
+  String toString() => message;
+}
+
 abstract class CoreClient {
   void Function(Map<String, dynamic>)? onState;
   Future<Map<String, dynamic>> call(
@@ -63,7 +71,11 @@ class ProcessCoreClient extends CoreClient {
               completer.complete(reply);
             } else {
               completer.completeError(
-                StateError(reply['error'] as String? ?? '操作未完成。'),
+                AccountFailure(
+                  reply['error'] as String? ?? '操作未完成。',
+                  reply['errorCode'] as String? ?? '',
+                  (reply['retryAfter'] as num?)?.toInt() ?? 0,
+                ),
               );
             }
           } catch (_) {
@@ -126,6 +138,64 @@ class LauncherController extends ChangeNotifier {
   String source = '本服批准源', message = '正在连接登录器核心…', version = '';
   String launcherVersion = '';
   String clientVersion = '';
+  bool requireQQBinding = false;
+  final _accountCooldowns = <String, DateTime>{};
+  int accountCooldown(String account) {
+    final remaining =
+        _accountCooldowns[account.trim().toLowerCase()]
+            ?.difference(DateTime.now())
+            .inSeconds ??
+        0;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  Future<Map<String, dynamic>> _accountCall(
+    String method,
+    String account,
+    String password, [
+    String newPassword = '',
+  ]) async {
+    final remaining = accountCooldown(account);
+    if (remaining > 0) {
+      throw AccountFailure(
+        '请等待 $remaining 秒后重试',
+        'account_cooldown',
+        remaining,
+      );
+    }
+    try {
+      return await client.call(method, {
+        'account': account.trim(),
+        'password': password,
+        'newPassword': newPassword,
+      });
+    } on AccountFailure catch (error) {
+      if (error.retryAfter > 0) {
+        _accountCooldowns[account.trim().toLowerCase()] = DateTime.now().add(
+          Duration(seconds: error.retryAfter),
+        );
+      }
+      if (error.code == 'qq_binding_required') requireQQBinding = true;
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> accountSecurity(
+    bool changing,
+    String account,
+    String password,
+    String next,
+  ) async {
+    final reply = await _accountCall(
+      changing ? 'changePassword' : 'bindingCode',
+      account,
+      password,
+      next,
+    );
+    return Map<String, dynamic>.from(reply['accountResult'] as Map? ?? {});
+  }
+
   String clientDirectory = '', account = '';
   bool rememberAccount = true;
   bool diagnosticsEnabled = false, diagnosticBusy = false;
@@ -164,6 +234,7 @@ class LauncherController extends ChangeNotifier {
   };
   void _receive(Map<String, dynamic> state) {
     if (_disposed) return;
+    requireQQBinding = state["requireQQBinding"] == true;
     phase = switch (state['phase']) {
       'checking' => UpdatePhase.checking,
       'downloading' => UpdatePhase.downloading,
@@ -341,10 +412,7 @@ class LauncherController extends ChangeNotifier {
   }
 
   Future<void> submit(bool register, String account, String password) async {
-    await client.call(register ? 'register' : 'login', {
-      'account': account,
-      'password': password,
-    });
+    await _accountCall(register ? 'register' : 'login', account, password);
   }
 
   Future<bool> updateLauncher() async {

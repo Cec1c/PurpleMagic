@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
 import 'diagnostics_panel.dart';
+import 'account_security_panel.dart';
 export 'launcher_controller.dart';
 
 List<String> launchArguments = const [];
@@ -689,6 +690,24 @@ class _PreviewHomeState extends State<PreviewHome> {
               ],
             ),
           ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (model.requireQQBinding) ...[
+                _link(
+                  '绑定 QQ',
+                  () => _accountSecurity(false),
+                  key: 'qq-binding',
+                ),
+                const SizedBox(width: 18),
+              ],
+              _link(
+                '修改密码',
+                () => _accountSecurity(true),
+                key: 'change-password',
+              ),
+            ],
+          ),
           SizedBox(
             height: 20,
             child: Align(
@@ -1058,6 +1077,18 @@ class _PreviewHomeState extends State<PreviewHome> {
         confirmation.clear();
       });
     }
+  }
+
+  Future<void> _accountSecurity(bool changing) async {
+    if (submitting || model.busy) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AccountSecurityPanel(
+        model: model,
+        changing: changing,
+        initialAccount: account.text,
+      ),
+    );
   }
 
   Future<void> _submit() async {

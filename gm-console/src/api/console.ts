@@ -853,9 +853,13 @@ export class ConsoleAPI {
       }
     }
   }
+  async qqBindingSettings(signal?:AbortSignal) {return (await this.http.get("/api/v1/anti-cheat/qq/settings",signal)).data;}
+  async saveQQBindingSettings(settings:{enabled:boolean;groups:string[];revision:number}) {return await this.http.post("/api/v1/anti-cheat/qq/settings",settings);}
+  async qqBindings(search:string,offset:number,signal?:AbortSignal) {return (await this.http.get(query("/api/v1/anti-cheat/qq/bindings",{search,offset}),signal)).data;}
   async moderation(resource: "clears" | "accounts" | "bans", params: Record<string,string|number|undefined>, signal?: AbortSignal) {
     return (await this.http.get(query(`/api/v1/anti-cheat/${resource}`,params),signal)).data;
   }
+  async banTargets(account:string) {return (await this.http.get<import("../moderation").BanTargets>("/api/v1/anti-cheat/ban-targets/"+encodeURIComponent(account))).data;}
   async changeBan(change: import("../moderation").BanChange) {
     return await this.http.post<import("../moderation").Ban>("/api/v1/anti-cheat/bans",change,change.requestId);
   }

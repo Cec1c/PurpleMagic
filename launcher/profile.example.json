@@ -7,5 +7,6 @@
   "BootstrapPort": 10000,
   "ExeSha256": "REPLACE_WITH_VERIFIED_CLIENT_SHA256",
   "PvfSha256": "REPLACE_WITH_VERIFIED_PVF_SHA256",
+  "RequireQQBinding": false,
   "DefaultClientDirectory": ""
 }

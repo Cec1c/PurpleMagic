@@ -23,10 +23,13 @@ import (
 	"time"
 
 	"dnf90.local/gateway/internal/management"
+	"dnf90.local/gateway/internal/modules/dnf/adminapi"
 	"dnf90.local/gateway/internal/services/launcherhub"
 )
 
 type config struct {
+	QQBotListen     string              `json:"qq_bot_listen,omitempty"`
+	QQBotToken      string              `json:"qq_bot_token,omitempty"`
 	Management      *management.Config  `json:"management,omitempty"`
 	Listen          string              `json:"listen"`
 	Certificate     string              `json:"certificate"`
@@ -75,7 +78,7 @@ func handlerWithHub(c config, hub *launcherhub.Hub) http.Handler {
 		switch {
 		case hub != nil && (strings.HasPrefix(r.URL.Path, "/launcher/v2/") || strings.HasPrefix(r.URL.Path, "/blobs/")):
 			hub.PublicHandler().ServeHTTP(w, r)
-		case r.Method == "POST" && (r.URL.Path == "/api/account/login" || r.URL.Path == "/api/account/register"):
+		case r.Method == "POST" && (r.URL.Path == "/api/account/login" || r.URL.Path == "/api/account/register" || r.URL.Path == "/api/account/password" || r.URL.Path == "/api/account/binding-code"):
 			r.Body = http.MaxBytesReader(w, r.Body, 4096)
 			proxy.ServeHTTP(w, r)
 		case r.Method == "GET" && r.URL.Path == "/api/status":
@@ -237,6 +240,18 @@ func runGateway(ctx context.Context, c config) error {
 	if c.Listen != "" {
 		servers = append(servers, &http.Server{Addr: c.Listen, Handler: handlerWithHub(c, hub), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 6 * time.Hour, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, TLSConfig: tlsConfig})
 	}
+	if c.QQBotListen != "" {
+		host, _, e := net.SplitHostPort(c.QQBotListen)
+		ip := net.ParseIP(host)
+		if e != nil || ip == nil || !ip.IsLoopback() || c.Management == nil || len(c.QQBotToken) < 32 {
+			return errors.New("QQ bot listener requires loopback, management and a separate token")
+		}
+		client, e := adminapi.NewClient(c.Management.GameAPI, c.Management.GameToken)
+		if e != nil {
+			return e
+		}
+		servers = append(servers, &http.Server{Addr: c.QQBotListen, Handler: withQQBot(http.NotFoundHandler(), client, c.QQBotToken), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, MaxHeaderBytes: 4096})
+	}
 	var admin http.Handler
 	var api http.Handler
 	var listen string
@@ -246,6 +261,16 @@ func runGateway(ctx context.Context, c config) error {
 	}
 	if module != nil {
 		api = module.Handler
+		if c.QQBotToken != "" {
+			if len(c.QQBotToken) < 32 {
+				return errors.New("QQ bot token requires at least 32 characters")
+			}
+			client, e := adminapi.NewClient(c.Management.GameAPI, c.Management.GameToken)
+			if e != nil {
+				return e
+			}
+			api = withQQBot(api, client, c.QQBotToken)
+		}
 		listen = c.Management.Listen
 	}
 	if listen != "" {
@@ -262,7 +287,13 @@ func runGateway(ctx context.Context, c config) error {
 		}
 	}()
 	for _, server := range servers {
-		go func() { errorsCh <- server.ListenAndServeTLS("", "") }()
+		go func() {
+			if server.TLSConfig == nil {
+				errorsCh <- server.ListenAndServe()
+			} else {
+				errorsCh <- server.ListenAndServeTLS("", "")
+			}
+		}()
 	}
 	select {
 	case <-ctx.Done():

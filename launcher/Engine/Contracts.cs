@@ -18,13 +18,15 @@ public sealed record State(string Phase, string Message, double Progress, long D
 {
     public string LauncherVersion => LauncherEngine.VersionText;
     public string ClientVersion { get; init; } = "";
+    public bool RequireQQBinding { get; init; }
     public DiagnosticStatus? Diagnostics { get; init; }
 }
 public sealed record Request(int Id, string Method, JsonElement Args);
-public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null, DiagnosticExport? DiagnosticExport = null);
+public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null, DiagnosticExport? DiagnosticExport = null, LoginReply? AccountResult = null, string? ErrorCode = null, long RetryAfter = 0);
 public sealed record ConfigurationReset(bool Reset, string? BackupPath);
 public sealed record Event(string Type, State State);
 public sealed record Credentials(string Account, string Password);
+public sealed record PasswordChange(string Account, string Password, string NewPassword);
 public sealed record TransactionEntry(string Path, bool HadOriginal);
 public sealed record TransactionJournal(string Phase, TransactionEntry[] Entries, string? PreviousReceipt);
 public sealed record BundleJob(string InstallRoot, string Package, string Envelope, int UiPid, long UiStart, int CorePid, long CoreStart, string Work, string Phase);
@@ -43,6 +45,8 @@ public sealed record BundleOutcome(string Version, bool Succeeded, string Reason
 [JsonSerializable(typeof(Response))]
 [JsonSerializable(typeof(Event))]
 [JsonSerializable(typeof(Credentials))]
+[JsonSerializable(typeof(PasswordChange))]
+[JsonSerializable(typeof(LoginReply))]
 [JsonSerializable(typeof(TransactionJournal))]
 [JsonSerializable(typeof(BundleJob))]
 [JsonSerializable(typeof(BundleOutcome))]

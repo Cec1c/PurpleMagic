@@ -142,3 +142,16 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 	}
 	v1Reply(w, r, 200, v1Envelope{Data: data})
 }
+
+func (s *Server) v1BanTargets(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Runtime == nil {
+		v1Fail(w, r, 503, "moderation_unavailable", "反作弊服务暂不可用", true)
+		return
+	}
+	out, err := s.deps.Runtime.Call(r.Context(), adminapi.Request{Action: "ban_targets", AccountID: r.PathValue("account")})
+	if err != nil || out.BanTargets == nil {
+		v1Fail(w, r, 503, "moderation_unavailable", "读取封禁目标失败，请重试", true)
+		return
+	}
+	v1Reply(w, r, 200, v1Envelope{Data: out.BanTargets})
+}

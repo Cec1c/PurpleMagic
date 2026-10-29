@@ -46,6 +46,10 @@ async Task Dispatch(Request request)
             case "preferences": await engine.SavePreferences(request.Args.Deserialize(WireJson.Default.Preferences) ?? throw new InvalidDataException()); break;
             case "register": await engine.Register(request.Args.Deserialize(WireJson.Default.Credentials) ?? throw new InvalidDataException()); break;
             case "login": await engine.Login(request.Args.Deserialize(WireJson.Default.Credentials) ?? throw new InvalidDataException()); break;
+            case "bindingCode":
+            case "changePassword":
+                var accountResult = await engine.AccountSecurity(request.Method == "bindingCode" ? "binding-code" : "password", request.Args.Deserialize(WireJson.Default.PasswordChange) ?? throw new InvalidDataException());
+                Respond(new(request.Id, true, State: engine.State, AccountResult: accountResult)); return;
             case "diagnosticExport":
                 var export = await engine.ExportDiagnostics(request.Args.GetProperty("sessionId").GetString()!, request.Args.GetProperty("path").GetString()!);
                 Respond(new(request.Id, true, State: engine.State, DiagnosticExport: export)); return;
@@ -71,7 +75,7 @@ async Task Dispatch(Request request)
             OperationCanceledException => "操作已取消或超时。",
             _ => "操作未完成，请重试并联系管理员。"
         };
-        Respond(new(request.Id, false, message, engine.State));
+        Respond(new(request.Id, false, message, engine.State, ErrorCode: (error as AccountApiException)?.Code, RetryAfter: (error as AccountApiException)?.RetryAfter ?? 0));
     }
 }
 while (await Console.In.ReadLineAsync() is { } line)

@@ -1,9 +1,12 @@
 export type ClearStats = {accountId:string;characterId:string;characterName:string;dungeonId:number;dungeonName:string;difficulty:number;count:number;lastClearAt:string;fastestMs:number;averageMs:number;peakHourly:number;fatigueSpent:number|null;averageFatigue:number|null;fatigueSamples:number};
-export type Ban = {kind:"account"|"ip";target:string;label:string;reason:string;expiresAt:string|null;revoked:boolean;active:boolean;revision:number;updatedAt:string};
-export type BanChange = {requestId:string;kind:"account"|"ip";target:string;reason:string;expiresAt:string|null;revoke:boolean;revision:number};
+export type BanTargets={lastLoginIp?:string;registrationIp?:string;qq?:string;groups?:string[];settingsRevision?:number};
+export type QQAction={id:string;qq:string;group:string;state:string;cause:string;attempts:number};
+export function qqActionLabel(a:QQAction){return `群 ${a.group}：${a.state==="succeeded"?(a.cause==="not_in_group"?"已列黑名单，当前不在群内":"已踢出并列入黑名单"):a.state==="running"?"正在处理":a.state==="retry"?(a.cause==="permission_denied"?"机器人权限不足，等待重试":"QQ 接口失败，等待重试"):"等待机器人处理"}`;}
+export type Ban = {linkedIps?:string[];qqActions?:QQAction[];kind:"account"|"ip";target:string;label:string;reason:string;expiresAt:string|null;revoked:boolean;active:boolean;revision:number;updatedAt:string};
+export type BanChange = {linked?:BanTargets;requestId:string;kind:"account"|"ip";target:string;reason:string;expiresAt:string|null;revoke:boolean;revision:number};
 export type ModerationAccount = {id:string;name:string;lastLoginIp:string;registrationIp:string;disabled:boolean};
 export type Page<T> = {rows:T[];hasMore:boolean};
-export type PendingBan = {change:BanChange;label:string;confirmed:boolean};
+export type PendingBan = {targets?:BanTargets;change:BanChange;label:string;confirmed:boolean};
 export const pendingBanKey="purplemagic-moderation-pending-v1";
 export function readPendingBan(storage:Pick<Storage,"getItem">):PendingBan|null {
   try {const p=JSON.parse(storage.getItem(pendingBanKey)||"null");return p?.confirmed && typeof p.change?.requestId==="string" && ["account","ip"].includes(p.change.kind) && typeof p.change.target==="string" ? p : null;}catch{return null;}

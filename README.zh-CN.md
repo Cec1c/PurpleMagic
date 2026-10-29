@@ -25,13 +25,15 @@
 
 GM 查询先展示基础数据，再有限并发补齐；切页取消读取，超时与部分失败可重试。查询区提供 PVF 物品库，任务库可选择多个角色，设置支持将批准 PVF 直接载入内存。详见 [查询与 PVF 数据模式](docs/GM_QUERY_PERFORMANCE.md)。[游戏活动管理](docs/GM_ACTIVITY_MANAGEMENT.md) 使用独立侧栏，支持搜索、状态筛选及一次确认批量启停；保存配置在游戏服务下次重启时生效，页面分别显示配置与实际状态。
 
+登录器 **1.0.0** 增加 QQ 账号绑定与修改密码，开源示例配置默认关闭绑定。GM **反作弊 → 账号与 QQ 号** 管理允许群和绑定关系；玩家在登录器获取一次性绑定码后发送给机器人，每个 QQ 只能绑定一个账号。连续三次账号验证失败后，服务端执行十分钟冷却。详见[安装、使用和账号接口契约](docs/QQ_ACCOUNT_BINDING.md)。
+
 ## 能做什么
 
 GM 诊断可关联跨服务请求，并记录账号查询、福利详情和发放事务的阶段耗时。详见 [日志规范与排查方法](docs/GM_DIAGNOSTICS.md)。
 
 | 场景 | 当前能力 |
 | --- | --- |
-| 玩家登录 | Windows 注册、登录、客户端目录发现、频道检查与游戏启动；登录器源码版本 0.2.20 |
+| 玩家登录 | Windows 注册、登录、客户端目录发现、频道检查与游戏启动；登录器源码版本 1.0.0 |
 | 资源更新 | 配置更新源，校验签名清单和文件摘要，处理下载进度、暂停、安装与回退；登录器程序与游戏内容独立更新 |
 | 账号与角色 | 搜索、游标分页、在线筛选、完整账号角色展开，以及批量勾选和收件去重 |
 | 物品管理 | 物品栏、穿戴栏、宠物栏、仓库、账号仓库、宠物、时装、徽章八区；查看实例，调整已支持属性、替换同类物品及批量删除 |
@@ -110,8 +112,8 @@ docker compose --env-file runtime/selfhost/compose.env -f deploy/selfhost/compos
 
 ```text
 python scripts/prepare_launcher_profile.py --connection runtime/launcher-input/server.json --client D:/GameClient --certificate runtime/launcher-input/player-fullchain.pem --public-key runtime/launcher-input/update-public.pem --output runtime/launcher-input/profile.json
-BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-0.2.20
-BUILD_PORTABLE.bat --bundle dist/PurpleMagic-0.2.20.zip --output dist/PurpleMagic-0.2.20.exe --dotnet dotnet
+BUILD_FLUTTER.bat --flutter D:/SDKs/flutter --dotnet dotnet --profile-dir runtime/launcher-input --output dist/PurpleMagic-1.0.0
+BUILD_PORTABLE.bat --bundle dist/PurpleMagic-1.0.0.zip --output dist/PurpleMagic-1.0.0.exe --dotnet dotnet
 ```
 
 配置工具计算 EXE/PVF 和证书摘要，保留指定频道契约。玩家账号 `ApiUrl`、游戏直连 `GameHost:BootstrapPort` 和更新下载源分别配置。Windows 名称为 PurpleMagic，客户端目录使用系统文件夹选择器。

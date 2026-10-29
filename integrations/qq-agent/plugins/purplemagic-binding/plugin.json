@@ -1,0 +1,34 @@
+{
+  "id": "purplemagic-binding",
+  "name": "PurpleMagic 账号绑定",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "category": "message",
+  "description": "处理 /绑定 账号 绑定码，验证允许群成员身份并绑定游戏账号。 执行管理员确认的群封禁任务并拒绝黑名单加群。",
+  "enabledByDefault": false,
+  "capabilities": [
+    "message.account-binding",
+    "moderation.qq-tick",
+    "moderation.qq-event"
+  ],
+  "permissions": [
+    "web_fetch"
+  ],
+  "settings": {
+    "endpoint": "",
+    "token": ""
+  },
+  "configSchema": {
+    "endpoint": {
+      "type": "string",
+      "label": "本机绑定接口",
+      "description": "PlayerGateway 的回环 HTTP 绑定接口，例如 http://127.0.0.1:8782"
+    },
+    "token": {
+      "type": "string",
+      "label": "绑定接口凭据",
+      "description": "与网关 qq_bot_token 一致",
+      "secret": true
+    }
+  }
+}

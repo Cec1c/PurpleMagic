@@ -6,7 +6,20 @@ using System.Text.Json;
 
 namespace ServerS5A3;
 
-public sealed record LoginReply(bool Ok, string? Account_id, string? Token, string? Message);
+public sealed record LoginReply(bool Ok, string? Account_id, string? Token, string? Message)
+{
+    public string? Code { get; init; }
+    public long RetryAfter { get; init; }
+    public string? BindingCode { get; init; }
+    public string? BoundQQ { get; init; }
+    public long ExpiresAt { get; init; }
+    public string[] Groups { get; init; } = [];
+}
+public sealed class AccountApiException(LoginReply reply) : InvalidOperationException(reply.Message ?? "账号服务暂不可用。")
+{
+    public string? Code => reply.Code;
+    public long RetryAfter => reply.RetryAfter;
+}
 
 public sealed class PlayerApi : IDisposable
 {
@@ -33,13 +46,15 @@ public sealed class PlayerApi : IDisposable
             && (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0
             && Convert.ToHexString(SHA256.HashData(cert.RawData)).Equals(profile.CertificateSha256, StringComparison.OrdinalIgnoreCase);
     }
-    public async Task<LoginReply> Submit(string action, string account, string password, string device)
+    public async Task<LoginReply> Submit(string action, string account, string password, string device, string? newPassword = null)
     {
-        if (action is not ("register" or "login")) throw new ArgumentException(nameof(action));
-        using var response = await Http.PostAsJsonAsync(Profile.ApiUrl + "/api/account/" + action, new AccountRequest(account, password, device), CoreJson.Default.AccountRequest);
+        if (action is not ("register" or "login" or "binding-code" or "password")) throw new ArgumentException(nameof(action));
+        using var response = await Http.PostAsJsonAsync(Profile.ApiUrl + "/api/account/" + action, new AccountRequest(account, password, device) { newPassword = newPassword, requireQQBinding = Profile.RequireQQBinding }, CoreJson.Default.AccountRequest);
         try { responseObserved?.Invoke((int)response.StatusCode); } catch (Exception) { }
         var reply = await response.Content.ReadFromJsonAsync(CoreJson.Default.LoginReply);
-        if (reply?.Ok != true) throw new InvalidOperationException(reply?.Message ?? "账号服务暂不可用。");
+        if (reply?.Ok != true) throw new AccountApiException(reply ?? new(false, null, null, "账号服务暂不可用。"));
+        if (action == "login" && Profile.RequireQQBinding && string.IsNullOrWhiteSpace(reply.BoundQQ))
+            throw new InvalidOperationException("服务器未返回 QQ 绑定验证结果，请联系管理员更新账号服务。");
         return reply;
     }
     public async Task CheckStatus()
