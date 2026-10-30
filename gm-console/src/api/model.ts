@@ -27,6 +27,9 @@ export type LiveData = {
   questFilter: { status: string; q: string };
   catalog: Item[];
   catalogNext: string;
+  catalogQuery: string;
+  catalogTotal: number;
+  catalogLoading: boolean;
   jobs: { value: string; label: string }[];
   jobsRaw: import("../professions").ProfessionDefinition[];
   resources: Record<string, DTO>;
@@ -94,6 +97,9 @@ export const emptyState = (): State => ({
     questFilter: { status: "active", q: "" },
     catalog: [],
     catalogNext: "",
+    catalogQuery: "",
+    catalogTotal: 0,
+    catalogLoading: false,
     jobs: [],
     jobsRaw: [],
     resources: {},

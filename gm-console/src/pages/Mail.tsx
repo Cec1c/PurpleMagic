@@ -2,7 +2,6 @@ import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import {
   Send,
-  Plus,
   X,
   Users,
   Package,
@@ -13,10 +12,9 @@ import {
 } from "lucide-react";
 import { useLive } from "../api/context";
 import { LoadMore, TaskDetail } from "../api/controls";
-import type { Attachment, Item } from "../domain";
+import type { Attachment } from "../domain";
 import { resolveRecipients } from "../domain";
-import { catalog as demoCatalog } from "../fixtures";
-import { itemExpirationLabel, itemOptionLabel } from "../item-expiration";
+import { itemExpirationLabel } from "../item-expiration";
 import {
   Tabs,
   Field,
@@ -30,6 +28,8 @@ import {
   type PageProps,
 } from "../ui";
 import { PlayerPicker } from "./Players";
+import { ItemPicker } from "../ItemPicker";
+import { appendAttachments } from "../item-picker";
 
 export function MailPage({
   state,
@@ -40,26 +40,14 @@ export function MailPage({
 }: PageProps) {
   const live = useLive();
   const [taskId, setTaskId] = useState("");
-  const catalog: Pick<Item, "id" | "name" | "expiration">[] = state.api?.catalog || demoCatalog;
-  const [catalogQuery, setCatalogQuery] = useState("");
   const [tab, setTab] = useState<"compose" | "inbox" | "history">("compose"),
     [picker, setPicker] = useState(false),
     [title, setTitle] = useState("冒险补给"),
     [body, setBody] = useState("祝各位勇士冒险愉快！"),
     [gold, setGold] = useState(0),
     [items, setItems] = useState<Attachment[]>([]),
-    [itemId, setItemId] = useState(live ? "" : demoCatalog[8].id),
-    [count, setCount] = useState(100),
     [checked, setChecked] = useState<string[]>([]),
     [viewMail, setViewMail] = useState("");
-  useEffect(() => {
-    if (!live || tab !== "compose") return;
-    const timer = setTimeout(
-      () => void live.guard(() => live.catalog(catalogQuery)),
-      250,
-    );
-    return () => { clearTimeout(timer); live.cancelScope("catalog"); };
-  }, [live, catalogQuery, tab]);
   useEffect(() => {
     if (!live || tab === "compose") return;
     void live.guard(() => tab === "inbox" ? live.mailbox() : live.tasks());
@@ -71,21 +59,6 @@ export function MailPage({
   useEffect(() => {
     if (live && viewMail) void live.guard(() => live.mail(viewMail));
   }, [live, viewMail]);
-  useEffect(() => {
-    if (live && !catalog.some((i) => i.id === itemId))
-      setItemId(catalog[0]?.id || "");
-  }, [live, state.api?.catalog]);
-  function add() {
-    const i = catalog.find((i) => i.id === itemId);
-    if (!i) return;
-    setItems((prev) =>
-      prev.some((x) => x.id === i.id)
-        ? prev.map((x) =>
-            x.id === i.id ? { ...x, count: x.count + count } : x,
-          )
-        : [...prev, { id: i.id, name: i.name, count, enhance: 0, expiration: i.expiration }],
-    );
-  }
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
@@ -102,7 +75,7 @@ export function MailPage({
         />
       </div>
       {tab === "compose" ? (
-        <div className="compose-layout">
+        <div className="compose-layout item-compose-layout">
           <form
             className="glass content-panel"
             onSubmit={(e) => {
@@ -155,53 +128,7 @@ export function MailPage({
               <h3>附件与金币</h3>
               <span className="muted">{items.length} 种物品</span>
             </div>
-            {live && (
-              <Field label="查找附件">
-                <input
-                  className="catalog-search"
-                  placeholder="输入物品名称或 ID"
-                  value={catalogQuery}
-                  onChange={(e) => setCatalogQuery(e.target.value)}
-                />
-              </Field>
-            )}
-            <div className="attachment-add">
-              <Field label="物品">
-                <select
-                  value={itemId}
-                  onChange={(e) => setItemId(e.target.value)}
-                >
-                  {catalog.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {itemOptionLabel(i)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="数量">
-                <input
-                  type="number"
-                  min="1"
-                  max="99999"
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                />
-              </Field>
-              <button
-                type="button"
-                className="secondary"
-                disabled={
-                  !itemId ||
-                  !Number.isInteger(count) ||
-                  count < 1 ||
-                  count > 99999
-                }
-                onClick={add}
-              >
-                <Plus size={16} />
-                添加
-              </button>
-            </div>
+            {!items.length && <p className="attachment-empty">从物品列表添加附件，可一次勾选多种物品。</p>}
             <div className="attachment-list">
               {items.map((i) => (
                 <div key={i.id}>
@@ -263,7 +190,9 @@ export function MailPage({
               </button>
             </div>
           </form>
-          <aside className="glass content-panel summary-panel">
+          <aside className="item-picker-column">
+            <ItemPicker api={state.api} multiple addedIds={items.map(i => i.id)} onChoose={(selected, count) => setItems(appendAttachments(items, selected, count))} />
+            <section className="glass content-panel summary-panel">
             <h3>本次发放</h3>
             <dl className="detail-list">
               <div>
@@ -303,6 +232,7 @@ export function MailPage({
                 ))}
             </ul>
             {!recipients.length && <Empty title="选择收件人" />}
+            </section>
           </aside>
         </div>
       ) : tab === "inbox" ? (
@@ -428,7 +358,7 @@ export function MailPage({
             ? !!state.api?.mailNext
             : tab === "history"
               ? !!state.api?.taskNext
-              : !!state.api?.catalogNext
+              : false
         }
         onClick={() =>
           void live?.guard(() =>
@@ -436,7 +366,7 @@ export function MailPage({
               ? live.mailbox(true)
               : tab === "history"
                 ? live.tasks(true)
-                : live.catalog(catalogQuery, true),
+                : Promise.resolve(),
           )
         }
       />

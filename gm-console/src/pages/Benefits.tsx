@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useLive } from "../api/context";
-import { catalog as demoCatalog } from "../fixtures";
+import { ItemPicker } from "../ItemPicker";
+import type { CatalogItem } from "../item-picker";
+import { itemExpirationLabel } from "../item-expiration";
 import { LoadMore, TaskDetail } from "../api/controls";
 import { Gift, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { Field, CheckBox, Pill, number, type PageProps } from "../ui";
@@ -24,13 +26,7 @@ export function BenefitsPage({ state, request }: PageProps) {
   const [grantScope, setGrantScope] = useState<"character" | "account">("character");
   const [itemId, setItemId] = useState("");
   const [itemCount, setItemCount] = useState(1);
-  const [itemQuery, setItemQuery] = useState("");
-  const catalog = state.api?.catalog || demoCatalog;
-  useEffect(() => {
-    if (!live || !create || rewardKind !== "item") return;
-    const timer = setTimeout(() => void live.guard(() => live.catalog(itemQuery)), 250);
-    return () => clearTimeout(timer);
-  }, [live, create, rewardKind, itemQuery]);
+  const [selectedItem, setSelectedItem] = useState<CatalogItem>();
   return <div className="motion-section">
         <>
           <div className="workspace-intro">
@@ -45,6 +41,7 @@ export function BenefitsPage({ state, request }: PageProps) {
           </div>
           <BenefitReconciliation />
           {create && (
+            <div className={`benefit-create-layout ${rewardKind === "item" ? "with-item-picker" : ""}`}>
             <form
               className="glass content-panel benefit-create"
               onSubmit={(e) => {
@@ -57,7 +54,7 @@ export function BenefitsPage({ state, request }: PageProps) {
                   cera: benefitCera,
                   grantScope,
                   item: rewardKind === "item" ? {
-                    id: itemId.trim(), name: catalog.find((i) => i.id === itemId.trim())?.name || itemId.trim(),
+                    id: itemId.trim(), name: selectedItem?.id === itemId.trim() ? selectedItem.name : itemId.trim(),
                     count: itemCount, enhance: 0,
                   } : undefined,
                   enabled,
@@ -99,24 +96,15 @@ export function BenefitsPage({ state, request }: PageProps) {
                   />
                 </Field>}
                 {rewardKind === "item" && <>
-                  <Field label="查找道具">
-                    <input placeholder="输入物品名称或 ID" value={itemQuery} onChange={(e) => setItemQuery(e.target.value)} />
-                  </Field>
-                  <Field label="搜索结果">
-                    <select aria-label="搜索结果" value={catalog.some((i) => i.id === itemId) ? itemId : ""} onChange={(e) => setItemId(e.target.value)}>
-                      <option value="">选择道具</option>
-                      {catalog.filter((i) => live || !itemQuery || i.name.includes(itemQuery) || i.id.includes(itemQuery)).map((i) =>
-                        <option key={i.id} value={i.id}>{i.name} · {i.id}</option>)}
-                    </select>
-                  </Field>
                   <Field label="物品 ID">
-                    <input required inputMode="numeric" pattern="[1-9][0-9]*" value={itemId} onChange={(e) => setItemId(e.target.value)} />
+                    <input required inputMode="numeric" pattern="[1-9][0-9]*" value={itemId} onChange={(e) => { setItemId(e.target.value); setSelectedItem(undefined); }} />
                   </Field>
                   <Field label="每次发放数量">
                     <input required type="number" min="1" max="2147483647" step="1" value={itemCount} onChange={(e) => setItemCount(Number(e.target.value))} />
                   </Field>
                 </>}
               </div>
+              {rewardKind === "item" && selectedItem && <div className="selected-reward"><strong>{selectedItem.name}</strong><small>ID {selectedItem.id} · {itemExpirationLabel(selectedItem.expiration)}</small></div>}
               {rewardKind === "cera" && <p className="muted benefit-reward-hint">点券直接存入账号，所有角色共享；收件角色收到到账通知。每账号仅发放一次。</p>}
               {rewardKind === "item" && <p className="muted benefit-reward-hint">道具通过邮件发放，装备每封数量为 1。每条规则发放一种道具。</p>}
               <div className="check-options">
@@ -145,6 +133,8 @@ export function BenefitsPage({ state, request }: PageProps) {
                 </button>
               </div>
             </form>
+            {rewardKind === "item" && <ItemPicker api={state.api} selectedId={itemId} onChoose={items => { setSelectedItem(items[0]); setItemId(items[0].id); }} />}
+            </div>
           )}
           <div className="table-panel glass">
             <div className="table-scroll">

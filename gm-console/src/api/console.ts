@@ -186,6 +186,7 @@ export class ConsoleAPI {
     this.retries.clear();
     this.meta.reading = 0;
     this.meta.inventory.loading = false;
+    this.meta.catalogLoading = false;
     this.meta.error = "";
     this.publish();
   }
@@ -772,42 +773,45 @@ export class ConsoleAPI {
     this.meta.questPVF = data.pvfChecksum;
     this.patch({ questStates: { [id]: states } });
   }
-  async catalog(q: string, more = false) {
+  async catalog(q: string, more = false, batchSize = 300) {
+    q = q.trim();
+    if (![300, 500, 1000].includes(batchSize)) throw new Error("查询数量无效");
+    if (more && (this.meta.catalogQuery !== q || !this.meta.catalogNext)) return;
     const signal = this.signal("catalog");
-    const { data, page } = await this.http.get<DTO>(
-      query("/api/v1/items", {
-        q,
-        limit: 30,
-        cursor: more ? this.meta.catalogNext : undefined,
-      }),
-      signal,
-    );
-    if (signal.aborted) return;
-    const c =
-      this.state.characters.find((c) => c.id === this.current) ||
-      ({ id: "", accountId: "" } as Character);
-    this.meta.catalog = merge(
-      more ? this.meta.catalog : [],
-      (data.items || [])
-        .filter((v: DTO) => !v.invalid)
-        .map((v: DTO) =>
-          itemDTO(
-            {
-              ...v,
-              minimumLevel: v.minLevel,
-              slot: 0,
-              container: "catalog",
-              itemId: v.itemId ?? v.id,
-              count: "1",
-            },
-            c,
-            "bag",
-          ),
-        ),
-      (x) => x.id,
-    );
-    this.meta.catalogNext = page?.nextCursor || "";
+    if (!more) {
+      this.meta.catalog = [];
+      this.meta.catalogNext = "";
+      this.meta.catalogTotal = 0;
+    }
+    this.meta.catalogQuery = q;
+    this.meta.catalogLoading = true;
     this.publish();
+    const c = this.state.characters.find(c => c.id === this.current) || ({ id: "", accountId: "" } as Character);
+    const seenCursors = new Set<string>();
+    try {
+      for (let scanned = 0; scanned < batchSize; scanned += 100) {
+        const cursor = this.meta.catalogNext;
+        if (seenCursors.has(cursor)) throw new Error("物品查询未能继续，请重新搜索");
+        seenCursors.add(cursor);
+        const { data, page } = await this.http.get<DTO>(query("/api/v1/items", {
+          q, limit: 100, cursor: cursor || undefined,
+        }), signal);
+        if (signal.aborted) return;
+        this.meta.catalog = merge(this.meta.catalog, (data.items || [])
+          .filter((v: DTO) => !v.invalid)
+          .map((v: DTO) => itemDTO({ ...v, minimumLevel: v.minLevel, slot: 0,
+            container: "catalog", itemId: v.itemId ?? v.id, count: "1" }, c, "bag")), x => x.id);
+        this.meta.catalogNext = page?.nextCursor || "";
+        this.meta.catalogTotal = data.total ?? this.meta.catalog.length;
+        this.publish();
+        if (!this.meta.catalogNext) break;
+      }
+    } finally {
+      if (this.controllers.get("catalog")?.signal === signal) {
+        this.meta.catalogLoading = false;
+        this.publish();
+      }
+    }
   }
   async library(q: string, kind: string, more = false) {
     const signal = this.signal("library");
