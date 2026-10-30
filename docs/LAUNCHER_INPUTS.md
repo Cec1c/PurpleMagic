@@ -43,6 +43,8 @@ openssl pkey -in signing-key.pem -pubout -out update-public.pem
 
 ## 构建与检查
 
+反作弊是可选构建：普通构建不包含监护实现。需要时追加 `--anticheat`，再通过 `AntiCheat.Enabled=true` 启用；开始游戏需同意辅助程序 UAC 授权。配置、记录范围和独立更新通道见 [反作弊说明](LAUNCHER_ANTICHEAT.md)。
+
 构建机使用 Windows、Flutter、.NET 8 SDK、Visual Studio C++ 桌面工具与 NativeAOT。准备自己的 `launcher/Flutter/assets/background.webp` 和 `announcement.webp`；这两张美术输入不随源码分发。witch PNG 和 ICO 已在仓库，见 [品牌资源](BRANDING.md)。
 
 ```text

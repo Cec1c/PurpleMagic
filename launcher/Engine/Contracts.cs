@@ -10,7 +10,10 @@ namespace Dnf90.Launcher;
 public sealed record News(string Title, string Body, string Category, string Date);
 public sealed record ContentFile(string Path, long Length, string Sha256, bool Downloadable, string Compression, string BlobSha256, long BlobLength);
 public sealed record ContentRelease(string Version, string SourceId, string Channel, long SourceSequence, string SourcePayloadSha256, string Endpoint, string CertificateSha256, ContentFile[] Files);
-public sealed record BundleRelease(string Version, string Url, long Size, string Sha256);
+public sealed record BundleRelease(string Version, string Url, long Size, string Sha256)
+{
+    public string BuildFlavor { get; set; } = "standard";
+}
 public sealed record Bootstrap(string Product, int Format, long Sequence, PlayerProfile Profile, News[] News, ContentRelease? Content, BundleRelease? Launcher);
 // AutoCheck is the persisted legacy key; it now controls automatic check and installation of both update types.
 public sealed record Preferences(string ClientDirectory = "", string Account = "", bool RememberAccount = true, bool AutoCheck = true, bool ReducedEffects = false, DiagnosticOptions? Diagnostics = null);
@@ -18,6 +21,8 @@ public sealed record State(string Phase, string Message, double Progress, long D
 {
     public string LauncherVersion => LauncherEngine.VersionText;
     public string ClientVersion { get; init; } = "";
+    public string BuildFlavor => LauncherBuild.Flavor;
+    public bool AntiCheatEnabled { get; init; }
     public bool QQBindingEnabled { get; init; }
     public bool RequireQQBinding { get; init; }
     public DiagnosticStatus? Diagnostics { get; init; }
@@ -73,6 +78,7 @@ public static class Trust
             !Hash(b.Profile.CertificateSha256) || !Hash(b.Profile.ExeSha256) || !Hash(b.Profile.PvfSha256)) throw new InvalidDataException("账号入口或信任根发生不允许的变化。");
         _ = GameContract.Arguments("de509f65000000000000000000000000", b.Profile.GameHost, b.Profile.BootstrapPort);
         ChannelProbe.ValidateConfiguration(b.Profile);
+        b.Profile.AntiCheat?.Validate();
         if (!string.IsNullOrEmpty(b.Profile.MinimumLauncherVersion) &&
             (!Regex.IsMatch(b.Profile.MinimumLauncherVersion, @"^\d+\.\d+\.\d+$") || !Version.TryParse(b.Profile.MinimumLauncherVersion, out _)))
             throw new InvalidDataException("最低登录器版本无效。");
@@ -99,7 +105,7 @@ public static class Trust
         if (b.Launcher is { } bundle)
         {
             SignedUpdate.RequireHttps(bundle.Url);
-            if (!Version.TryParse(bundle.Version, out _) || !Hash(bundle.Sha256) || bundle.Size is < 1 or > SignedUpdate.MaxPackageBytes) throw new InvalidDataException("登录器发布信息无效。");
+            if (!Version.TryParse(bundle.Version, out _) || !Hash(bundle.Sha256) || bundle.Size is < 1 or > SignedUpdate.MaxPackageBytes || bundle.BuildFlavor is not ("standard" or "anticheat")) throw new InvalidDataException("登录器发布信息无效。");
         }
         return b;
     }

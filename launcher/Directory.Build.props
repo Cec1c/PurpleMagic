@@ -1,1 +1,13 @@
-<Project><PropertyGroup><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><Deterministic>true</Deterministic><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup></Project>
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><Deterministic>true</Deterministic><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AntiCheat Condition="'$(AntiCheat)' == ''">false</AntiCheat>
+    <DefineConstants Condition="'$(AntiCheat)' == 'true'">$(DefineConstants);ANTICHEAT</DefineConstants>
+    <BaseIntermediateOutputPath Condition="'$(AntiCheat)' == 'true'">obj-anticheat\</BaseIntermediateOutputPath>
+    <BaseOutputPath Condition="'$(AntiCheat)' == 'true'">bin-anticheat\</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/obj-anticheat/**;**/bin-anticheat/**;**/obj/**;**/bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <Target Name="ValidateAntiCheatFlag" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(AntiCheat)' != 'true' and '$(AntiCheat)' != 'false'" Text="AntiCheat must be true or false." />
+  </Target>
+</Project>

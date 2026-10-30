@@ -108,6 +108,7 @@ public static class BundleInstaller
     {
         ValidateJob(job);
         var raw = Convert.FromBase64String(job.Envelope); var release = Trust.Verify(raw, root).Launcher ?? throw new InvalidDataException("缺少登录器发布信息。");
+        LauncherBuild.RequireFlavor(release.BuildFlavor);
         if (!await SafeFiles.Matches(job.Package, release.Size, release.Sha256)) throw new InvalidDataException("登录器包摘要不符。");
         var app = Path.Combine(job.InstallRoot, "app");
         await BundleProcesses.WaitForOwner(app, job.UiPid, job.UiStart);
@@ -122,6 +123,7 @@ public static class BundleInstaller
             BundleProcesses.RequireExclusive(Path.Combine(job.InstallRoot, "app"));
             stage = "extract";
             var next = Path.Combine(job.Work, "next"); Extract(job.Package, next);
+            RequireBuildFlavor(next, release.BuildFlavor);
             job = job with { Phase = "prepared" }; Save(job);
             stage = "move-old-app";
             MoveDirectory(Path.Combine(job.InstallRoot, "app"), Path.Combine(job.Work, "previous")); job = job with { Phase = "old-moved" }; Save(job);
@@ -156,5 +158,14 @@ public static class BundleInstaller
             return 5;
         }
         finally { launched?.Dispose(); }
+    }
+    internal static void RequireBuildFlavor(string directory, string expected)
+    {
+        var file = Path.Combine(directory, "build-flavor.json"); SafeFiles.NoLinks(file);
+        if (!File.Exists(file)) { if (expected != "standard") throw new InvalidDataException("保护更新包缺少构建标识。"); return; }
+        if (new FileInfo(file).Length > 1024) throw new InvalidDataException("构建标识过大。");
+        using var json = JsonDocument.Parse(File.ReadAllBytes(file));
+        if (json.RootElement.GetProperty("format").GetInt32() != 1 || json.RootElement.GetProperty("flavor").GetString() != expected)
+            throw new InvalidDataException("更新包构建标识不匹配。");
     }
 }

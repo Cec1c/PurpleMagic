@@ -57,7 +57,10 @@ def prepare(source, target, version, icon):
             entry.compress_type = zipfile.ZIP_DEFLATED
             payload.writestr(entry, raw, compresslevel=9)
     raw = stream.getvalue()
-    metadata = {"version": version, "size": len(raw), "sha256": sha(raw), "files": {name: {"size": len(value), "sha256": sha(value)} for name, value in files.items()}}
+    marker = json.loads(files.get('app/build-flavor.json', b'{"format":1,"flavor":"standard"}'))
+    if marker.get('format') != 1 or marker.get('flavor') not in ('standard', 'anticheat'):
+        raise ValueError('Invalid build flavor marker')
+    metadata = {"version": version, "buildFlavor": marker['flavor'], "size": len(raw), "sha256": sha(raw), "files": {name: {"size": len(value), "sha256": sha(value)} for name, value in files.items()}}
     target.mkdir(parents=True, exist_ok=True)
     (target / "payload.zip").write_bytes(raw)
     (target / "payload.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")

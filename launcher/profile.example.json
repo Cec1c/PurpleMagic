@@ -9,5 +9,6 @@
   "PvfSha256": "REPLACE_WITH_VERIFIED_PVF_SHA256",
   "EnableQQBinding": false,
   "RequireQQBinding": false,
+  "AntiCheat": { "Enabled": false, "Mode": "audit" },
   "DefaultClientDirectory": ""
 }
