@@ -33,7 +33,7 @@ export function QueryPage(props: PageProps) {
     </>
   );
 }
-function ItemLibrary({ state }: PageProps) {
+export function ItemLibrary({ state }: PageProps) {
   const live = useLive()!;
   const [q, setQ] = useState(""),
     [kind, setKind] = useState(""),

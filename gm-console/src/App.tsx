@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import {
-  Search,
+  LayoutDashboard,
   Backpack,
   Mail,
   ScrollText,
@@ -38,7 +38,7 @@ import {
   type PageProps,
 } from "./ui";
 import { Inventory } from "./pages/Inventory";
-import { QueryPage } from "./pages/Query";
+import { Dashboard } from "./pages/Dashboard";
 import { Players, PlayerPicker } from "./pages/Players";
 import { MailPage } from "./pages/Mail";
 import { QuestPage } from "./pages/Quests";
@@ -59,10 +59,10 @@ const demo =
 const navigation = [
   {
     id: "query",
-    label: "查询",
-    icon: Search,
-    title: "查询资料",
-    sub: "查询账号、角色和 PVF 物品。",
+    label: "仪表盘",
+    icon: LayoutDashboard,
+    title: "仪表盘",
+    sub: "账号增长、游戏活跃与运营动态。",
   },
   {
     id: "inventory",
@@ -132,8 +132,9 @@ function readPreferences() {
   }
 }
 function readSection(): Section {
-  const id = location.hash.replace("#", "");
-  return navigation.some((n) => n.id === id) ? (id as Section) : "inventory";
+  const hash = location.hash.replace("#", "");
+  const id = hash === "dashboard" ? "query" : hash;
+  return navigation.some((n) => n.id === id) ? (id as Section) : "query";
 }
 
 export function App() {
@@ -435,7 +436,7 @@ export function App() {
           <main id="main-content">
             <div className="page-head">
               <div>
-                <p className="eyebrow">PURPLEMAGIC / {section.toUpperCase()}</p>
+                <p className="eyebrow">PURPLEMAGIC / {section === "query" ? "DASHBOARD" : section.toUpperCase()}</p>
                 <div className="page-title-row">
                   <h1>{nav.title}</h1>
                   <span
@@ -450,7 +451,7 @@ export function App() {
                 </div>
                 <p>{nav.sub}</p>
               </div>
-              {!["benefits", "activities", "anti-cheat"].includes(section) && <button
+              {!["query", "benefits", "activities", "anti-cheat"].includes(section) && <button
                 className="secondary current-target"
                 onClick={() => setPickCharacter(true)}
               >
@@ -483,7 +484,7 @@ export function App() {
                 </button>
               </div>
             )}
-            <div key={`${section}-${["benefits", "activities", "anti-cheat"].includes(section) ? "global" : character.id}`} className="page-content">
+            <div key={`${section}-${["query", "benefits", "activities", "anti-cheat"].includes(section) ? "global" : character.id}`} className="page-content">
               {live && !state.api?.authenticated ? (
                 <LoginPanel />
               ) : live &&
@@ -491,7 +492,7 @@ export function App() {
                 !["query", "accounts", "settings", "quests", "benefits", "activities", "anti-cheat"].includes(section) ? (
                 <div className="glass content-panel">
                   <Empty title="选择一位角色开始管理" />
-                  <button className="primary" onClick={() => go("query")}>
+                  <button className="primary" onClick={() => go("accounts")}>
                     查询账号与角色
                   </button>
                 </div>
@@ -500,7 +501,7 @@ export function App() {
                   {section === "inventory" ? (
                     <Inventory {...props} />
                   ) : section === "query" ? (
-                    <QueryPage {...props} />
+                    <Dashboard {...props} />
                   ) : section === "accounts" ? (
                     <Players {...props} accountMode />
                   ) : section === "mail" ? (

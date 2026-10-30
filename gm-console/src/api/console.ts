@@ -587,6 +587,7 @@ export class ConsoleAPI {
     else if (refresh && section === "benefits") await this.benefits();
     else if (refresh && section === "activities") await this.activities();
     else if (refresh && section === "anti-cheat") { this.meta.resources.moderationRefresh = { revision: Number(this.meta.resources.moderationRefresh?.revision || 0) + 1 }; this.publish(); }
+    else if (refresh && section === "query") { this.meta.resources.dashboardRefresh = { revision: Number(this.meta.resources.dashboardRefresh?.revision || 0) + 1 }; this.publish(); }
     else if (refresh && section === "settings") await this.hub();
   }
   async inventory(tab: InventoryTab, more = false) {
