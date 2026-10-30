@@ -82,7 +82,7 @@ func withQQBot(next http.Handler, client *adminapi.Client, token string) http.Ha
 		}
 		var data any = out.QQSettings
 		if in.Action == "qq_complete" {
-			data = out.QQBinding
+			data = map[string]bool{"bound": true}
 		}
 		switch in.Action {
 		case "qq_jobs":

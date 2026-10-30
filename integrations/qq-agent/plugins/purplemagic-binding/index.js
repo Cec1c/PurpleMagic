@@ -26,7 +26,10 @@ export function parseCommand(event, selfId) {
   }
   if (!/^\/绑定(?:\s|$)/u.test(text)) return null;
   // Consume even an unmentioned binding command so its code never enters AI.
-  const match = /^\/绑定\s+([A-Za-z0-9_]{3,20})\s+([a-f0-9]{32})$/u.exec(text);
+  const direct = /^\/绑定\s+([0-9]{6})$/u.exec(text);
+  // Transitional support for commands copied by previously released launchers.
+  const legacy = /^\/绑定\s+([A-Za-z0-9_]{3,20})\s+([0-9]{6}|[a-f0-9]{32})$/u.exec(text);
+  const match = direct ? {code:direct[1]} : legacy ? {code:legacy[2], ...(legacy[2].length===32?{account:legacy[1]}:{})} : null;
   return {qq, group:String(event.group_id ?? ''), kind:event.message_type, mentioned, match, eventId:String(event.message_id ?? ''), time:Number(event.time)};
 }
 
@@ -74,8 +77,8 @@ export const providers = {
         }
         if(!group)throw Error('请先加入允许绑定的 QQ 群，再发送绑定指令');
       }
-      if(!cmd.match)throw Error('请在登录器获取绑定码，然后发送：/绑定 账号 绑定码');
-      await request('complete',{account:cmd.match[1],code:cmd.match[2],qq:cmd.qq,group,revision:cfg.revision});
+      if(!cmd.match)throw Error('请在登录器获取绑定码，然后发送：/绑定 六位绑定码');
+      await request('complete',{...cmd.match,qq:cmd.qq,group,revision:cfg.revision});
       await sender.sendTextBatch(chat,['绑定成功，现在可以返回 PurpleMagic 登录游戏。']);
     } catch(e) {
       // Never log event bodies, binding codes or authentication headers.

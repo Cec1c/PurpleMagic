@@ -17,7 +17,7 @@ class BindingCore extends CoreClient {
     return {
       'accountResult': {
         'message': '绑定码已生成',
-        'bindingCode': 'a' * 32,
+        'bindingCode': '012345',
         'expiresAt': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 600,
       },
     };
@@ -71,7 +71,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
       expect(core.calls, ['bindingCode']);
-      expect(find.textContaining('/绑定 player '), findsOneWidget);
+      expect(find.text('/绑定 012345'), findsOneWidget);
+      expect(find.textContaining('/绑定 player'), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
         isEmpty,

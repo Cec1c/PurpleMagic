@@ -1,10 +1,10 @@
 {
   "id": "purplemagic-binding",
   "name": "PurpleMagic 账号绑定",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "apiVersion": 1,
   "category": "message",
-  "description": "处理 /绑定 账号 绑定码，验证允许群成员身份并绑定游戏账号。 执行管理员确认的群封禁任务并拒绝黑名单加群。",
+  "description": "处理 /绑定 六位码，验证允许群成员身份并绑定游戏账号。 执行管理员确认的群封禁任务并拒绝黑名单加群。",
   "enabledByDefault": false,
   "capabilities": [
     "message.account-binding",

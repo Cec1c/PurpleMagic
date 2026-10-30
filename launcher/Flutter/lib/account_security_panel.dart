@@ -80,7 +80,7 @@ class _AccountSecurityPanelState extends State<AccountSecurityPanel> {
         message = result['message'] as String? ?? '操作已完成';
         final code = result['bindingCode'] as String? ?? '';
         if (code.isNotEmpty) {
-          command = '/绑定 ${account.text.trim()} $code';
+          command = '/绑定 $code';
           expiresAt = (result['expiresAt'] as num?)?.toInt() ?? 0;
         }
         final qq = result['boundQQ'] as String? ?? '';
@@ -136,7 +136,7 @@ class _AccountSecurityPanelState extends State<AccountSecurityPanel> {
         ],
         if (!widget.changing)
           const Text(
-            '获取绑定码后，在允许群内艾特机器人，或私聊机器人发送绑定指令。',
+            '获取六位绑定码后，在允许群内艾特机器人，或私聊发送“/绑定 绑定码”。10 分钟有效，成功后失效。',
             style: TextStyle(
               fontSize: 11,
               color: Color(0xffb3aebf),
