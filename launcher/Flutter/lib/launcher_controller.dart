@@ -139,6 +139,10 @@ class LauncherController extends ChangeNotifier {
   String launcherVersion = '';
   String clientVersion = '';
   bool antiCheatEnabled = false;
+  static const antiCheatDisclosureVersion = 1;
+  int antiCheatConsentVersion = 0;
+  bool get needsAntiCheatConsent =>
+      antiCheatEnabled && antiCheatConsentVersion != antiCheatDisclosureVersion;
   bool qqBindingEnabled = false;
   bool requireQQBinding = false;
   final _accountCooldowns = <String, DateTime>{};
@@ -262,6 +266,7 @@ class LauncherController extends ChangeNotifier {
     antiCheatEnabled = state['antiCheatEnabled'] == true;
     news = (state['news'] as List? ?? []).cast<Map<String, dynamic>>();
     final prefs = state['preferences'] as Map<String, dynamic>? ?? {};
+    antiCheatConsentVersion = prefs['antiCheatConsentVersion'] as int? ?? 0;
     clientDirectory = prefs['clientDirectory'] as String? ?? '';
     account = prefs['account'] as String? ?? '';
     rememberAccount = prefs['rememberAccount'] != false;
@@ -346,6 +351,7 @@ class LauncherController extends ChangeNotifier {
     bool? check,
     bool? diagnosticEnabled,
     int? diagnosticConsent,
+    int? antiCheatConsent,
     String? problemType,
   }) async {
     await client.call('preferences', {
@@ -354,6 +360,7 @@ class LauncherController extends ChangeNotifier {
       'rememberAccount': remember ?? rememberAccount,
       'autoCheck': check ?? autoUpdate,
       'reducedEffects': effects ?? reducedEffects,
+      'antiCheatConsentVersion': antiCheatConsent ?? antiCheatConsentVersion,
       'diagnostics': {
         'enabled': diagnosticEnabled ?? diagnosticsEnabled,
         'consentVersion': diagnosticConsent ?? diagnosticConsentVersion,

@@ -113,6 +113,7 @@ void main() {
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(core.calls, isNot(contains('login')));
+    expect((core.state['preferences'] as Map)['antiCheatConsentVersion'], 0);
     await tester.enterText(find.byKey(const Key('password')), 'fixture-password');
     await tester.tap(find.byKey(const Key('primary')));
     await tester.pump();
@@ -120,6 +121,15 @@ void main() {
     await tester.tap(find.text('同意并继续'));
     await tester.pumpAndSettle();
     expect(core.calls.where((c) => c == 'login').length, 1);
+    expect((core.state['preferences'] as Map)['antiCheatConsentVersion'], 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await start(tester, controller: LauncherController(client: core));
+    await tester.enterText(find.byKey(const Key('password')), 'fixture-password');
+    await tester.tap(find.byKey(const Key('primary')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('anticheat-consent')), findsNothing);
+    expect(core.calls.where((c) => c == 'login').length, 2);
+    expect((core.state['preferences'] as Map)['antiCheatConsentVersion'], 1);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

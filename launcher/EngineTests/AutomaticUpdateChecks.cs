@@ -13,6 +13,7 @@ internal static class AutomaticUpdateChecks
     internal static async Task Run(string temp, PlayerProfile profile, Action<bool, string> check)
     {
         check(new Preferences().AutoCheck, "new installations enable automatic updates");
+        check(JsonSerializer.Deserialize("{}", WireJson.Default.Preferences)!.AntiCheatConsentVersion == 0, "legacy preferences require initial protection disclosure consent");
         check(JsonSerializer.Deserialize("{}", WireJson.Default.Preferences)!.AutoCheck, "missing legacy preference defaults to enabled");
         var state = Path.Combine(temp, "auto-preferences");
         using (var engine = new LauncherEngine(profile, state))
@@ -20,11 +21,12 @@ internal static class AutomaticUpdateChecks
             using var serialized = JsonDocument.Parse(JsonSerializer.Serialize(engine.State, WireJson.Default.State));
             check(serialized.RootElement.GetProperty("launcherVersion").GetString() == LauncherEngine.VersionText,
                 "wire state reports running launcher version independently of content version");
-            await engine.SavePreferences(new(AutoCheck: false));
+            await engine.SavePreferences(new(AutoCheck: false, AntiCheatConsentVersion: 1));
         }
         using (var engine = new LauncherEngine(profile, state))
         {
             check(!engine.State.Preferences.AutoCheck, "explicit opt-out survives engine restart");
+            check(engine.State.Preferences.AntiCheatConsentVersion == 1, "protection disclosure consent survives core restart");
             check(!await engine.AutomaticUpdate(-1) && !File.Exists(Path.Combine(state, "bootstrap.json")), "disabled automatic updates do not contact metadata or start installers");
         }
 
