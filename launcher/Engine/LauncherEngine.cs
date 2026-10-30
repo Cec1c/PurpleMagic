@@ -41,6 +41,9 @@ public sealed class LauncherEngine : IDisposable
     {
         root = trusted; stateRoot = dataDirectory; SafeFiles.NoLinks(stateRoot); Directory.CreateDirectory(stateRoot);
         root.AntiCheat?.Validate();
+#if ANTICHEAT
+        LegacyPreferences.Import(stateRoot);
+#endif
         var file = Path.Combine(stateRoot, "preferences.json");
         if (File.Exists(file)) preferences = JsonSerializer.Deserialize(File.ReadAllBytes(file), WireJson.Default.Preferences) ?? new();
         if (preferences.Diagnostics is { Enabled: true, HasConsent: false } legacy) {

@@ -12,6 +12,41 @@ internal static class AutomaticUpdateChecks
 {
     internal static async Task Run(string temp, PlayerProfile profile, Action<bool, string> check)
     {
+        var migrationRoot = Path.Combine(temp, "legacy-preferences");
+        var legacy = Path.Combine(migrationRoot, "DNF90Launcher");
+        var protectedState = Path.Combine(migrationRoot, "DNF90Launcher-anticheat");
+        Directory.CreateDirectory(legacy);
+        var oldClient = Path.Combine(migrationRoot, "existing-client");
+        Directory.CreateDirectory(oldClient);
+        File.WriteAllText(Path.Combine(oldClient, "DNF.exe"), "MZ isolated client");
+        File.WriteAllText(Path.Combine(oldClient, "Script.pvf"), "isolated pvf");
+        var previousPreferences = JsonSerializer.SerializeToUtf8Bytes(new Preferences(ClientDirectory: oldClient, Account: "migration-fixture", AutoCheck: false, ReducedEffects: true, AntiCheatConsentVersion: 99), WireJson.Default.Preferences);
+        File.WriteAllBytes(Path.Combine(legacy, "preferences.json"), previousPreferences);
+        File.WriteAllText(Path.Combine(legacy, "bootstrap.json"), "old channel sequence must not migrate");
+        using (var migrated = new LauncherEngine(profile, protectedState))
+        {
+            check(migrated.State.Preferences.Account == (LauncherBuild.AntiCheat ? "migration-fixture" : ""), "only protection builds import legacy preferences");
+#if ANTICHEAT
+            check(!migrated.State.Preferences.AutoCheck && migrated.State.Preferences.ReducedEffects, "migration preserves explicit update and interface choices");
+            check(migrated.State.Preferences.ClientDirectory == oldClient, "migration preserves the selected game directory");
+#endif
+            check(migrated.State.Preferences.AntiCheatConsentVersion == 0, "migration still requires initial protection consent");
+            check(!File.Exists(Path.Combine(protectedState, "bootstrap.json")), "legacy signed sequence and metadata do not cross channels");
+            await migrated.SavePreferences(new(Account: "new-choice", AntiCheatConsentVersion: 1));
+        }
+        using (var reopened = new LauncherEngine(profile, protectedState))
+            check(reopened.State.Preferences.Account == "new-choice" && reopened.State.Preferences.AntiCheatConsentVersion == 1, "existing protection preferences and consent are never overwritten");
+        check(File.ReadAllBytes(Path.Combine(legacy, "preferences.json")).SequenceEqual(previousPreferences), "migration preserves the original configuration");
+#if ANTICHEAT
+        foreach (var invalid in new[] { "{broken", "null", "{\"account\":null}", new string('x', 65537) })
+        {
+            var invalidRoot = Path.Combine(temp, "invalid-legacy-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(invalidRoot, "DNF90Launcher"));
+            File.WriteAllText(Path.Combine(invalidRoot, "DNF90Launcher", "preferences.json"), invalid);
+            using var fresh = new LauncherEngine(profile, Path.Combine(invalidRoot, "DNF90Launcher-anticheat"));
+            check(fresh.State.Preferences.Account == "" && fresh.State.Preferences.AntiCheatConsentVersion == 0, "invalid legacy preferences allow a fresh protected start");
+        }
+#endif
         check(new Preferences().AutoCheck, "new installations enable automatic updates");
         check(JsonSerializer.Deserialize("{}", WireJson.Default.Preferences)!.AntiCheatConsentVersion == 0, "legacy preferences require initial protection disclosure consent");
         check(JsonSerializer.Deserialize("{}", WireJson.Default.Preferences)!.AutoCheck, "missing legacy preference defaults to enabled");
