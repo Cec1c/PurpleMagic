@@ -35,24 +35,30 @@ type Config struct {
 	GMPassword       string                `json:"gm_password,omitempty"`
 }
 type Profile struct {
-	EnableQQBinding         bool     `json:"EnableQQBinding,omitempty"`
-	RequireQQBinding        bool     `json:"RequireQQBinding,omitempty"`
-	ApiURL                  string   `json:"ApiUrl"`
-	CertificateSHA256       string   `json:"CertificateSha256"`
-	UpdatePublicKey         string   `json:"UpdatePublicKey"`
-	SettingsURL             string   `json:"SettingsUrl"`
-	GameHost                string   `json:"GameHost"`
-	BootstrapPort           int      `json:"BootstrapPort"`
-	ExeSHA256               string   `json:"ExeSha256"`
-	PvfSHA256               string   `json:"PvfSha256"`
-	DefaultClientDirectory  string   `json:"DefaultClientDirectory"`
-	ChannelHistory          *History `json:"ChannelHistory,omitempty"`
-	ChannelServerID         int      `json:"ChannelServerId,omitempty"`
-	PreviousChannelServerID *int     `json:"PreviousChannelServerId,omitempty"`
-	MinimumLauncherVersion  string   `json:"MinimumLauncherVersion,omitempty"`
+	AntiCheat               *AntiCheatPolicy `json:"AntiCheat,omitempty"`
+	EnableQQBinding         bool             `json:"EnableQQBinding,omitempty"`
+	RequireQQBinding        bool             `json:"RequireQQBinding,omitempty"`
+	ApiURL                  string           `json:"ApiUrl"`
+	CertificateSHA256       string           `json:"CertificateSha256"`
+	UpdatePublicKey         string           `json:"UpdatePublicKey"`
+	SettingsURL             string           `json:"SettingsUrl"`
+	GameHost                string           `json:"GameHost"`
+	BootstrapPort           int              `json:"BootstrapPort"`
+	ExeSHA256               string           `json:"ExeSha256"`
+	PvfSHA256               string           `json:"PvfSha256"`
+	DefaultClientDirectory  string           `json:"DefaultClientDirectory"`
+	ChannelHistory          *History         `json:"ChannelHistory,omitempty"`
+	ChannelServerID         int              `json:"ChannelServerId,omitempty"`
+	PreviousChannelServerID *int             `json:"PreviousChannelServerId,omitempty"`
+	MinimumLauncherVersion  string           `json:"MinimumLauncherVersion,omitempty"`
 }
 
 func (p Profile) validateDirectory() error {
+	if p.AntiCheat != nil {
+		if err := p.AntiCheat.validate(); err != nil {
+			return err
+		}
+	}
 	if p.MinimumLauncherVersion != "" && !versionPattern.MatchString(p.MinimumLauncherVersion) {
 		return errors.New("invalid minimum launcher version")
 	}
@@ -114,10 +120,11 @@ type Content struct {
 	Files               []File `json:"files"`
 }
 type Bundle struct {
-	Version string `json:"version"`
-	URL     string `json:"url"`
-	Size    int64  `json:"size"`
-	SHA256  string `json:"sha256"`
+	BuildFlavor string `json:"buildFlavor,omitempty"`
+	Version     string `json:"version"`
+	URL         string `json:"url"`
+	Size        int64  `json:"size"`
+	SHA256      string `json:"sha256"`
 }
 type Bootstrap struct {
 	Product  string   `json:"product"`

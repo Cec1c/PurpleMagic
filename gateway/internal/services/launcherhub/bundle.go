@@ -103,6 +103,15 @@ func (h *Hub) uploadBundle(w http.ResponseWriter, r *http.Request) {
 		failure(w, 500, "写入失败")
 		return
 	}
+	flavor, e := bundleFlavor(f, size)
+	if e != nil {
+		failure(w, 400, e.Error())
+		return
+	}
+	if h.profile.AntiCheat != nil && h.profile.AntiCheat.Enabled && flavor != "anticheat" {
+		failure(w, 400, "启用保护的配置需要 anticheat 构建")
+		return
+	}
 	f.Close()
 	sha := hex.EncodeToString(hash.Sum(nil))
 	target := filepath.Join(dir, sha+".zip")
@@ -117,11 +126,22 @@ func (h *Hub) uploadBundle(w http.ResponseWriter, r *http.Request) {
 		failure(w, 409, "登录器版本必须递增")
 		return
 	}
-	h.state.Published.Launcher = &Bundle{Version: version, URL: strings.TrimRight(h.profile.ApiURL, "/") + "/launcher/v2/bundles/" + sha + ".zip", Size: size, SHA256: sha}
+	if old := previous.Launcher; old != nil {
+		oldFlavor := old.BuildFlavor
+		if oldFlavor == "" {
+			oldFlavor = "standard"
+		}
+		if oldFlavor != flavor {
+			failure(w, 409, "请为不同保护类型使用独立的签名发布通道")
+			return
+		}
+	}
+	h.state.Published.Launcher = &Bundle{Version: version, URL: strings.TrimRight(h.profile.ApiURL, "/") + "/launcher/v2/bundles/" + sha + ".zip", Size: size, SHA256: sha, BuildFlavor: flavor}
 	// Publish the compiled account-binding policy with the new launcher, while
 	// preserving the current game endpoints and signed content compatibility.
 	h.state.Published.Profile.EnableQQBinding = h.profile.EnableQQBinding
 	h.state.Published.Profile.RequireQQBinding = h.profile.RequireQQBinding
+	h.state.Published.Profile.AntiCheat = h.profile.AntiCheat.clone()
 	h.state.Published.Sequence++
 	if e = h.save(); e != nil {
 		h.state.Published = previous
