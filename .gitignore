@@ -20,6 +20,8 @@ __pycache__/
 *.pyc
 launcher/**/bin/
 launcher/**/obj/
+launcher/**/obj-anticheat/
+launcher/**/bin-anticheat/
 /launcher/Flutter/assets/
 /launcher/Flutter/artifacts/
 !/launcher/Flutter/windows/runner/resources/app_icon.ico

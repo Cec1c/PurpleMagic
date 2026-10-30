@@ -8,7 +8,10 @@ using Dnf90.Launcher;
 namespace Dnf90.Portable;
 
 public sealed record FileDigest(long Size, string Sha256);
-public sealed record Payload(string Version, long Size, string Sha256, Dictionary<string, FileDigest> Files);
+public sealed record Payload(string Version, long Size, string Sha256, Dictionary<string, FileDigest> Files)
+{
+    public string BuildFlavor { get; set; } = "standard";
+}
 public sealed record Seed(string Product, string PayloadSha256, string Version);
 public sealed record Prepared(string Directory, bool Reused);
 
@@ -28,7 +31,7 @@ public static class PortableCache
 
     private static void ValidatePayload(Payload payload)
     {
-        if (!Hash(payload.Sha256) || payload.Size is <= 0 or > MaxSize ||
+        if (payload.BuildFlavor is not ("standard" or "anticheat") || !Hash(payload.Sha256) || payload.Size is <= 0 or > MaxSize ||
             !Regex.IsMatch(payload.Version, @"^\d+\.\d+\.\d+$") || payload.Files.Count is < 8 or > 2000)
             throw new InvalidDataException("便携包清单无效。");
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

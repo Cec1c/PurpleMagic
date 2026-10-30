@@ -12,6 +12,8 @@ try
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DNF90Launcher", "portable");
     using var metadata = typeof(Program).Assembly.GetManifestResourceStream("payload.json")!;
     var payload = JsonSerializer.Deserialize(metadata, PortableJson.Default.Payload) ?? throw new InvalidDataException();
+    if (payload.BuildFlavor is not ("standard" or "anticheat")) throw new InvalidDataException("发行包类型无效。");
+    if (payload.BuildFlavor == "anticheat") cache = Path.Combine(cache, "anticheat");
     using var archive = typeof(Program).Assembly.GetManifestResourceStream("payload.zip")!;
     var result = PortableCache.Prepare(archive, payload, cache);
     if (prepareOnly)

@@ -22,6 +22,16 @@ deploy_tool = module('deploy/selfhost/prepare.py', 'deploy_tool')
 
 
 class DeploymentTools(unittest.TestCase):
+    def test_anticheat_is_opt_in_and_validated(self):
+        profile_tool.validate_anticheat(None)
+        profile_tool.validate_anticheat({'Enabled': False})
+        profile_tool.validate_anticheat({'Enabled': True, 'Mode': 'audit', 'RequiredFiles': [{'Name': 'fixture.dll', 'Sha256': 'a'*64}]})
+        for policy in [{'Enabled': 'false'}, {'Enable': True}, {'Mode': 'kill'}, {'Rules': None},
+                       {'RequiredFiles': [{'Name': '../fixture.dll', 'Sha256': 'a'*64}]},
+                       {'Rules': [{'Id': 'test', 'Scope': 'process', 'Sha256': 'file.exe'}]}]:
+            with self.assertRaises(ValueError):
+                profile_tool.validate_anticheat(policy)
+
     @classmethod
     def setUpClass(cls):
         cls.scratch = tempfile.TemporaryDirectory(prefix='purplemagic-config-')

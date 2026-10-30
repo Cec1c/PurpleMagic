@@ -5,6 +5,9 @@ using System.Text.Json;
 using Microsoft.Win32;
 using ServerS5A3;
 using Dnf90.Launcher.Diagnostics;
+#if ANTICHEAT
+using Dnf90.Launcher.AntiCheat;
+#endif
 
 namespace Dnf90.Launcher;
 
@@ -23,6 +26,12 @@ public sealed class LauncherEngine : IDisposable
     private ContentFile[] plan = [];
     private string clientVersion = "";
     private readonly List<(string Account, Process Process)> games = [];
+#if ANTICHEAT
+    private readonly List<AntiCheatSession> protectedGames = [];
+    private readonly object guardLock = new();
+    private readonly CancellationTokenSource guardLifetime = new();
+    private bool guardClosing;
+#endif
     private readonly DiagnosticService diagnostics;
     public event Action<State>? Changed;
     private State state = new("ready", "正在读取本机设置…", 0, 0, 0, false, false, false, "本服批准源", "", new(), []);
@@ -31,6 +40,7 @@ public sealed class LauncherEngine : IDisposable
     public LauncherEngine(PlayerProfile trusted, string dataDirectory)
     {
         root = trusted; stateRoot = dataDirectory; SafeFiles.NoLinks(stateRoot); Directory.CreateDirectory(stateRoot);
+        root.AntiCheat?.Validate();
         var file = Path.Combine(stateRoot, "preferences.json");
         if (File.Exists(file)) preferences = JsonSerializer.Deserialize(File.ReadAllBytes(file), WireJson.Default.Preferences) ?? new();
         if (preferences.Diagnostics is { Enabled: true, HasConsent: false } legacy) {
@@ -61,8 +71,8 @@ public sealed class LauncherEngine : IDisposable
         var busy = phase is "checking" or "downloading" or "installing" or "logging-in" or "resetting";
         State = new(phase, message, total == 0 ? 0 : Math.Clamp((double)current / total, 0, 1), current, total,
             !busy && phase != "paused" && plan.Length == 0 && preferences.ClientDirectory != "" && SupportsContent(Profile), plan.Length != 0,
-            bootstrap?.Launcher is { } b && System.Version.Parse(b.Version) > System.Version.Parse(VersionText),
-            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion, QQBindingEnabled = root.EnableQQBinding, RequireQQBinding = Profile.RequireQQBinding };
+            bootstrap?.Launcher is { } b && b.BuildFlavor == LauncherBuild.Flavor && System.Version.Parse(b.Version) > System.Version.Parse(VersionText),
+            bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion, QQBindingEnabled = root.EnableQQBinding, RequireQQBinding = Profile.RequireQQBinding, AntiCheatEnabled = LauncherBuild.AntiCheat && Profile.AntiCheat is { Enabled: true } };
         Changed?.Invoke(State);
     }
     private void RefreshClientVersion() => clientVersion = InstalledClientVersion.Read(preferences.ClientDirectory, root, bootstrap);
@@ -97,6 +107,7 @@ public sealed class LauncherEngine : IDisposable
     {
         RequireNoGames();
         var release = bootstrap?.Launcher ?? throw new InvalidOperationException("尚未发布登录器更新。");
+        LauncherBuild.RequireFlavor(release.BuildFlavor);
         if (System.Version.Parse(release.Version) <= System.Version.Parse(VersionText)) throw new InvalidOperationException("当前登录器已是最新版本。");
         var app = Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar);
         var install = Path.GetDirectoryName(app)!; BundleInstaller.ValidateRoot(install);
@@ -292,6 +303,9 @@ public sealed class LauncherEngine : IDisposable
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("已有操作正在进行。");
+#if ANTICHEAT
+        AntiCheatSession? guard = null;
+#endif
         try
         {
             diagnostics.Event("login_started");
@@ -312,6 +326,22 @@ public sealed class LauncherEngine : IDisposable
                 Emit("checking", "公会兼容补丁已应用，原版客户端已备份。");
             games.RemoveAll(g => g.Process.HasExited);
             if (games.Any(g => g.Account.Equals(input.Account.Trim(), StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("该账号已经启动，请使用另一个账号。");
+            if (Profile.AntiCheat is { Enabled: true }) {
+#if ANTICHEAT
+                lock (guardLock) {
+                    if (guardClosing) throw new InvalidOperationException("登录器已关闭。");
+                    foreach (var finished in protectedGames.Where(g => g.Completed).ToArray()) { finished.Dispose(); protectedGames.Remove(finished); }
+                }
+                Emit("checking", "正在请求管理员授权以启动反作弊保护；退出登录器将结束本次游戏…");
+                guard = await AntiCheatSession.Start(preferences.ClientDirectory, envelope, stateRoot, message => Emit("error", message), guardLifetime.Token);
+                lock (guardLock) {
+                    if (guardClosing) throw new InvalidOperationException("登录器已关闭。");
+                    protectedGames.Add(guard);
+                }
+#else
+                throw new InvalidOperationException("AC00：本服已要求反作弊保护，请使用 anticheat 发行包。");
+#endif
+            }
             var channels = await ChannelProbe.Check(Profile, m => Emit("checking", m));
             diagnostics.Event("channel_verified", stageClock.Elapsed.TotalMilliseconds, channels.ServerId); stageClock.Restart();
             Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile, status => diagnostics.Event("account_http_response", number: status));
@@ -327,7 +357,13 @@ public sealed class LauncherEngine : IDisposable
             }
             finally { foreach (var process in running) process.Dispose(); }
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = preferences.ClientDirectory, Arguments = GameContract.Arguments(reply.Token ?? "", Profile.GameHost, Profile.BootstrapPort) };
-            var game = Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。"); games.Add((input.Account.Trim(), game));
+            Process game;
+#if ANTICHEAT
+            game = guard is null ? Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。") : await guard.Launch(executable, start.Arguments);
+#else
+            game = Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。");
+#endif
+            games.Add((input.Account.Trim(), game));
             diagnostics.Track(game, executable);
             diagnostics.Event("process_started", stageClock.Elapsed.TotalMilliseconds);
             preferences = preferences with { Account = preferences.RememberAccount ? input.Account.Trim() : "" };
@@ -336,10 +372,18 @@ public sealed class LauncherEngine : IDisposable
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             try { await game.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
             if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。");
+#if ANTICHEAT
+            guard = null; // Ownership remains with the launcher until game/launcher exit.
+#endif
             Emit("ready", channels.Message + " 客户端正在运行。");
         }
         catch (Exception error) { diagnostics.Failure("login_error", error); Emit("error", "登录未完成，请查看提示。"); throw; }
-        finally { operation.Release(); }
+        finally {
+#if ANTICHEAT
+            guard?.Dispose();
+#endif
+            operation.Release();
+        }
     }
     private static void ValidateCredentials(Credentials input)
     { if (input.Account.Trim().Length is < 1 or > 64 || input.Password.Length is < 1 or > 64) throw new InvalidDataException("账号或密码长度无效。"); }
@@ -359,5 +403,11 @@ public sealed class LauncherEngine : IDisposable
     public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string target) => diagnostics.Export(sessionId, target);
     public Task ElevateDiagnostics(string sessionId) => diagnostics.Elevate(sessionId);
     public void RecordDiagnosticError(Exception error) => diagnostics.Failure("operation_error", error);
-    public void Dispose() { download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
+    public void StopProtectedGames()
+    {
+#if ANTICHEAT
+        lock (guardLock) { guardClosing = true; guardLifetime.Cancel(); foreach (var session in protectedGames) session.Dispose(); protectedGames.Clear(); }
+#endif
+    }
+    public void Dispose() { StopProtectedGames(); download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
 }

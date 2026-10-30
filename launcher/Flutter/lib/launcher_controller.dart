@@ -138,6 +138,7 @@ class LauncherController extends ChangeNotifier {
   String source = '本服批准源', message = '正在连接登录器核心…', version = '';
   String launcherVersion = '';
   String clientVersion = '';
+  bool antiCheatEnabled = false;
   bool qqBindingEnabled = false;
   bool requireQQBinding = false;
   final _accountCooldowns = <String, DateTime>{};
@@ -258,6 +259,7 @@ class LauncherController extends ChangeNotifier {
     version = state['version'] as String? ?? '';
     launcherVersion = state['launcherVersion'] as String? ?? '';
     clientVersion = state['clientVersion'] as String? ?? '';
+    antiCheatEnabled = state['antiCheatEnabled'] == true;
     news = (state['news'] as List? ?? []).cast<Map<String, dynamic>>();
     final prefs = state['preferences'] as Map<String, dynamic>? ?? {};
     clientDirectory = prefs['clientDirectory'] as String? ?? '';

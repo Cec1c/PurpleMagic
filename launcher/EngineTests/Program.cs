@@ -7,6 +7,12 @@ using System.Text.Json;
 using Dnf90.Launcher;
 using ServerS5A3;
 
+#if ANTICHEAT
+if (args.Length == 3 && args[0] == "--anticheat-check") {
+    await AntiCheatChecks.Native(args[1],args[2],(ok,name)=>{if(!ok)throw new Exception(name);Console.WriteLine("PASS "+name);});return;
+}
+#endif
+
 if (args.Length > 0 && args[0] == "--diagnostic-observer") { Environment.Exit(await Dnf90.Launcher.Diagnostics.DiagnosticObserver.Run(args)); return; }
 if (args.Length == 2 && args[0] == "--diagnostic-crash-check") {
     Directory.CreateDirectory(args[1]);
@@ -29,6 +35,7 @@ async Task RejectAsync(Func<Task> action, string name) { try { await action(); }
 var temp = Path.Combine(Path.GetTempPath(), "dnf90-engine-tests-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
 try
 {
+    AntiCheatChecks.Policy(temp, Check);
     await DiagnosticChecks.Run(temp, Check);
     using var key = RSA.Create(2048);
     var root = new PlayerProfile("https://accounts.example.test", new string('a', 64), key.ExportSubjectPublicKeyInfoPem(), "https://accounts.example.test/old-wpf-settings", "192.0.2.1", 7001, new string('b', 64), new string('c', 64), "");

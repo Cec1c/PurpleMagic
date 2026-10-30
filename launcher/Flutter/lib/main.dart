@@ -901,6 +901,11 @@ class _PreviewHomeState extends State<PreviewHome> {
                 TextSpan(
                   children: [
                     TextSpan(text: model.status),
+                    if (model.antiCheatEnabled)
+                      const TextSpan(
+                        text: '  ·  反作弊保护',
+                        style: TextStyle(color: gold),
+                      ),
                     if (model.clientVersion.isNotEmpty)
                       TextSpan(
                         text: '  ·  ${model.clientVersion}',
@@ -1094,6 +1099,30 @@ class _PreviewHomeState extends State<PreviewHome> {
         remembered: account.text.trim(),
         remember: remember,
       );
+      if (!mounted) return;
+      if (!creating && model.antiCheatEnabled) {
+        final agreed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            key: const Key('anticheat-consent'),
+            title: const Text('启动反作弊保护'),
+            content: const Text(
+              '本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n游戏和登录器界面保持普通权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('同意并继续'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || agreed != true) return;
+      }
       await model.submit(creating, account.text.trim(), password.text);
       if (!mounted) return;
       password.clear();

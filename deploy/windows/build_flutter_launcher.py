@@ -20,14 +20,21 @@ def main():
     parser.add_argument("--flutter", type=Path, default=Path(os.environ.get("FLUTTER_SDK", "D:/SDKs/flutter")))
     parser.add_argument("--dotnet", type=Path, default=ROOT / ".cache/dotnet8/dotnet.exe")
     parser.add_argument("--profile-dir", type=Path, default=ROOT / "runtime/launcher-input")
+    parser.add_argument("--anticheat", action="store_true", help="Compile optional UAC anti-cheat support; policy remains opt-in")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/DNF90-Flutter-1.0.3")
     args = parser.parse_args()
+    flavor = 'anticheat' if args.anticheat else 'standard'
+    if args.anticheat and args.output == ROOT / "dist/DNF90-Flutter-1.0.3":
+        args.output = args.output.with_name(args.output.name + '-anticheat')
     target = args.output.resolve()
     if target.exists():
         raise SystemExit("Output already exists; choose a new --output to preserve it")
     profile = args.profile_dir.resolve()
     if not (profile / "profile.json").is_file():
         raise SystemExit("Missing approved private profile.json")
+    policy = json.loads((profile / 'profile.json').read_text(encoding='utf-8-sig')).get('AntiCheat') or {}
+    if policy.get('Enabled') and not args.anticheat:
+        raise SystemExit('AntiCheat.Enabled requires --anticheat')
     project = ROOT / "launcher/Flutter"
     for name in ("background.webp", "announcement.webp"):
         if not (project / "assets" / name).is_file():
@@ -42,9 +49,11 @@ def main():
     if vs is None:
         raise SystemExit("Visual Studio C++ build tools are required")
     cmake = vs / "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
-    core = ROOT / "runtime/flutter-build/core"
+    core = ROOT / "runtime/flutter-build" / flavor / "core"
     bootstrap = ROOT / "runtime/flutter-build/bootstrap"
-    run([args.dotnet, "publish", "launcher/Host/Launcher.Host.csproj", "-c", "Release", "-r", "win-x64", "-p:LauncherInput=" + str(profile), "-o", core])
+    run([args.dotnet, "publish", "launcher/Host/Launcher.Host.csproj", "-c", "Release", "-r", "win-x64", "-p:AntiCheat=" + str(args.anticheat).lower(), "-p:LauncherInput=" + str(profile), "-o", core])
+    if subprocess.check_output([str(core / 'DNF90.Core.exe'), '--build-flavor'], text=True).strip() != flavor:
+        raise RuntimeError('Compiled core flavor mismatch')
     flutter = args.flutter / "bin/flutter.bat"
     run([flutter, "--no-version-check", "--suppress-analytics", "pub", "get", "--offline"], project)
     run([flutter, "--no-version-check", "--suppress-analytics", "build", "windows", "--release", "--no-pub"], project)
@@ -53,12 +62,18 @@ def main():
     target.mkdir(parents=True)
     shutil.copytree(project / "build/windows/x64/runner/Release", target / "app")
     shutil.copy2(core / "DNF90.Core.exe", target / "app/DNF90.Core.exe")
+    (target / 'app/build-flavor.json').write_text(json.dumps({'format': 1, 'flavor': flavor}), encoding='utf-8')
     shutil.copy2(bootstrap / "Release/DNF90Launcher.exe", target / "DNF90Launcher.exe")
     crt = sorted((vs / "VC/Redist/MSVC").glob("*/x64/Microsoft.VC143.CRT"))[-1]
     for name in ("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"):
         shutil.copy2(crt / name, target / "app" / name)
     (target / "launcher.id").write_text("DNF90-Flutter-bundle-v1\n", encoding="utf-8")
     (target / "使用说明.txt").write_text("PurpleMagic 登录器 1.0.3\n\n双击 DNF90Launcher.exe。只需保留整个目录；app 内为运行文件，请勿单独移动。\n选择包含 DNF.exe / Script.pvf 的配套客户端目录。账号与密码发送到本服，密码不保存。\n客户端更新和公告需部署配套网关后发布；未部署时会明确提示，登录仍使用内置的本服兼容配置。\n更新前退出游戏。登录器自身更新会整体替换 app，并在启动失败时尝试恢复旧版。\n账号/目录/界面设置保存在当前用户 LocalAppData/DNF90Launcher。\n设置 → 增强诊断日志：默认关闭。开启后按每次游戏启动自动记录，保留最近五次；每份日志旁边点击导出，另存为 .log 文件。\n频道配置过大时可进入设置，确认后备份并重置本机 DNF.cfg；游戏内账号记忆和个人设置可能重置，服务端角色与装备不受影响。\n", encoding="utf-8-sig")
+    if args.anticheat:
+        help_path = target / '使用说明.txt'
+        help_path.write_text(help_path.read_text(encoding='utf-8-sig').replace('LocalAppData/DNF90Launcher。', 'LocalAppData/DNF90Launcher-anticheat。'), encoding='utf-8-sig')
+        with (target / '使用说明.txt').open('a', encoding='utf-8') as help_file:
+            help_file.write('\n反作弊可选版：默认关闭。服主通过签名 AntiCheat.Enabled 配置开启后，开始游戏需同意 Windows 管理员授权；游戏和界面保持普通权限。保护期间锁定资源并检查配置的进程和模块规则；退出登录器会结束其启动的游戏。本机记录不自动上传。\n')
     files = {}
     for path in sorted(target.rglob("*")):
         if path.is_file():
@@ -78,6 +93,8 @@ def main():
             if z.testzip() is not None:
                 raise RuntimeError("ZIP integrity check failed")
     receipt = {"version": "1.0.3", "directory": str(target), "complete_bytes": sum(x.stat().st_size for x in target.rglob("*") if x.is_file()), "zip_bytes": archive.stat().st_size, "zip_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(), "update_bytes": update.stat().st_size, "files": files}
+    receipt['buildFlavor'] = flavor
+    (ROOT / "runtime/flutter-build" / flavor / "build-receipt.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
     (ROOT / "runtime/flutter-build/build-receipt.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({k: v for k, v in receipt.items() if k != "files"}, ensure_ascii=False))
 

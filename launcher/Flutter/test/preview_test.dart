@@ -87,10 +87,54 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
+  testWidgets('protection consent cancels login and agreement starts it', (
+    tester,
+  ) async {
+    final core = FakeCore();
+    core.state['antiCheatEnabled'] = true;
+    await start(tester, controller: LauncherController(client: core));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('client-status')))
+          .textSpan!
+          .toPlainText(),
+      contains('反作弊保护'),
+    );
+    await tester.enterText(find.byKey(const Key('account')), 'fixture');
+    await tester.enterText(
+      find.byKey(const Key('password')),
+      'fixture-password',
+    );
+    await tester.tap(find.byKey(const Key('primary')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('anticheat-consent')), findsOneWidget);
+    await screenshot(tester, 'anticheat-consent');
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(core.calls, isNot(contains('login')));
+    await tester.enterText(find.byKey(const Key('password')), 'fixture-password');
+    await tester.tap(find.byKey(const Key('primary')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('同意并继续'));
+    await tester.pumpAndSettle();
+    expect(core.calls.where((c) => c == 'login').length, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('default build hides QQ tab and password uses the account card', (
     tester,
   ) async {
     await start(tester);
+    expect(find.byKey(const Key('anticheat-consent')), findsNothing);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('client-status')))
+          .textSpan!
+          .toPlainText(),
+      isNot(contains('反作弊保护')),
+    );
     expect(find.text('绑定 QQ'), findsNothing);
     await tester.tap(find.text('修改密码'));
     await tester.pumpAndSettle();

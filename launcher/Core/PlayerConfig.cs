@@ -11,6 +11,7 @@ public sealed record PlayerProfile(string ApiUrl, string CertificateSha256, stri
     public string MinimumLauncherVersion { get; init; } = "";
     public bool EnableQQBinding { get; init; } = false;
     public bool RequireQQBinding { get; init; } = false;
+    public AntiCheatPolicy? AntiCheat { get; init; }
     public int ChannelServerId { get; init; }
     // Explicit temporary compatibility during a staged server migration.
     public int? PreviousChannelServerId { get; init; }
