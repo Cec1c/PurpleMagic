@@ -57,7 +57,7 @@ internal static class AutomaticUpdateChecks
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var endpoint = "https://127.0.0.1:" + ((IPEndPoint)listener.LocalEndpoint).Port;
         var trusted = profile with { ApiUrl = endpoint, CertificateSha256 = Trust.Digest(certificate.RawData), UpdatePublicKey = signing.ExportSubjectPublicKeyInfoPem(), DefaultClientDirectory = "" };
-        var release = new BundleRelease("99.0.0", endpoint + "/bundle.zip", 1, new string('d', 64));
+        var release = new BundleRelease("99.0.0", endpoint + "/bundle.zip", 1, new string('d', 64)) { BuildFlavor = LauncherBuild.Flavor };
         var content = new ContentRelease("fixture", "author", "stable", 1, new string('e', 64), endpoint, trusted.CertificateSha256,
             [new("DNF.exe", 10, trusted.ExeSha256, false, "", "", 0), new("Script.pvf", 20, trusted.PvfSha256, false, "", "", 0)]);
         var payload = JsonSerializer.SerializeToUtf8Bytes(new Bootstrap("DNF90-Flutter", 1, 1, trusted, [], content, release), WireJson.Default.Bootstrap);
@@ -72,7 +72,7 @@ internal static class AutomaticUpdateChecks
                 await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = certificate }, timeout.Token);
                 using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, true);
                 var request = await reader.ReadLineAsync(timeout.Token);
-                if (request != "GET /launcher/v2/bootstrap.json HTTP/1.1") throw new Exception("unexpected fixture request");
+                if (request != "GET " + LauncherBuild.ChannelPath + "bootstrap.json HTTP/1.1") throw new Exception("unexpected fixture request");
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync(timeout.Token))) { }
                 await stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {signed.Length}\r\nConnection: close\r\n\r\n"), timeout.Token);
                 await stream.WriteAsync(signed, timeout.Token);

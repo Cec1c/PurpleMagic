@@ -8,6 +8,15 @@ using Dnf90.Launcher;
 using ServerS5A3;
 
 #if ANTICHEAT
+if (args.Length > 0 && args[0] == "--anticheat-guard") { var code = await Dnf90.Launcher.AntiCheat.AntiCheatGuard.Run(args, AntiCheatUacChecks.Profile()); File.WriteAllText(Path.Combine(AppContext.BaseDirectory,"uac-guard-exit.txt"),code.ToString()); Environment.Exit(code); return; }
+if (args.Length == 4 && args[0] == "--anticheat-uac-check") { await AntiCheatUacChecks.Run(args[1], args[2], args[3]); return; }
+if (args.Length == 2 && args[0] == "--anticheat-channel-check") {
+    Directory.CreateDirectory(args[1]);
+    var root = new PlayerProfile("https://fixture.test", new('a',64), "", "", "192.0.2.1", 7001, new('b',64), new('c',64), "");
+    void Checked(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
+    await LauncherBundleDownloadChecks.Run(args[1], root, Checked);
+    await AutomaticUpdateChecks.Run(args[1], root, Checked); return;
+}
 if (args.Length == 3 && args[0] == "--anticheat-check") {
     await AntiCheatChecks.Native(args[1],args[2],(ok,name)=>{if(!ok)throw new Exception(name);Console.WriteLine("PASS "+name);});return;
 }

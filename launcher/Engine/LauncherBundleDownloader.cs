@@ -136,7 +136,7 @@ public sealed class LauncherBundleDownloader : IDisposable
         SignedUpdate.RequireHttps(release.Url);
         var uri = new Uri(release.Url);
         if (uri.Host != origin.Host || uri.Port != origin.Port || uri.Query != "" || uri.Fragment != "" ||
-            uri.AbsolutePath != "/launcher/v2/bundles/" + release.Sha256.ToLowerInvariant() + ".zip")
+            uri.AbsolutePath != LauncherBuild.ChannelPath + "bundles/" + release.Sha256.ToLowerInvariant() + ".zip")
             throw new InvalidDataException("登录器包必须使用受信网关的内容寻址地址。");
         return uri;
     }

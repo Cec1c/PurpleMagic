@@ -13,7 +13,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.3";
+    public const string VersionText = "1.0.4";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -213,7 +213,7 @@ public sealed class LauncherEngine : IDisposable
         Emit("checking", "正在读取本服签名发布信息…");
         using var api = new PlayerApi(root);
         using var metadataTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-        using var response = await api.Http.GetAsync(root.ApiUrl.TrimEnd('/') + "/launcher/v2/bootstrap.json", HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
+        using var response = await api.Http.GetAsync(root.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json", HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound && bootstrap is null)
         {
             plan = []; Emit("ready", "后台更新服务尚未部署；登录使用现有本服兼容配置。"); return;

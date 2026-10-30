@@ -23,7 +23,9 @@ public static class AntiCheatGuard
                 !GuardNative.Image(parent).Equals(Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) return 3;
             // Hold the authenticated host file against replacement for this lifetime.
             using var host = new FileStream(Environment.ProcessPath!, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            // CurrentUserOnly on the elevated client compares token owners (Administrators vs user).
+            // The server ACL restricts the user SID; verify its exact PID below and deny impersonation.
+            using var pipe = new NamedPipeClientStream(".", args[1], PipeDirection.InOut, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.Anonymous);
             using var stop = new CancellationTokenSource();
             using var start = CancellationTokenSource.CreateLinkedTokenSource(stop.Token); start.CancelAfter(TimeSpan.FromSeconds(90));
             // Cover preparation/hash verification as well as the attached-game lifetime.

@@ -10,7 +10,7 @@ internal static class LauncherBundleDownloadChecks
     {
         var bytes = Encoding.UTF8.GetBytes("immutable launcher app fixture");
         var hash = Trust.Digest(bytes);
-        var release = new BundleRelease("0.2.6", root.ApiUrl + "/launcher/v2/bundles/" + hash + ".zip", bytes.Length, hash);
+        var release = new BundleRelease("0.2.6", root.ApiUrl + LauncherBuild.ChannelPath + "bundles/" + hash + ".zip", bytes.Length, hash);
         var parent = Path.Combine(temp, "bundle-transport"); Directory.CreateDirectory(parent);
         string Cache() => Path.Combine(parent, Guid.NewGuid().ToString("N"));
         bool IsOrigin(HttpRequestMessage r) => r.RequestUri!.Host == new Uri(root.ApiUrl).Host;
@@ -37,6 +37,13 @@ internal static class LauncherBundleDownloadChecks
         using (var handler = LauncherBundleDownloader.CreateHandler(root))
             check(!handler.AllowAutoRedirect && !handler.UseCookies && !handler.UseDefaultCredentials && handler.Credentials is null && !handler.UseProxy && handler.AutomaticDecompression == DecompressionMethods.None,
                 "bundle HTTP client disables automatic redirects, cookies, credentials and decompression");
+
+        using (var client = Client(_ => throw new Exception("Cross-channel request reached network")))
+        {
+            var other = LauncherBuild.AntiCheat ? "/launcher/v2/" : "/launcher/anticheat/v2/";
+            await Reject(() => client.Download(release with { Url = root.ApiUrl + other + "bundles/" + hash + ".zip" }, Cache(), null, default),
+                "other flavor channel rejected before network access");
+        }
 
         var cache = Cache(); var calls = 0;
         using (var client = Client(r => { calls++; check(Negotiates(r), "only explicit capable client asks for Baidu mode"); return Payload(r); }))
@@ -184,7 +191,7 @@ internal static class LauncherBundleDownloadChecks
         }
 
         foreach (var invalid in new[] { release with { Url = "http://accounts.example.test/file" }, release with { Url = root.ApiUrl + "/api/account/login" },
-            release with { Url = release.Url + "?alternate=1" }, release with { Url = release.Url.Replace("accounts.example.test", "other.example.test") },
+            release with { Url = release.Url + "?alternate=1" }, release with { Url = release.Url.Replace(new Uri(root.ApiUrl).Host, "other.example.test") },
             release with { Sha256 = "bad" }, release with { Size = 0 }, release with { Size = SignedUpdate.MaxPackageBytes + 1 }, release with { Version = "bad" } })
         {
             using var client = Client(_ => throw new Exception("invalid release reached network"));

@@ -22,7 +22,7 @@ static class Integration
             if (!engine.State.HasUpdate || engine.State.CanLogin) throw new Exception("settings change cleared pending update gate");
             using (var api = new PlayerApi(profile))
             {
-                var raw = await api.Http.GetByteArrayAsync(profile.ApiUrl.TrimEnd('/') + "/launcher/v2/bootstrap.json");
+                var raw = await api.Http.GetByteArrayAsync(profile.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json");
                 var signed = Trust.Verify(raw, profile).Profile;
                 if (signed.ChannelServerId != 1 || signed.PreviousChannelServerId != 0) throw new Exception("Go signed migration fields lost at C# boundary");
             }

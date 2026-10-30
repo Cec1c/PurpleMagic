@@ -49,9 +49,11 @@ public static class LauncherBuild
 #if ANTICHEAT
     public const bool AntiCheat = true;
     public const string Flavor = "anticheat";
+    public const string ChannelPath = "/launcher/anticheat/v2/";
 #else
     public const bool AntiCheat = false;
     public const string Flavor = "standard";
+    public const string ChannelPath = "/launcher/v2/";
 #endif
     public static void RequireFlavor(string flavor)
     {

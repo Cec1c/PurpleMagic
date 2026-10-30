@@ -1,7 +1,7 @@
 name: purplemagic
 description: PurpleMagic Windows player launcher.
 publish_to: none
-version: 1.0.3+1
+version: 1.0.4+1
 environment:
   sdk: ^3.13.2
 dependencies:

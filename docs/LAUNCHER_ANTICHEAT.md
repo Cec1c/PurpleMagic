@@ -45,9 +45,9 @@ EXE 校验沿用已批准公会兼容补丁的固定摘要映射，代码区域�
 
 ## 发布与升级
 
-包内 `app/build-flavor.json` 标记 `standard` 或 `anticheat`，Hub 签名清单携带 `buildFlavor` 和策略，客户端更新器再次核对签名及解包标记。普通旧包缺标记按 standard 兼容。Hub 拒绝同一已发布通道切换类型；应为保护版使用独立 Hub 发布状态/玩家 bootstrap 入口，普通版继续原通道。旧版登录器没有此类型校验，不能向其原通道投放保护包来代替迁移。
+包内 `app/build-flavor.json` 标记 `standard` 或 `anticheat`，Hub 签名清单携带 `buildFlavor` 和策略，客户端更新器再次核对签名及解包标记。普通旧包缺标记按 standard 兼容。Hub 拒绝同一已发布通道切换类型；应为保护版使用独立 Hub 发布状态/玩家 bootstrap 入口，普通版继续原通道。普通构建固定读取 `/launcher/v2/bootstrap.json`，保护构建固定读取 `/launcher/anticheat/v2/bootstrap.json`；APP 仅接受对应前缀下 `bundles/<sha>.zip`。旧版登录器没有此类型校验，不能向其原通道投放保护包来代替迁移。
 
-服务端配套仅涉及 PurpleMagic Hub 的策略校验/签名发布和包类型隔离，不需要修改游戏服务、NPC 逻辑或玩家数据库。部署由 Syncer 累计集成，等待服主批准；上线还需按本服资源交付要求验收下载链路。
+服务端配套仅涉及 PurpleMagic Hub 的策略校验/签名发布和包类型隔离，不需要修改游戏服务、NPC 逻辑或玩家数据库。本服服务端配套归类为“群服内容”，由 Syncer 在私有仓 `group/` 分支、同名标签和私有 PR 中累计集成；上线按本服资源交付要求验收下载链路。
 
 本实现是用户态保护与已知样本规则检查。管理员权限提高进程可见性和监护稳定性，但不构成内核级防注入；其他管理员或驱动仍可干预，修改过的客户端也可绕过本地逻辑。本轮没有游戏服务心跳或远程可信证明，服务端不能据此认定玩家必然运行了监护。
 
@@ -56,3 +56,13 @@ EXE 校验沿用已批准公会兼容补丁的固定摘要映射，代码区域�
 `scripts/test_anticheat_native.py --dotnet <.NET8> --output <new-directory>` 使用隔离 x86/x64 程序验证资源锁、暂停创建与 Job 清理、规则行为、诊断共存和有界 IPC，不运行真实游戏、不弹 UAC。`scripts/verify_component.py` 覆盖普通 Core/Engine/Portable、Flutter 和 Go 模块回归。
 
 发布验收需单独记录：真实 UAC 同意/取消、同账号提权下的完整管道绑定、关闭界面/终止监护、真实 DNF 启动与运行兼容、PVF 文件锁影响以及持续运行资源占用。隔离程序通过不代替这组玩家环境验收。
+
+交互 UAC 回归使用 `Launcher.EngineTests` 的独立自包含构建，不给正式 Host 增加测试入口：
+
+```text
+dotnet publish launcher/EngineTests -c Release -r win-x64 --self-contained true -p:AntiCheat=true -o runtime/uac-harness
+python scripts/test_anticheat_uac.py --harness runtime/uac-harness/Launcher.EngineTests.exe --fixture runtime/native-checks/x64 --output runtime/uac-cancel --action cancel
+python scripts/test_anticheat_uac.py --harness runtime/uac-harness/Launcher.EngineTests.exe --fixture runtime/native-checks/x64 --output runtime/uac-approve --action approve
+```
+
+`fixture` 目录取自前述原生测试脚本输出，只使用其隔离 EXE/PVF；先运行 cancel 并在安全桌面点“否”，再运行 approve 并点“是”。脚本检查 AC02、完整提权管道、游戏普通权限、PVF 锁、父进程异常退出后的游戏终止和监护退出。Windows 提权会改变 token owner；监护端不使用按 owner 比较的 `CurrentUserOnly`，由管道服务端用户 SID ACL、双方实际 PID/创建时间/用户/会话验证身份，并以 Anonymous 连接禁止服务端模拟管理员令牌。
