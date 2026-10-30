@@ -1132,6 +1132,7 @@ export class ConsoleAPI {
     }
   }
   async prepare(command: Command, selection: Selection) {
+    if (this.meta.busy) return;
     if (this.meta.pending?.confirmed) {
       this.openPending();
       throw new Error("请先处理尚未取得回执的操作");
@@ -1234,6 +1235,7 @@ export class ConsoleAPI {
       this.meta.busy = false;
       this.publish();
     }
+    if (p.steps.every(step => step.kind === "task")) return;
     await this.guard(async () => {
       if (!["benefits", "activities", "anti-cheat"].includes(this.sectionId)) await this.character();
       await this.enter(this.sectionId, true);

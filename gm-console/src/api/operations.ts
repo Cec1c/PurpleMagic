@@ -1,3 +1,4 @@
+import { prepareMail, scheduleMail } from "./mail";
 import { activityChanges, type ActivitySnapshot } from "../activities";
 import { executeActivitySave, publishActivities } from "./activities";
 import { itemExpirationLabel } from "../item-expiration";
@@ -177,80 +178,7 @@ export async function prepareOperation(
     });
   } else if (command.kind === "mail") {
     integer(command.gold);
-    if (!command.title.trim()) throw new Error("请填写邮件标题");
-    const recipients = await api.resolveSelection(selection);
-    if (!recipients.length) throw new Error("请先选择收件人");
-    p.recipients = recipients.map((c) => ({
-      id: c.id,
-      name: c.name,
-      accountId: c.accountId,
-    }));
-    p.target = `${recipients.length} 个收件角色`;
-    const attachments = command.items.length ? command.items : [null];
-    for (let i = 0; i < attachments.length; i++) {
-      const a = attachments[i];
-      let expiry = a?.expiration;
-      let reward: DTO = {
-        title: command.title,
-        body: command.body,
-        gold: i === 0 ? command.gold : 0,
-        recipients: recipients.map((c) => ({
-          accountId: c.accountId,
-          characterId: c.id,
-        })),
-      };
-      if (a) {
-        integer(a.count, 1);
-        const { data } = await api.http.get(
-          `/api/v1/items/${segment(a.id)}/grant-options`,
-        );
-        if (data.expiration) expiry = { known: true, absoluteExpireTime: data.expiration.defaultExpireTime || 0, usablePeriodDays: data.expiration.usablePeriodDays || 0 };
-        reward = {
-          ...reward,
-          itemId: a.id,
-          count: a.count,
-          pvfChecksum: data.pvfChecksum,
-          options: {
-            reinforce: a.enhance,
-            amplifyType: 0,
-            forgingLevel: 0,
-            expireDays: 0,
-            equipmentQuality: "default",
-          },
-        };
-      }
-      const job = await api.http.post(
-        "/api/v1/mail/preview",
-        reward,
-        `${id}-preview-${i}`,
-      );
-      const { data } = await api.http.get(
-        `/api/v1/tasks/${job.id}/confirmation`,
-      );
-      const names = (data.recipients || []).map((v: DTO) => ({
-        id: v.characterId,
-        name: v.name,
-        accountId: v.accountId,
-      }));
-      if (
-        names.length !== recipients.length ||
-        names.some(
-          (v: DTO) =>
-            !recipients.some(
-              (c) => c.id === v.id && c.accountId === v.accountId,
-            ),
-        )
-      )
-        throw new Error("收件名单已变更，请重新选择");
-      p.recipients = names;
-      add(
-        `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count} · ${itemExpirationLabel(expiry)}` : ""}`,
-        `/api/v1/tasks/${job.id}/run`,
-        { revision: job.revision, confirm: true, retry: false },
-        { kind: "task", result: job },
-      );
-    }
-    p.summary = `${command.title}；每人金币 ${command.gold.toLocaleString()}；${attachments.length} 封邮件${attachments.length > 1 ? "（每种附件一封，金币仅随第一封）" : ""}`;
+    await prepareMail(api, command, selection, p);
   } else if (command.kind === "delete-mail") {
     if (!c) throw new Error("请先选择角色");
     p.summary = `删除 ${command.ids.length} 封邮件及其中未领取的附件和金币：${command.ids.map((id) => api.state.mails.find((m) => m.id === id)?.title || id).join("、")}`;
@@ -622,6 +550,8 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
     }
     if (step.kind === "activities") {
       await executeActivitySave(api, step);
+    } else if (step.kind === "task" && api.meta.features.backgroundMail) {
+      await scheduleMail(api, step);
     } else if (step.kind === "task") {
       const taskPath = step.path.replace(/\/run$/, "");
       let task = (await api.http.get(taskPath)).data;

@@ -139,6 +139,9 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
     >
       <p className="confirm-target">{p.target}</p>
       <p>{p.summary}</p>
+      {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
+        <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>
+      )}
       {p.confirmed && !p.completed && !p.rejected && (
         <p className="muted">可收起或刷新页面，从顶部“操作回执”继续。已完成的步骤会保留。</p>
       )}
@@ -166,6 +169,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
             {s.done && <span>{s.kind === "activities" ? `配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}` : s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
             {s.kind === "task" && s.result && (
               <span>
+                {s.result.schedule === "active" ? "后台发放中 · " : ""}
                 已发 {s.result.sent} / {s.result.total} · 失败{" "}
                 {s.result.failed || 0}
               </span>

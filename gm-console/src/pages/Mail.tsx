@@ -181,7 +181,7 @@ export function MailPage({
               <button
                 className="primary"
                 disabled={
-                  !recipients.length ||
+                  state.api?.busy || !recipients.length ||
                   (!items.length && gold === 0 && !body.trim())
                 }
               >

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Search, Plus, LoaderCircle, Check } from "lucide-react";
 import { useLive } from "./api/context";
 import type { LiveData } from "./api/model";
@@ -30,7 +30,9 @@ export function ItemPicker({ api, multiple = false, selectedId, addedIds = [], o
     : demoCatalog.filter(i => i.name.toLowerCase().includes(query.trim().toLowerCase()) || i.id.includes(query.trim()));
   const loading = !!live && (!currentQuery || !!api?.catalogLoading);
   const validCount = Number.isInteger(count) && count > 0 && count <= 99999;
-  const allSelected = rows.length > 0 && rows.every(i => selected.some(s => s.id === i.id));
+  const selectedIds = useMemo(() => new Set(selected.map(i => i.id)), [selected]);
+  const added = useMemo(() => new Set(addedIds), [addedIds]);
+  const allSelected = rows.length > 0 && rows.every(i => selectedIds.has(i.id));
   function choose(items: CatalogItem[]) {
     if (!items.length || (multiple && !validCount)) return;
     try { onChoose(items, multiple ? count : 1); setError(""); setSelected(s => s.filter(i => !items.some(x => x.id === i.id))); }
@@ -46,10 +48,10 @@ export function ItemPicker({ api, multiple = false, selectedId, addedIds = [], o
     {multiple && <div className="item-picker-select-all"><CheckBox label="勾选当前已加载物品" checked={allSelected} onChange={() => setSelected(old => allSelected ? old.filter(i => !rows.some(r => r.id === i.id)) : [...new Map([...old, ...rows].map(i => [i.id, i])).values()])} /><span>全选当前结果</span><span className="muted">已选 {selected.length} 种</span>{selected.length > 0 && <button type="button" className="text-button" onClick={() => setSelected([])}>清空</button>}</div>}
     <div ref={results} className="item-picker-results" aria-busy={loading}>
       {rows.map(item => <div className="item-picker-row" key={item.id}>
-        {multiple && <CheckBox label={`选择 ${item.name} ID ${item.id}`} checked={selected.some(s => s.id === item.id)} onChange={() => setSelected(old => old.some(i => i.id === item.id) ? old.filter(i => i.id !== item.id) : [...old, item])} />}
+        {multiple && <CheckBox label={`选择 ${item.name} ID ${item.id}`} checked={selectedIds.has(item.id)} onChange={() => setSelected(old => old.some(i => i.id === item.id) ? old.filter(i => i.id !== item.id) : [...old, item])} />}
         <div className="item-picker-info"><strong>{item.name}</strong><small>ID {item.id}</small><small>{itemExpirationLabel(item.expiration)}</small></div>
         <button type="button" className="secondary item-picker-use" disabled={multiple && !validCount} aria-label={`${multiple ? "加入附件" : "选用"} ${item.name} ID ${item.id}`} onClick={() => choose([item])}>
-          {(!multiple && selectedId === item.id) || addedIds.includes(item.id) ? <Check size={14} /> : <Plus size={14} />}{multiple ? "添加" : selectedId === item.id ? "已选" : "选用"}
+          {(!multiple && selectedId === item.id) || added.has(item.id) ? <Check size={14} /> : <Plus size={14} />}{multiple ? "添加" : selectedId === item.id ? "已选" : "选用"}
         </button>
       </div>)}
       {!rows.length && <div className="item-picker-empty">{loading ? "" : "没有匹配的物品，试试名称中的其他文字或物品 ID"}</div>}
