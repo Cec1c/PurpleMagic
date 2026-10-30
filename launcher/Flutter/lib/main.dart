@@ -1107,7 +1107,7 @@ class _PreviewHomeState extends State<PreviewHome> {
             key: const Key('anticheat-consent'),
             title: const Text('启动反作弊保护'),
             content: const Text(
-              '本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n游戏和登录器界面保持普通权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。\n\n同意记录保存在本机，下次不再重复提示。Windows 管理员授权仍会在提权时出现。',
+              '本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n普通启动时仅保护助手提权；以管理员身份启动登录器时，游戏沿用管理员权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。\n\n同意记录保存在本机，下次不再重复提示。Windows 管理员授权仍会在提权时出现。',
             ),
             actions: [
               TextButton(

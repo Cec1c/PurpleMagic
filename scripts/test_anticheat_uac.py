@@ -1,4 +1,4 @@
-"""Interactive Windows UAC check: operator rejects, then accepts the real secure-desktop prompt."""
+"""Check ordinary UAC cancel/approve and an already elevated launcher with isolated fixtures."""
 import argparse
 import ctypes
 import hashlib
@@ -13,8 +13,10 @@ def main():
     p.add_argument('--harness', type=Path, required=True)
     p.add_argument('--fixture', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
-    p.add_argument('--action', choices=['cancel', 'approve'], required=True)
+    p.add_argument('--action', choices=['cancel', 'approve', 'elevated'], required=True)
     args = p.parse_args()
+    if bool(ctypes.windll.shell32.IsUserAnAdmin()) != (args.action == 'elevated'):
+        raise SystemExit('Run elevated scenario from an administrator terminal; cancel/approve from a normal terminal')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     fixture = args.fixture.resolve()
@@ -47,6 +49,8 @@ def main():
                     time.sleep(.1)
                 receipt = json.loads((output/'ready.json').read_text())
                 assert receipt['parentPid'] == child.pid
+                assert receipt['parentElevated'] == receipt['gameElevated'] == (args.action == 'elevated')
+                assert receipt['protectionLogWritten'] and receipt['adminOnlyState'] == (args.action == 'elevated')
                 kernel = ctypes.WinDLL('kernel32', use_last_error=True)
                 kernel.OpenProcess.restype = ctypes.c_void_p
                 kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]

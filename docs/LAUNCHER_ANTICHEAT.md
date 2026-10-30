@@ -35,7 +35,7 @@ BUILD_PORTABLE.bat --bundle dist/PurpleMagic-anticheat.zip --output dist/PurpleM
 
 摘要为 64 位十六进制；ID 为 1–48 位小写字母、数字、连字符，首位不能为连字符。规则由服主基于已确认样本配置；仓库不预装按软件名称猜测的黑名单。代码区只选不会被重定位或合法补丁改写的固定版本区域。
 
-首次开始游戏前显示收集与退出说明。同意版本通过 `antiCheatConsentVersion` 保存到本机 preferences.json，重启后继续使用；说明发生实质变更时递增版本并重新确认。玩家同意后，只有辅助监护请求 UAC；界面与游戏保持普通权限。要求 Windows 10+ x64、同一 Windows 账号的管理员授权，辅助程序核对双方 PID、创建时间、用户、会话、程序路径和签名策略。以管理员权限打开整个登录器会提示改用普通方式启动。
+首次开始游戏前显示收集与退出说明。同意版本通过 `antiCheatConsentVersion` 保存到本机 preferences.json，重启后继续使用；说明发生实质变更时递增版本并重新确认。玩家普通启动登录器时，辅助监护单独请求 UAC，界面与游戏保持普通权限。玩家选择以管理员身份启动登录器时，监护直接继承现有管理员权限，游戏与登录器保持相同权限，可写入只允许管理员访问的本机配置目录。两种启动方式均要求 Windows 10+ x64、同一 Windows 账号；辅助程序核对双方 PID、创建时间、用户、会话、程序路径、游戏与父进程的权限一致性及签名策略。
 
 保护版第一次使用独立配置目录时，会从同一用户的 `DNF90Launcher/preferences.json` 导入账号、客户端目录和设置；已有保护版配置保持。更新清单、序列号与下载缓存不导入，保护说明仍需首次同意。旧配置损坏时按新安装初始化。服主把本服从旧版迁移到保护版时，还需发布旧更新通道并切换默认下载入口；仅发布独立保护通道不会升级现有普通版。
 
@@ -67,4 +67,4 @@ python scripts/test_anticheat_uac.py --harness runtime/uac-harness/Launcher.Engi
 python scripts/test_anticheat_uac.py --harness runtime/uac-harness/Launcher.EngineTests.exe --fixture runtime/native-checks/x64 --output runtime/uac-approve --action approve
 ```
 
-`fixture` 目录取自前述原生测试脚本输出，只使用其隔离 EXE/PVF；先运行 cancel 并在安全桌面点“否”，再运行 approve 并点“是”。脚本检查 AC02、完整提权管道、游戏普通权限、PVF 锁、父进程异常退出后的游戏终止和监护退出。Windows 提权会改变 token owner；监护端不使用按 owner 比较的 `CurrentUserOnly`，由管道服务端用户 SID ACL、双方实际 PID/创建时间/用户/会话验证身份，并以 Anonymous 连接禁止服务端模拟管理员令牌。
+`fixture` 目录取自前述原生测试脚本输出，只使用其隔离 EXE/PVF；先运行 cancel 并在安全桌面点“否”，再运行 approve 并点“是”。脚本检查 AC02、完整提权管道、游戏继承登录器权限、PVF 锁、父进程异常退出后的游戏终止和监护退出。管理员启动回归在管理员终端运行同一脚本并传入 `--action elevated`；该场景还创建独立的仅管理员可写配置目录并验证保护日志落盘，不修改真实 AppData 权限。Windows 提权会改变 token owner；监护端不使用按 owner 比较的 `CurrentUserOnly`，由管道服务端用户 SID ACL、双方实际 PID/创建时间/用户/会话验证身份，并以 Anonymous 连接禁止服务端模拟管理员令牌。

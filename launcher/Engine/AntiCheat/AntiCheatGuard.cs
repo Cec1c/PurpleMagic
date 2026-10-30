@@ -18,9 +18,10 @@ public static class AntiCheatGuard
             !Guid.TryParseExact(args[1][GuardWire.Prefix.Length..], "N", out _) || !int.TryParse(args[2], out var parentPid) || !long.TryParse(args[3], out var created)) return 2;
         try {
             using var self = Process.GetCurrentProcess(); using var parent = Process.GetProcessById(parentPid);
-            if (!GuardNative.Elevated(self) || GuardNative.Elevated(parent) || parent.StartTime.ToUniversalTime().Ticks != created ||
+            if (!GuardNative.Elevated(self) || parent.StartTime.ToUniversalTime().Ticks != created ||
                 GuardNative.User(self) != GuardNative.User(parent) || self.SessionId != parent.SessionId ||
                 !GuardNative.Image(parent).Equals(Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) return 3;
+            var parentElevated = GuardNative.Elevated(parent);
             // Hold the authenticated host file against replacement for this lifetime.
             using var host = new FileStream(Environment.ProcessPath!, FileMode.Open, FileAccess.Read, FileShare.Read);
             // CurrentUserOnly on the elevated client compares token owners (Administrators vs user).
@@ -53,7 +54,7 @@ public static class AntiCheatGuard
                     var target = JsonSerializer.Deserialize(await GuardWire.Read(pipe, 1024, start.Token), GuardJson.Default.GuardTarget) ?? throw new InvalidDataException();
                     using var game = Process.GetProcessById(target.Pid);
                     if (game.StartTime.ToUniversalTime().Ticks != target.Created || game.StartTime < parent.StartTime || GuardNative.Parent(game) != parentPid ||
-                        game.SessionId != parent.SessionId || GuardNative.User(game) != GuardNative.User(parent) || GuardNative.Elevated(game) ||
+                        game.SessionId != parent.SessionId || GuardNative.User(game) != GuardNative.User(parent) || GuardNative.Elevated(game) != parentElevated ||
                         !GuardNative.Image(game).Equals(SafeFiles.Target(request.Directory, "DNF.exe"), StringComparison.OrdinalIgnoreCase)) return 7;
                     using var job = GuardNative.Job(); GuardNative.Assign(job, game);
                     await events.Writer.WriteAsync(new("attached"), stop.Token);

@@ -32,13 +32,15 @@ internal sealed class AntiCheatSession : IDisposable
     internal static async Task<AntiCheatSession> Start(string directory, byte[]? envelope, string stateRoot, Action<string> failure, CancellationToken token)
     {
         using var parent = Process.GetCurrentProcess();
-        if (GuardNative.Elevated(parent)) throw new InvalidOperationException("AC01：请以普通权限打开登录器；保护助手会单独请求管理员权限。");
+        var elevated = GuardNative.Elevated(parent);
         var name = GuardWire.Prefix + Guid.NewGuid().ToString("N");
         var pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         AntiCheatSession? session = null;
         try {
             token.ThrowIfCancellationRequested();
-            var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = AppContext.BaseDirectory };
+            // An administrator-started launcher already has the token the guard needs.
+            var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = !elevated, CreateNoWindow = elevated, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = AppContext.BaseDirectory };
+            if (!elevated) info.Verb = "runas";
             foreach (var arg in new[] { "--anticheat-guard", name, parent.Id.ToString(), parent.StartTime.ToUniversalTime().Ticks.ToString() }) info.ArgumentList.Add(arg);
             using var helper = Process.Start(info) ?? throw new IOException();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(90));
