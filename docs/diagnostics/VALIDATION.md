@@ -1,3 +1,27 @@
+# 2026-10-31：1.0.7 原生异常证据候选
+
+实现基于公开 main 的 f7655a3，独立分支验证。发布与正式游戏新日志验收另记。
+
+| 检查 | 本轮结果 |
+| --- | --- |
+| Core / Engine / Portable | 155 / 1049 / 14 项通过；Engine 含逐记录断言，总数受采集时序影响 |
+| Flutter | analyze、30 项测试通过；已查看新版同意框截图，完整说明寄存器、页属性及最多 64 字节模块代码 |
+| 原生 x86 / x64 | 151 项断言通过；C++ sizeof/offsetof 校验 DEBUG_EVENT 和 EXCEPTION_RECORD 布局；NULL read、只读页 write、不可执行页 execute 的原始寄存器及地址与原生处理器逐项匹配 |
+| 异常语义与额度 | 可处理首轮继续运行；三类未处理访问违规保留原退出码；20 次可处理异常后仍保留终止异常，独立相似异常不误关联 |
+| 代码、模块与失败状态 | 可读 64 字节窗口、跨页 14 字节部分窗口、不可读代码页、模块外 IP；模块加载/卸载代次、完整磁盘 SHA 对照；坏进程/线程、参数不足/损坏计数、未知访问与超时降级 |
+| 精度与容量 | 最大 64 位地址/寄存器往返无损；队列保留首轮及终止额度；普通文件满额后保留终止异常及退出；旧流拒绝混入新记录 |
+| Schema | 241 条原生观察器记录通过 record-v3；最大记录 6390 字节；NativeAOT 实际导出通过外层 4 / 记录 3 严格校验 |
+| NativeAOT | standard / anticheat 两种核心构建通过；分别使用 x86 / x64 合成子进程完成 RPC、采集、退出和导出；强制结束隔离 Host 后测试游戏继续运行 |
+| Windows 构建 | Flutter Windows、NativeAOT、Bootstrap 完整构建通过；构建素材为隔离 loopback profile，不能作为玩家发布包 |
+| 旧日志分析 | 两份私有样本分别 603 / 96 条记录；前者保留两个异常阶段和退出，识别一次未处理崩溃；后者仍录制且无崩溃。公开测试另用合成数据 |
+| 暂停耗时 | 58 次合成异常的 pause_ms 中位数 3.0627 ms、最大 20.1982 ms；该测量只覆盖隔离测试程序 |
+
+复现入口：`scripts/test_native_diagnostics.py`、`scripts/test_diagnostics_analysis.py`、`scripts/test_diagnostics_host.py`、`scripts/verify_component.py`。公开格式示例：[diagnostics-native-synthetic.log](diagnostics-native-synthetic.log)。
+
+真实游戏的新格式日志、长时间性能和此次诊断 UAC 链路尚未进行人工验收。Windows 同步 API 不提供本实现可中断的硬期限，250 ms 为分阶段降级预算。服务端业务关联、最大空闲区扫描和 dump 不在本次实现范围。
+
+---
+
 # 2026-10-21：异常栈与操作日志候选验证
 
 | 检查 | 结果 |

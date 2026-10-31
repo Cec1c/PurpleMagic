@@ -25,6 +25,10 @@ def main():
         batch = target / 'build.cmd'
         batch.write_text(f'@echo off\ncall "{vs / "VC/Auxiliary/Build/vcvarsall.bat"}" {vcarch} >nul\nif errorlevel 1 exit /b 1\ncl /nologo /Od /Oy- /Zi /EHsc "{ROOT / "scripts/diagnostics/native_crash_fixture.cpp"}" /Fe:DNF.exe /Fo:fixture.obj /Fd:fixture.pdb /link /DEBUG /PDB:DNF.pdb\n', encoding='utf-8')
         subprocess.run(['cmd', '/d', '/c', str(batch)], cwd=target, check=True)
+        layout = json.loads(subprocess.check_output([str(target / 'DNF.exe'), '--layout']))
+        expected = dict(debug_event=176, union=16, record=152, code=0, flags=4, chain=8, address=16, count=24, parameters=32, first_chance=168) if arch == 'x64' else dict(debug_event=96, union=12, record=80, code=0, flags=4, chain=8, address=12, count=16, parameters=20, first_chance=92)
+        assert layout == expected, (arch, layout, expected)
+        (target / 'layout.json').write_text(json.dumps(layout, indent=2) + '\n')
         env['PURPLEMAGIC_CRASH_FIXTURE_' + arch.upper()] = str(target / 'DNF.exe')
     subprocess.run([str(args.dotnet), 'run', '--project', str(ROOT / 'launcher/EngineTests'), '-c', 'Release', '--', '--diagnostic-crash-check', str(output / 'checks')], env=env, cwd=ROOT, check=True)
 

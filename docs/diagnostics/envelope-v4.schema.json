@@ -1,0 +1,180 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "schema_version",
+    "collector_version",
+    "module_version",
+    "log"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "log_header",
+        "log_summary"
+      ]
+    },
+    "schema_version": {
+      "const": 4
+    },
+    "collector_version": {
+      "type": "string"
+    },
+    "module_version": {
+      "type": "string"
+    },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "started_utc",
+        "ended_utc",
+        "last_sequence",
+        "last_time",
+        "bytes",
+        "schema_version"
+      ],
+      "properties": {
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session_id",
+            "incident_id",
+            "exe_sha256",
+            "pvf_sha256",
+            "exe_version",
+            "end_reason",
+            "observation_kind",
+            "counter_scope",
+            "expected_pvf_sha256",
+            "publication_sequence",
+            "records",
+            "errors",
+            "dropped",
+            "overwritten",
+            "target_interval_ms",
+            "truncated",
+            "server_events_connected",
+            "missing",
+            "categories",
+            "server_clock_offset_ms",
+            "server_clock_uncertainty_ms",
+            "correlation_id"
+          ],
+          "properties": {
+            "session_id": {
+              "type": "string"
+            },
+            "incident_id": {
+              "type": "string"
+            },
+            "exe_sha256": {
+              "type": "string"
+            },
+            "pvf_sha256": {
+              "type": "string"
+            },
+            "exe_version": {
+              "type": "string"
+            },
+            "end_reason": {
+              "type": "string"
+            },
+            "observation_kind": {
+              "type": "string"
+            },
+            "counter_scope": {
+              "type": "string"
+            },
+            "expected_pvf_sha256": {
+              "type": "string"
+            },
+            "publication_sequence": {
+              "type": "integer"
+            },
+            "records": {
+              "type": "integer"
+            },
+            "errors": {
+              "type": "integer"
+            },
+            "dropped": {
+              "type": "integer"
+            },
+            "overwritten": {
+              "type": "integer"
+            },
+            "target_interval_ms": {
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "server_events_connected": {
+              "type": "boolean"
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "server_clock_offset_ms": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "server_clock_uncertainty_ms": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "correlation_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "release_channel": {
+              "enum": [
+                "standard",
+                "anticheat"
+              ]
+            }
+          }
+        },
+        "started_utc": {
+          "type": "string"
+        },
+        "ended_utc": {
+          "type": "string"
+        },
+        "last_sequence": {
+          "type": "integer"
+        },
+        "last_time": {
+          "type": "number"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 4
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PurpleMagic log envelope v4"
+}

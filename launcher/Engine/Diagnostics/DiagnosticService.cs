@@ -209,7 +209,11 @@ internal sealed class DiagnosticService : IDisposable
                 var id = process.Identity.Id;
                 await saves.Writer.WriteAsync(new(new(id, id, "", "", 0, "", "resume_barrier", 0, 0, 0, 0, false, [], [], 0), [], "", "") { Completion = ready });
                 await ready.Task;
-                return (process, loginAttempt, storage.ReadIndex(id), observer);
+                var index = storage.ReadIndex(id);
+                // Keep the old stream exportable. A new contract starts an explicit
+                // new log segment instead of appending v3 records under a v2 header.
+                if (index is not null && index.SchemaVersion != 4) { process.StartNewLog(); index = null; }
+                return (process, loginAttempt, index, observer);
             } catch { observer?.Dispose(); process.Dispose(); throw; }
         });
     }
@@ -240,7 +244,7 @@ internal sealed class DiagnosticService : IDisposable
             sessions.Add(s); managed[process.Identity.Pid] = process.Identity; SaveRegistry();
             s.Identity = Record(s, "identity", "collector", new() {
                 ["pid"] = new(process.Identity.Pid), ["created_unix_ms"] = new(new DateTimeOffset(DateTime.FromFileTimeUtc(process.Identity.Created)).ToUnixTimeMilliseconds()),
-                ["windows_session"] = new(process.Identity.WindowsSession), ["module_base"] = new(process.ModuleBase), ["publication_sequence"] = new(publication),
+                ["windows_session"] = new(process.Identity.WindowsSession), ["publication_sequence"] = new(publication),
                 ["server_events"] = new(null, "unsupported", "not_connected") }, "ok", 0, "game_bound");
             Flush(s, "recording");
         }
@@ -307,7 +311,7 @@ internal sealed class DiagnosticService : IDisposable
         missing.AddRange(s.Missing);
         var summary = new DiagnosticSummary(s.Id, s.Id, s.Process?.Hash ?? "", s.Process?.PvfHash ?? "", s.Publication, s.Process?.Version ?? "launcher",
             reason, 0, s.Errors, s.Dropped, s.Ring.Overwritten, s.Truncated, [.. missing],
-            [.. categories], s.Interval, CorrelationId: s.Id, ExpectedPvfSha256: s.PvfHash);
+            [.. categories], s.Interval, CorrelationId: s.Id, ExpectedPvfSha256: s.PvfHash, ReleaseChannel: ServerS5A3.LauncherBuild.Flavor);
         DiagnosticLine[] lines = [.. s.Capture]; var omitted = 0;
         if (s.CriticalPending) {
             var tail = new List<DiagnosticLine>(); var bytes = 0;
@@ -335,7 +339,7 @@ internal sealed class DiagnosticService : IDisposable
         if (s.Process is not null && s.Process.Exited(out var exit)) {
             if (s.ExitObserved == 0) s.ExitObserved = now;
             if (s.Observer is not null && !s.Observer.Completed && now - s.ExitObserved < 2000) return;
-            Observe(s); Record(s, "event", "process", new() { ["exit_code"] = new(exit) }, "ok", 0, "game_exit"); End(s, "game_exit"); return;
+            Observe(s); s.CriticalPending = true; Record(s, "event", "process", new() { ["exit_code"] = new(exit) }, "ok", 0, "game_exit"); End(s, "game_exit"); return;
         }
         if (now >= s.NextBasic)
         {
@@ -382,7 +386,8 @@ internal sealed class DiagnosticService : IDisposable
     {
         if (reason == "collector_error" && s.Process is not null) retryAfter[s.Process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000;
         s.Observer?.Dispose(); Observe(s, allowRestart: false);
-        Record(s, "event", "collector", [], "ok", 0, reason); Flush(s, reason, wait: true); sessions.Remove(s); s.Process?.Dispose();
+        if (reason != "game_exit") Record(s, "event", "collector", [], "ok", 0, reason);
+        Flush(s, reason, wait: true); sessions.Remove(s); s.Process?.Dispose();
     }
     private void EndAll(string reason) { bindingObserver?.Dispose(); launcher = null; launchAttempts.Clear(); foreach (var s in sessions.ToArray()) End(s, reason); foreach (var p in candidates.Values) p.Dispose(); candidates.Clear(); }
     private void Loop()

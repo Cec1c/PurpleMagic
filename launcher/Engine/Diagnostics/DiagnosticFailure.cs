@@ -24,7 +24,7 @@ internal static class DiagnosticFailure
             var frames = new StackTrace(e, false).GetFrames().Take(32).Select(f => {
                 var method = f.GetMethod();
                 return new DiagnosticStackFrame(SafeName(method?.Module.Assembly.GetName().Name),
-                    (ulong)Math.Max(0, f.GetNativeOffset()), SafeName(method?.DeclaringType?.FullName + "." + method?.Name));
+                    NativeEvidenceReader.Hex((ulong)Math.Max(0, f.GetNativeOffset()), IntPtr.Size * 8), SafeName(method?.DeclaringType?.FullName + "." + method?.Name));
             }).ToArray();
             result.Add(new(kind, e.HResult, e is Win32Exception w ? w.NativeErrorCode : e is HttpRequestException h ? (int?)h.StatusCode : null, frames));
         }

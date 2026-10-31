@@ -132,18 +132,36 @@ internal static class DiagnosticChecks
         var largeExport = largeStore.Export(largeId, Path.Combine(exportRoot, "large.log"));
         check(largeExport.Bytes <= DiagnosticStorage.MaxLog && largeStore.ReadIndex(largeId)!.Summary.Truncated, "log budget retains complete lines and explicit truncation summary");
         var fatal = new DiagnosticRecord(3000, DateTime.UtcNow.ToString("O"), 30000, "exception", "observer", largeId, 0, "partial",
-            new() { ["first_chance"] = new(0) }, "native_exception", Evidence: new("native_exception", Stack: [new("DNF.exe", 123)]));
+            new() { ["first_chance"] = new(0) }, "native_exception", Evidence: new("native_exception", Stack: [new("DNF.exe", "0x0000007B")]));
         var fatalBytes = JsonSerializer.SerializeToUtf8Bytes(fatal, DiagnosticJson.Default.DiagnosticRecord);
         largeStore.Save(large with { Lines = [new([.. fatalBytes, 10], 30000, true, "exception")], CriticalTail = true });
         largeStore.Export(largeId, Path.Combine(exportRoot, "large-fatal.log"));
         check(File.ReadAllText(Path.Combine(exportRoot, "large-fatal.log")).Contains("native_exception") && largeStore.ReadIndex(largeId)!.LastSequence == 3000,
             "exception reserve preserves final crash after normal log capacity is exhausted");
+        var exited = fatal with { Sequence = 3001, MonotonicMs = 30001, Type = "event", Reason = "game_exit", Evidence = null, Fields = new() { ["exit_code"] = new(-1073741819) } };
+        var exitBytes = JsonSerializer.SerializeToUtf8Bytes(exited, DiagnosticJson.Default.DiagnosticRecord);
+        largeStore.Save(large with { Lines = [new([.. exitBytes, 10], 30001, true, "event")] });
+        largeStore.Export(largeId, Path.Combine(exportRoot, "large-exit.log"));
+        check(File.ReadAllText(Path.Combine(exportRoot, "large-exit.log")).Contains("game_exit") && largeStore.ReadIndex(largeId)!.LastSequence == 3001, "exit has reserved capacity even after ordinary truncation");
+        var legacyRoot = Path.Combine(temp, "legacy-schema"); Directory.CreateDirectory(legacyRoot);
+        var legacyId = Guid.NewGuid().ToString("N"); var legacyJob = Job(legacyId);
+        var legacyIndex = new DiagnosticLogIndex(legacyJob.Summary with { Records = 1 }, legacyJob.StartedUtc, legacyJob.EndedUtc, 1, 5, 0);
+        var header = JsonSerializer.Serialize(new DiagnosticLogEnvelope("log_header", 3, "1.0.6", "at5t-readonly-1", legacyIndex), DiagnosticJson.Default.DiagnosticLogEnvelope);
+        var legacyRecord = System.Text.Json.Nodes.JsonNode.Parse(legacyJob.Lines[0].Bytes)!; legacyRecord.AsObject().Remove("record_version");
+        var legacyBytes = System.Text.Encoding.UTF8.GetBytes(header + "\n" + legacyRecord.ToJsonString() + "\n");
+        File.WriteAllBytes(Path.Combine(legacyRoot, legacyId + ".log"), legacyBytes);
+        File.WriteAllBytes(Path.Combine(legacyRoot, legacyId + ".json"), JsonSerializer.SerializeToUtf8Bytes(legacyIndex with { Bytes = legacyBytes.Length }, DiagnosticJson.Default.DiagnosticLogIndex));
+        var legacyStore = new DiagnosticStorage(legacyRoot); var legacyExport = Path.Combine(exportRoot, "legacy.log");
+        legacyStore.Export(legacyId, legacyExport);
+        check(File.ReadAllText(legacyExport).StartsWith(header) && !File.ReadAllText(legacyExport).Contains("record_version"), "old schema export preserves original records");
+        refused = false; try { legacyStore.Save(legacyJob); } catch (InvalidDataException) { refused = true; }
+        check(refused && File.ReadAllBytes(Path.Combine(legacyRoot, legacyId + ".log")).SequenceEqual(legacyBytes), "v3 records cannot be appended to legacy stream");
         var broken = Path.Combine(temp, "disk-error"); File.WriteAllText(broken, "occupied");
-        using (var failure = new DiagnosticService(broken)) { failure.Configure(new(true, ConsentVersion: 1), "", "", 0); await Task.Delay(250); check(failure.Status.Enabled, "disk failure does not break service construction or configuration"); }
+        using (var failure = new DiagnosticService(broken)) { failure.Configure(new(true, ConsentVersion: DiagnosticOptions.CurrentConsent), "", "", 0); await Task.Delay(250); check(failure.Status.Enabled, "disk failure does not break service construction or configuration"); }
         var serviceRoot = Path.Combine(temp, "diagnostic-lifecycle");
         using (var service = new DiagnosticService(serviceRoot))
         {
-            service.Configure(new(true, "connection", 1), "", new string('a', 64), 73); await Task.Delay(250);
+            service.Configure(new(true, "connection", DiagnosticOptions.CurrentConsent), "", new string('a', 64), 73); await Task.Delay(250);
             service.Event("login_started"); service.Event("login_error", 42, -1);
             await Task.Delay(400);
             service.Configure(new(false), "", "", 0); await Task.Delay(500);
@@ -164,6 +182,9 @@ internal static class DiagnosticChecks
             using var read = new ReadOnlyGameProcess(child.Id, Environment.ProcessPath!, child.StartTime.ToUniversalTime().ToFileTimeUtc());
             read.VerifyImage(); check(read.Version == "unsupported" && BitConverter.ToUInt32(read.Read(address, 4)) == 0x12345678, "native read-only process identity hash and RPM");
             check(read.Performance()["cpu_total_ms"].Status == "ok", "native limited-query process metrics");
+            var performance = read.Performance();
+            check(performance["virtual_size_bytes"].Value > 0 && performance["system_commit_limit_bytes"].Value >= performance["system_commit_total_bytes"].Value &&
+                performance["image_pointer_bits"].Value == IntPtr.Size * 8 && performance["large_address_aware"].Value is 0 or 1, "commit, virtual space, architecture and LAA are independently recorded");
             var rejected = false; try { using var wrong = new ReadOnlyGameProcess(child.Id, Environment.ProcessPath!, 1); } catch (InvalidDataException) { rejected = true; }
             check(rejected, "PID creation mismatch rejected");
             rejected = false; try { using var wrong = new ReadOnlyGameProcess(child.Id, Path.Combine(temp, "wrong.exe")); } catch (InvalidDataException) { rejected = true; }
@@ -188,7 +209,7 @@ internal static class DiagnosticChecks
             await a.StandardOutput.ReadLineAsync(); await b.StandardOutput.ReadLineAsync();
             var root = Path.Combine(temp, "multiple-games"); string[] ids;
             using (var service = new DiagnosticService(root)) {
-                service.Configure(new(true, "connection", 1), client, "", 0);
+                service.Configure(new(true, "connection", DiagnosticOptions.CurrentConsent), client, "", 0);
                 service.Event("login_started"); service.Event("account_verified"); service.Track(a, executable); service.Event("process_started");
                 service.Event("login_started"); service.Event("account_verified"); service.Track(b, executable); service.Event("process_started");
                 await Until(() => service.Status.Instances.Count(i => i.Pid != 0 && i.Selected) == 2, "both automatically bound");
@@ -204,12 +225,12 @@ internal static class DiagnosticChecks
                 }
                 service.Configure(new(false), client, "", 0);
                 await Until(() => !service.Status.Enabled, "disable ends collection");
-                service.Configure(new(true, ConsentVersion: 1), client, "", 0);
+                service.Configure(new(true, ConsentVersion: DiagnosticOptions.CurrentConsent), client, "", 0);
                 await Until(() => service.Status.Instances.Length == 2, "reenable same games");
                 check(service.Status.Instances.All(i => ids.Contains(i.Id)) && service.Status.Clips.Length == 2, "toggle resumes existing launch logs");
             }
             using (var recovered = new DiagnosticService(root)) {
-                recovered.Configure(new(true, "connection", 1), client, "", 0);
+                recovered.Configure(new(true, "connection", DiagnosticOptions.CurrentConsent), client, "", 0);
                 await Until(() => recovered.Status.Instances.Count(i => i.Pid != 0 && i.Selected) == 2, "registry recovery");
                 check(recovered.Status.Instances.Where(i => i.Pid != 0).All(i => ids.Contains(i.Id)), "launcher restart resumes same game launch logs");
                 a.StandardInput.WriteLine("exit"); await a.WaitForExitAsync();

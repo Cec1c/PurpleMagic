@@ -25,7 +25,8 @@ class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
           title: const Text('开启增强诊断日志'),
           content: const SingleChildScrollView(
             child: Text(
-              '开启期间会收集登录器和游戏的异常码、异常调用栈，以及游戏窗口处于前台时的玩家操作：'
+              '开启期间会收集登录器和游戏的异常码、异常调用栈、故障地址、寄存器、内存页属性、模块版本与摘要，'
+              '以及异常位置最多 64 字节的模块代码。还会记录游戏窗口处于前台时的玩家操作：'
               '方向键、按键次数、鼠标点击、移动与滚轮活动和焦点变化。\n\n'
               '其他按键合并为次数，不记录按键文字、聊天内容、密码或 Token。'
               '日志只保存在本机，保留最近 5 次，可由你导出 .log 分享；不会自动上传。\n\n'
@@ -53,7 +54,7 @@ class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
     }
     await widget.model.diagnosticPreferences(
       enabled: enabled,
-      consent: enabled ? 1 : null,
+      consent: enabled ? 2 : null,
     );
   }
 

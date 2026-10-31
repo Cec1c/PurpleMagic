@@ -1,0 +1,900 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Cec1c/PurpleMagic/docs/diagnostics/record-v3.schema.json",
+  "title": "PurpleMagic diagnostic JSONL record v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sequence",
+    "utc",
+    "monotonic_ms",
+    "type",
+    "module",
+    "session_id",
+    "read_ms",
+    "quality",
+    "fields",
+    "record_version"
+  ],
+  "properties": {
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "monotonic_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "identity",
+        "event",
+        "performance",
+        "scene",
+        "sample",
+        "exception"
+      ]
+    },
+    "module": {
+      "enum": [
+        "collector",
+        "launcher",
+        "process",
+        "at5t",
+        "fixture",
+        "observer"
+      ]
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "read_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "quality": {
+      "enum": [
+        "ok",
+        "partial",
+        "unstable",
+        "read_failed",
+        "dropped"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "base_sequence": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "fields": {
+      "type": "object",
+      "maxProperties": 4096,
+      "additionalProperties": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "evidence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "managed_exception",
+            "native_exception",
+            "module_identity"
+          ]
+        },
+        "exceptions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/exception"
+          }
+        },
+        "stack": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/stack_frame"
+          }
+        },
+        "native": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/native_evidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "module": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/native_module"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "record_version": {
+      "const": 3
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "status"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "not_applicable",
+            "unsupported",
+            "read_failed",
+            "unstable"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "number"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "value": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "stack_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module",
+        "offset"
+      ],
+      "properties": {
+        "module": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "offset": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "module_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        }
+      }
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "h_result",
+        "native_code",
+        "stack"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "h_result": {
+          "type": "integer"
+        },
+        "native_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "stack": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/stack_frame"
+          }
+        }
+      }
+    },
+    "native_exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exception_code",
+        "exception_flags",
+        "first_chance",
+        "thread_id",
+        "exception_id",
+        "related_exception_id",
+        "correlation_status",
+        "exception_address",
+        "exception_record",
+        "parameter_count",
+        "parameters",
+        "parameter_status",
+        "access_kind",
+        "fault_address",
+        "io_status"
+      ],
+      "properties": {
+        "exception_code": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "exception_flags": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "first_chance": {
+          "type": "boolean"
+        },
+        "thread_id": {
+          "type": "integer"
+        },
+        "exception_id": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "related_exception_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        },
+        "correlation_status": {
+          "enum": [
+            "unpaired",
+            "adjacent_same_thread_signature"
+          ]
+        },
+        "exception_address": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "exception_record": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "parameter_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 15,
+          "items": {
+            "type": "string",
+            "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+          }
+        },
+        "parameter_status": {
+          "enum": [
+            "ok",
+            "invalid_count_truncated"
+          ]
+        },
+        "access_kind": {
+          "enum": [
+            null,
+            "read",
+            "write",
+            "execute",
+            "unknown"
+          ]
+        },
+        "fault_address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "io_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        }
+      }
+    },
+    "native_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "architecture",
+        "pointer_bits",
+        "context_flags",
+        "context_status",
+        "win32_error",
+        "registers",
+        "elapsed_ms"
+      ],
+      "properties": {
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64",
+            "unknown"
+          ]
+        },
+        "pointer_bits": {
+          "enum": [
+            32,
+            64
+          ]
+        },
+        "context_flags": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "context_status": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "win32_error": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "registers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "EIP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "ESP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EBP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EAX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EBX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "ECX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EDX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "ESI": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EDI": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "EFlags": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RIP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RSP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RBP": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RAX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RBX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RCX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RDX": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RSI": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RDI": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "RFlags": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R8": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R9": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R10": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R11": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R12": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R13": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R14": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            },
+            "R15": {
+              "type": "string",
+              "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+            }
+          }
+        },
+        "elapsed_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "native_unwind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unwind_status",
+        "stop_reason",
+        "win32_error",
+        "frame_limit",
+        "elapsed_ms"
+      ],
+      "properties": {
+        "unwind_status": {
+          "enum": [
+            "complete",
+            "partial",
+            "failed"
+          ]
+        },
+        "stop_reason": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "win32_error": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "frame_limit": {
+          "const": 64
+        },
+        "elapsed_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "native_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sources",
+        "query_address",
+        "status",
+        "win32_error",
+        "base_address",
+        "allocation_base",
+        "region_size",
+        "state",
+        "protect",
+        "type"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "enum": [
+              "fault",
+              "exception_ip",
+              "ESP",
+              "EDI",
+              "ESI",
+              "EAX",
+              "RSP",
+              "RDI",
+              "RSI",
+              "RAX"
+            ]
+          }
+        },
+        "query_address": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "win32_error": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "base_address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "allocation_base": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "region_size": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "protect": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        }
+      }
+    },
+    "native_code": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "win32_error",
+        "module_id",
+        "address",
+        "rva",
+        "requested_bytes",
+        "actual_bytes",
+        "bytes"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "win32_error": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "module_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "rva": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "requested_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "actual_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "bytes": {
+          "type": "string",
+          "pattern": "^(?:[A-F0-9]{2}){0,64}$"
+        }
+      }
+    },
+    "native_module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "base_address",
+        "size",
+        "architecture",
+        "pe_timestamp",
+        "file_version",
+        "sha256",
+        "hash_status",
+        "hash_source",
+        "status",
+        "identity_status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "base_address": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "architecture": {
+          "enum": [
+            "x86",
+            "x64",
+            "unknown"
+          ]
+        },
+        "pe_timestamp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^0x(?:[A-F0-9]{8}|[A-F0-9]{16})$"
+        },
+        "file_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 180
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "hash_status": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "hash_source": {
+          "const": "debug_event_disk_file"
+        },
+        "status": {
+          "enum": [
+            "loaded",
+            "unloaded"
+          ]
+        },
+        "identity_status": {
+          "type": "string",
+          "maxLength": 180
+        }
+      }
+    },
+    "native_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exception",
+        "context",
+        "unwind",
+        "pages",
+        "code",
+        "modules",
+        "module_status",
+        "stage_ms",
+        "pause_ms",
+        "budget_exceeded"
+      ],
+      "properties": {
+        "exception": {
+          "$ref": "#/$defs/native_exception"
+        },
+        "context": {
+          "$ref": "#/$defs/native_context"
+        },
+        "unwind": {
+          "$ref": "#/$defs/native_unwind"
+        },
+        "pages": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/native_page"
+          }
+        },
+        "code": {
+          "$ref": "#/$defs/native_code"
+        },
+        "modules": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/native_module"
+          }
+        },
+        "module_status": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "stage_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "context": {
+              "type": "number",
+              "minimum": 0
+            },
+            "pages": {
+              "type": "number",
+              "minimum": 0
+            },
+            "code": {
+              "type": "number",
+              "minimum": 0
+            },
+            "unwind": {
+              "type": "number",
+              "minimum": 0
+            },
+            "before_continue": {
+              "type": "number",
+              "minimum": 0
+            },
+            "continue": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "pause_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "budget_exceeded": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

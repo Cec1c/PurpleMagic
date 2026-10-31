@@ -75,7 +75,7 @@ def main():
         assert not initial['diagnostics']['enabled']
         prefs = {'clientDirectory': game_directory, 'account': '', 'rememberAccount': False,
                  'autoCheck': False, 'reducedEffects': True,
-                 'diagnostics': {'enabled': True, 'problemType': 'connection', 'consentVersion': 1}}
+                 'diagnostics': {'enabled': True, 'problemType': 'connection', 'consentVersion': 2}}
         call('preferences', prefs)
         expected = 1
         status = diagnostic_when(lambda d: d['enabled'] and len(d['instances']) == expected and all(i['selected'] for i in d['instances']))
@@ -120,6 +120,16 @@ def main():
             crashes = [r for r in rows if r.get('type') == 'exception']
             assert len(crashes) >= 2 and any(r['fields']['first_chance']['value'] == 0 for r in crashes)
             assert all(len(r['evidence']['stack']) >= 3 for r in crashes)
+            assert rows[0]['schema_version'] == rows[-1]['schema_version'] == 4
+            assert all(r['record_version'] == 3 for r in rows[1:-1])
+            assert all(r['evidence']['native']['context']['context_status'] == 'ok' and
+                       r['evidence']['native']['context']['registers'] and
+                       r['evidence']['native']['pause_ms'] > 0 for r in crashes)
+            assert all(r['evidence']['native']['exception']['access_kind'] == 'write' and
+                       int(r['evidence']['native']['exception']['fault_address'], 16) == 0 for r in crashes)
+            assert all(len(line.encode('utf-8')) <= 65535 for line in Path(result['path']).read_text(encoding='utf-8').splitlines())
+            outcome = analyze(Path(result['path']))['outcome']
+            assert outcome == dict(state='unhandled_crash', unhandled_exceptions=1, exits=1), outcome
         prefs['diagnostics']['enabled'] = False
         call('preferences', prefs)
         diagnostic_when(lambda d: not d['enabled'])
@@ -130,6 +140,7 @@ def main():
                    'plain_log_verified': True, 'production_network_calls': 0,
                    'native_process_binding_and_exit': fixture is not None,
                    'native_crash_stack_export': args.native_crash_fixture,
+                   'schema4_native_evidence': args.native_crash_fixture,
                    'native_gameplay': False, 'native_save_as_picker': 'widget mocked; manual acceptance pending'}
         (output / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
         print(json.dumps(receipt, indent=2))
