@@ -224,7 +224,7 @@ func Log(log Logger, ctx context.Context, event string, err error, fields ...any
 // SafeRoute retains only known API words; all identifiers and unknown paths are
 // redacted. The game-side mux replaces it with its exact registered pattern.
 func SafeRoute(path string) string {
-	known := " api v1 internal gateway accounts characters benefits recipients redelivery scan scan-v2 tasks run schedule pause inventory containers currency currency-adjustments gold gold-operations skill-points skill-point-operations level level-operations profession profession-operations expert-job expert-job-operations vault vault-operations mailbox mailbox-operations mailbox-cleanups items quests quest-operations activities capabilities presence settings pvf preview state options grant-options pvf-preview pvf-apply online-preview mail sessions login logout "
+	known := " api v1 internal gateway accounts characters benefits recipients redelivery scan scan-v2 tasks run schedule pause inventory containers currency currency-adjustments gold gold-operations skill-points skill-point-operations level level-operations profession profession-operations expert-job expert-job-operations vault vault-operations mailbox mailbox-operations mailbox-cleanups items quests quest-operations activities capabilities presence dashboard settings pvf preview state options grant-options pvf-preview pvf-apply online-preview mail sessions login logout "
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) > 12 {
 		return "/unmatched"

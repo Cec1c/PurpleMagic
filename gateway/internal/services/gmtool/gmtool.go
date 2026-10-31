@@ -119,8 +119,9 @@ type Deps struct {
 
 // Server 是 GM 面板的 HTTP 服务。
 type Server struct {
-	cfg  Config
-	deps Deps
+	dashboard dashboardCache
+	cfg       Config
+	deps      Deps
 
 	db  *sql.DB
 	www http.Handler

@@ -18,7 +18,7 @@ func TestPlayerProxyBoundary(t *testing.T) {
 	}))
 	defer up.Close()
 	h := handler(config{Upstream: up.URL, ProxySecret: "server-secret", ReleaseDir: t.TempDir()})
-	for _, path := range []string{"/api/game/admin", "/api/player/admin", "/manage/v1/accounts", "/debug/reload", "/launcher/../gateway.json", "/api/patch/file", "/api/account/login?x=1"} {
+	for _, path := range []string{"/api/game/admin", "/api/player/admin", "/api/v1/dashboard", "/manage/v1/accounts", "/debug/reload", "/launcher/../gateway.json", "/api/patch/file", "/api/account/login?x=1"} {
 		r := httptest.NewRequest("POST", path, nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -64,7 +64,7 @@ func TestPortableDistributionReadOnlyBoundary(t *testing.T) {
 			t.Fatal("named distribution", method, named.Code)
 		}
 	}
-	for _, path := range []string{"/launcher/" + name + "?download=1", "/launcher/" + name + ".key", "/launcher/DNF90-Portable-../gateway.json", "/launcher/other.exe", "/admin/", "/gm/"} {
+	for _, path := range []string{"/launcher/" + name + "?download=1", "/launcher/" + name + ".key", "/launcher/DNF90-Portable-../gateway.json", "/launcher/other.exe", "/admin/", "/gm/", "/api/v1/dashboard"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 		if w.Code != 404 {

@@ -99,6 +99,7 @@ func (s *Server) v1Routes() http.Handler {
 	writes.HandleFunc("POST /api/v1/accounts/{accountId}/currency-adjustments", s.v1AdjustCurrency)
 	mux.HandleFunc("GET /api/v1/capabilities", s.v1Capabilities)
 	mux.HandleFunc("GET /api/v1/presence", s.v1Presence)
+	mux.HandleFunc("GET /api/v1/dashboard", s.v1Dashboard)
 	mux.HandleFunc("GET /api/v1/accounts", s.v1Accounts)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}", s.v1Account)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}/characters", s.v1AccountCharacters)

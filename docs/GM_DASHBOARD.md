@@ -22,6 +22,16 @@
 
 全服游戏内公告发送本轮未接入。现有公告入口管理登录器公告。
 
+## 网关实现与部署
+
+公开仓库的 `gateway/` 已包含统计实现。按现有部署流程构建并更新 PlayerGateway 与 `gm-console/dist`，即可使用仪表盘；外部 GMService 通过原有 v1 代理转发请求。统计接口仍使用管理监听和 GM 鉴权。
+
+统计直接读取已配置的注册表和游戏数据库分片，无需新增游戏运行接口或数据库迁移。注册表沿用 `created_at`、`last_login_at` 的 UTC 时间契约；通关统计读取现有 `clear_history` 的 `finished_at`、`duration_ms`、`fatigue_spent`。缺少通关表或相关字段时省略整组通关/疲劳指标，保留可用的账号、角色统计。数据库适配范围与网关的现有 DNF90/ServerS5A3 仓储一致。
+
+后端共享 60 秒缓存，并发读取合并为一次刷新；北京时间午夜使缓存失效，每次读取总预算 4 秒。每个角色分片只查询角色数及通关聚合，不读取存档正文或逐玩家明细。
+
+实现入口：[`api_v1_dashboard.go`](../gateway/internal/services/gmtool/api_v1_dashboard.go)、[`DashboardReader`](../gateway/internal/modules/dnf/repository/dashboard.go) 和 [`mysql_dashboard.go`](../gateway/internal/modules/dnf/repository/mysql/mysql_dashboard.go)。在 `gateway/` 下执行 `python scripts/test_mysql.py --run Dashboard` 可用一次性 MariaDB 验证单/双分片、日期边界及旧表兼容。
+
 ## 兼容与负载
 
 - `GET /api/v1/dashboard` 是可选、经过 GM 鉴权的聚合接口；旧服务返回 404/405/501 后，本次页面会话不再探测它。缺字段、null 或非法值对应的卡片隐藏，真实 0 正常显示。
@@ -58,4 +68,4 @@
 }
 ```
 
-未采集疲劳的历史通关不参与疲劳总数；热力图服务明确返回真实零日期，遗漏日期显示为空白。服务端统计实现按群服内容独立维护，公开前端只依赖此可选契约。
+未采集疲劳的历史通关不参与疲劳总数；热力图服务明确返回真实零日期，遗漏日期显示为空白。通用统计实现随公开网关提供，前端继续兼容没有该接口的旧版本。

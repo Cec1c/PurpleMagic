@@ -31,7 +31,7 @@
       "path": "/api/v1/accounts",
       "handler": "s.v1Accounts",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 97,
+      "line": 103,
       "surface": "private-management"
     },
     {
@@ -39,7 +39,7 @@
       "path": "/api/v1/accounts/{accountId}",
       "handler": "s.v1Account",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 98,
+      "line": 104,
       "surface": "private-management"
     },
     {
@@ -47,7 +47,7 @@
       "path": "/api/v1/accounts/{accountId}/characters",
       "handler": "s.v1AccountCharacters",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 99,
+      "line": 105,
       "surface": "private-management"
     },
     {
@@ -55,7 +55,7 @@
       "path": "/api/v1/accounts/{accountId}/currency",
       "handler": "s.v1Currency",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 68,
+      "line": 73,
       "surface": "private-management"
     },
     {
@@ -63,7 +63,7 @@
       "path": "/api/v1/accounts/{accountId}/currency-adjustments",
       "handler": "s.v1CurrencyLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 93,
+      "line": 98,
       "surface": "private-management"
     },
     {
@@ -71,7 +71,7 @@
       "path": "/api/v1/accounts/{accountId}/currency-adjustments",
       "handler": "s.v1AdjustCurrency",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 94,
+      "line": 99,
       "surface": "private-management"
     },
     {
@@ -79,7 +79,15 @@
       "path": "/api/v1/accounts/{accountId}/inventory-operations",
       "handler": "s.v1InventoryOperationLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 58,
+      "line": 63,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/accounts/{accountId}/password-reset",
+      "handler": "s.v1ResetPassword",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 127,
       "surface": "private-management"
     },
     {
@@ -87,7 +95,7 @@
       "path": "/api/v1/accounts/{accountId}/vault",
       "handler": "s.v1Vault",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 64,
+      "line": 69,
       "surface": "private-management"
     },
     {
@@ -95,7 +103,7 @@
       "path": "/api/v1/accounts/{accountId}/vault-operations",
       "handler": "s.v1VaultLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 65,
+      "line": 70,
       "surface": "private-management"
     },
     {
@@ -103,7 +111,7 @@
       "path": "/api/v1/accounts/{accountId}/vault-operations",
       "handler": "s.v1VaultOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 67,
+      "line": 72,
       "surface": "private-management"
     },
     {
@@ -111,7 +119,71 @@
       "path": "/api/v1/accounts/{accountId}/vault-operations/preview",
       "handler": "s.v1VaultOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 66,
+      "line": 71,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/activities",
+      "handler": "s.v1Activities",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 128,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/activities",
+      "handler": "s.v1SaveActivities",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 129,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/anti-cheat/ban-targets/{account}",
+      "handler": "s.v1BanTargets",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 123,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/anti-cheat/bans",
+      "handler": "s.v1Moderation",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 126,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/anti-cheat/qq/bindings",
+      "handler": "s.v1QQBinding",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 125,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/anti-cheat/qq/settings",
+      "handler": "s.v1QQBinding",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 122,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/anti-cheat/qq/settings",
+      "handler": "s.v1QQBinding",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 124,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/anti-cheat/{resource}",
+      "handler": "s.v1Moderation",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 121,
       "surface": "private-management"
     },
     {
@@ -119,7 +191,7 @@
       "path": "/api/v1/benefits",
       "handler": "s.v1Campaigns",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 26,
+      "line": 27,
       "surface": "private-management"
     },
     {
@@ -127,7 +199,7 @@
       "path": "/api/v1/benefits",
       "handler": "s.v1CreateCampaign",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 32,
+      "line": 34,
       "surface": "private-management"
     },
     {
@@ -135,7 +207,15 @@
       "path": "/api/v1/benefits/{id}",
       "handler": "s.v1Campaign",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 27,
+      "line": 28,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/benefits/{id}/delete",
+      "handler": "s.v1CampaignDelete",
+      "source": "gateway/internal/services/gmtool/api_v1_operations.go",
+      "line": 36,
       "surface": "private-management"
     },
     {
@@ -143,7 +223,7 @@
       "path": "/api/v1/benefits/{id}/preview",
       "handler": "s.v1CampaignPreview",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 34,
+      "line": 37,
       "surface": "private-management"
     },
     {
@@ -151,7 +231,7 @@
       "path": "/api/v1/benefits/{id}/pvf-apply",
       "handler": "s.v1CampaignPVFApply",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 24,
+      "line": 25,
       "surface": "private-management"
     },
     {
@@ -159,7 +239,7 @@
       "path": "/api/v1/benefits/{id}/pvf-history",
       "handler": "s.v1CampaignPVFHistory",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 22,
+      "line": 23,
       "surface": "private-management"
     },
     {
@@ -167,7 +247,15 @@
       "path": "/api/v1/benefits/{id}/pvf-preview",
       "handler": "s.v1CampaignPVFPreview",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 23,
+      "line": 24,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/benefits/{id}/recipients",
+      "handler": "s.v1CampaignRecipients",
+      "source": "gateway/internal/services/gmtool/api_v1_operations.go",
+      "line": 29,
       "surface": "private-management"
     },
     {
@@ -175,7 +263,7 @@
       "path": "/api/v1/benefits/{id}/state",
       "handler": "s.v1CampaignState",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 33,
+      "line": 35,
       "surface": "private-management"
     },
     {
@@ -183,7 +271,7 @@
       "path": "/api/v1/capabilities",
       "handler": "s.v1Capabilities",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 95,
+      "line": 100,
       "surface": "private-management"
     },
     {
@@ -191,7 +279,7 @@
       "path": "/api/v1/characters",
       "handler": "s.v1Characters",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 100,
+      "line": 106,
       "surface": "private-management"
     },
     {
@@ -199,7 +287,7 @@
       "path": "/api/v1/characters/{characterId}",
       "handler": "s.v1Character",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 101,
+      "line": 107,
       "surface": "private-management"
     },
     {
@@ -207,7 +295,7 @@
       "path": "/api/v1/characters/{characterId}/container-operations",
       "handler": "s.v1ContainerLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 70,
+      "line": 75,
       "surface": "private-management"
     },
     {
@@ -215,7 +303,7 @@
       "path": "/api/v1/characters/{characterId}/container-operations",
       "handler": "s.v1ContainerOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 72,
+      "line": 77,
       "surface": "private-management"
     },
     {
@@ -223,7 +311,7 @@
       "path": "/api/v1/characters/{characterId}/container-operations/preview",
       "handler": "s.v1ContainerOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 71,
+      "line": 76,
       "surface": "private-management"
     },
     {
@@ -231,7 +319,7 @@
       "path": "/api/v1/characters/{characterId}/containers",
       "handler": "s.v1Container",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 69,
+      "line": 74,
       "surface": "private-management"
     },
     {
@@ -239,7 +327,7 @@
       "path": "/api/v1/characters/{characterId}/expert-job",
       "handler": "s.v1ExpertJob",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 81,
+      "line": 86,
       "surface": "private-management"
     },
     {
@@ -247,7 +335,7 @@
       "path": "/api/v1/characters/{characterId}/expert-job-operations",
       "handler": "s.v1ExpertJobLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 84,
+      "line": 89,
       "surface": "private-management"
     },
     {
@@ -255,7 +343,7 @@
       "path": "/api/v1/characters/{characterId}/expert-job-operations",
       "handler": "s.v1ExpertJobOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 83,
+      "line": 88,
       "surface": "private-management"
     },
     {
@@ -263,7 +351,7 @@
       "path": "/api/v1/characters/{characterId}/expert-job-operations/preview",
       "handler": "s.v1ExpertJobOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 82,
+      "line": 87,
       "surface": "private-management"
     },
     {
@@ -271,7 +359,7 @@
       "path": "/api/v1/characters/{characterId}/gold",
       "handler": "s.v1Gold",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 73,
+      "line": 78,
       "surface": "private-management"
     },
     {
@@ -279,7 +367,7 @@
       "path": "/api/v1/characters/{characterId}/gold-operations",
       "handler": "s.v1GoldLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 74,
+      "line": 79,
       "surface": "private-management"
     },
     {
@@ -287,7 +375,7 @@
       "path": "/api/v1/characters/{characterId}/gold-operations",
       "handler": "s.v1GoldOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 92,
+      "line": 97,
       "surface": "private-management"
     },
     {
@@ -295,7 +383,7 @@
       "path": "/api/v1/characters/{characterId}/gold-operations/preview",
       "handler": "s.v1GoldOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 91,
+      "line": 96,
       "surface": "private-management"
     },
     {
@@ -303,7 +391,7 @@
       "path": "/api/v1/characters/{characterId}/inventory",
       "handler": "s.v1Inventory",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 102,
+      "line": 108,
       "surface": "private-management"
     },
     {
@@ -311,7 +399,7 @@
       "path": "/api/v1/characters/{characterId}/inventory-operations",
       "handler": "s.v1InventoryOperationLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 57,
+      "line": 62,
       "surface": "private-management"
     },
     {
@@ -319,7 +407,7 @@
       "path": "/api/v1/characters/{characterId}/inventory-operations",
       "handler": "s.v1InventoryOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 60,
+      "line": 65,
       "surface": "private-management"
     },
     {
@@ -327,7 +415,7 @@
       "path": "/api/v1/characters/{characterId}/inventory-operations/preview",
       "handler": "s.v1InventoryOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 59,
+      "line": 64,
       "surface": "private-management"
     },
     {
@@ -335,7 +423,7 @@
       "path": "/api/v1/characters/{characterId}/inventory/{container}/{slot}",
       "handler": "s.v1InventoryDetail",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 103,
+      "line": 109,
       "surface": "private-management"
     },
     {
@@ -343,7 +431,7 @@
       "path": "/api/v1/characters/{characterId}/inventory/{container}/{slot}/options",
       "handler": "s.v1InventoryOptions",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 56,
+      "line": 61,
       "surface": "private-management"
     },
     {
@@ -351,7 +439,7 @@
       "path": "/api/v1/characters/{characterId}/level",
       "handler": "s.v1Level",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 76,
+      "line": 81,
       "surface": "private-management"
     },
     {
@@ -359,7 +447,7 @@
       "path": "/api/v1/characters/{characterId}/level-operations",
       "handler": "s.v1LevelLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 87,
+      "line": 92,
       "surface": "private-management"
     },
     {
@@ -367,7 +455,7 @@
       "path": "/api/v1/characters/{characterId}/level-operations",
       "handler": "s.v1LevelOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 86,
+      "line": 91,
       "surface": "private-management"
     },
     {
@@ -375,7 +463,7 @@
       "path": "/api/v1/characters/{characterId}/level-operations/preview",
       "handler": "s.v1LevelOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 85,
+      "line": 90,
       "surface": "private-management"
     },
     {
@@ -383,7 +471,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox",
       "handler": "s.v1Mailbox",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 112,
+      "line": 118,
       "surface": "private-management"
     },
     {
@@ -391,7 +479,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-cleanups",
       "handler": "s.v1MailboxCleanups",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 105,
+      "line": 111,
       "surface": "private-management"
     },
     {
@@ -399,7 +487,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-cleanups",
       "handler": "s.v1CreateMailboxCleanup",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 108,
+      "line": 114,
       "surface": "private-management"
     },
     {
@@ -407,7 +495,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-cleanups/{cleanupId}",
       "handler": "s.v1MailboxCleanup",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 106,
+      "line": 112,
       "surface": "private-management"
     },
     {
@@ -415,7 +503,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-cleanups/{cleanupId}/items",
       "handler": "s.v1MailboxCleanupItems",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 107,
+      "line": 113,
       "surface": "private-management"
     },
     {
@@ -423,7 +511,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-cleanups/{cleanupId}/{action}",
       "handler": "s.v1AdvanceMailboxCleanup",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 109,
+      "line": 115,
       "surface": "private-management"
     },
     {
@@ -431,7 +519,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-operations",
       "handler": "s.v1MailboxOperationLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 104,
+      "line": 110,
       "surface": "private-management"
     },
     {
@@ -439,7 +527,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-operations",
       "handler": "s.v1MailboxOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 111,
+      "line": 117,
       "surface": "private-management"
     },
     {
@@ -447,7 +535,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox-operations/preview",
       "handler": "s.v1MailboxOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 110,
+      "line": 116,
       "surface": "private-management"
     },
     {
@@ -455,7 +543,7 @@
       "path": "/api/v1/characters/{characterId}/mailbox/{mailId}",
       "handler": "s.v1MailboxDetail",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 113,
+      "line": 119,
       "surface": "private-management"
     },
     {
@@ -463,7 +551,7 @@
       "path": "/api/v1/characters/{characterId}/profession",
       "handler": "s.v1Profession",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 77,
+      "line": 82,
       "surface": "private-management"
     },
     {
@@ -471,7 +559,7 @@
       "path": "/api/v1/characters/{characterId}/profession-operations",
       "handler": "s.v1ProfessionLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 80,
+      "line": 85,
       "surface": "private-management"
     },
     {
@@ -479,7 +567,7 @@
       "path": "/api/v1/characters/{characterId}/profession-operations",
       "handler": "s.v1ProfessionOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 79,
+      "line": 84,
       "surface": "private-management"
     },
     {
@@ -487,7 +575,7 @@
       "path": "/api/v1/characters/{characterId}/profession-operations/preview",
       "handler": "s.v1ProfessionOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 78,
+      "line": 83,
       "surface": "private-management"
     },
     {
@@ -495,7 +583,7 @@
       "path": "/api/v1/characters/{characterId}/quest-operations",
       "handler": "s.v1QuestOperationLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 61,
+      "line": 66,
       "surface": "private-management"
     },
     {
@@ -503,7 +591,7 @@
       "path": "/api/v1/characters/{characterId}/quest-operations",
       "handler": "s.v1QuestOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 63,
+      "line": 68,
       "surface": "private-management"
     },
     {
@@ -511,7 +599,7 @@
       "path": "/api/v1/characters/{characterId}/quest-operations/preview",
       "handler": "s.v1QuestOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 62,
+      "line": 67,
       "surface": "private-management"
     },
     {
@@ -519,7 +607,7 @@
       "path": "/api/v1/characters/{characterId}/quests",
       "handler": "s.v1CharacterQuests",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 114,
+      "line": 120,
       "surface": "private-management"
     },
     {
@@ -527,7 +615,7 @@
       "path": "/api/v1/characters/{characterId}/skill-point-operations",
       "handler": "s.v1SkillPointLog",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 88,
+      "line": 93,
       "surface": "private-management"
     },
     {
@@ -535,7 +623,7 @@
       "path": "/api/v1/characters/{characterId}/skill-point-operations",
       "handler": "s.v1SkillPointOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 90,
+      "line": 95,
       "surface": "private-management"
     },
     {
@@ -543,7 +631,7 @@
       "path": "/api/v1/characters/{characterId}/skill-point-operations/preview",
       "handler": "s.v1SkillPointOperation",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 89,
+      "line": 94,
       "surface": "private-management"
     },
     {
@@ -551,7 +639,15 @@
       "path": "/api/v1/characters/{characterId}/skill-points",
       "handler": "s.v1SkillPoints",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 75,
+      "line": 80,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard",
+      "handler": "s.v1Dashboard",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 102,
       "surface": "private-management"
     },
     {
@@ -559,7 +655,7 @@
       "path": "/api/v1/items",
       "handler": "s.v1Items",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 117,
+      "line": 134,
       "surface": "private-management"
     },
     {
@@ -567,7 +663,7 @@
       "path": "/api/v1/items/{itemId}",
       "handler": "s.v1ItemDetail",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 118,
+      "line": 135,
       "surface": "private-management"
     },
     {
@@ -575,7 +671,7 @@
       "path": "/api/v1/items/{itemId}/grant-options",
       "handler": "s.v1MailGrantOptions",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 25,
+      "line": 26,
       "surface": "private-management"
     },
     {
@@ -583,7 +679,7 @@
       "path": "/api/v1/mail/online-preview",
       "handler": "s.v1OnlineMailPreview",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 36,
+      "line": 39,
       "surface": "private-management"
     },
     {
@@ -591,7 +687,7 @@
       "path": "/api/v1/mail/preview",
       "handler": "s.v1MailPreview",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 35,
+      "line": 38,
       "surface": "private-management"
     },
     {
@@ -599,7 +695,7 @@
       "path": "/api/v1/presence",
       "handler": "s.v1Presence",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 96,
+      "line": 101,
       "surface": "private-management"
     },
     {
@@ -607,7 +703,7 @@
       "path": "/api/v1/quests",
       "handler": "s.v1Quests",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 115,
+      "line": 132,
       "surface": "private-management"
     },
     {
@@ -615,7 +711,23 @@
       "path": "/api/v1/quests/{questId}",
       "handler": "s.v1QuestDetail",
       "source": "gateway/internal/services/gmtool/api_v1.go",
-      "line": 116,
+      "line": 133,
+      "surface": "private-management"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/pvf",
+      "handler": "s.v1PVFMode",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 130,
+      "surface": "private-management"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/settings/pvf",
+      "handler": "s.v1PVFMode",
+      "source": "gateway/internal/services/gmtool/api_v1.go",
+      "line": 131,
       "surface": "private-management"
     },
     {
@@ -623,7 +735,7 @@
       "path": "/api/v1/tasks",
       "handler": "s.v1Tasks",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 28,
+      "line": 30,
       "surface": "private-management"
     },
     {
@@ -631,7 +743,7 @@
       "path": "/api/v1/tasks/{id}",
       "handler": "s.v1Task",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 29,
+      "line": 31,
       "surface": "private-management"
     },
     {
@@ -639,7 +751,7 @@
       "path": "/api/v1/tasks/{id}/confirmation",
       "handler": "s.v1Task",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 30,
+      "line": 32,
       "surface": "private-management"
     },
     {
@@ -647,7 +759,7 @@
       "path": "/api/v1/tasks/{id}/recipients",
       "handler": "s.v1Recipients",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 31,
+      "line": 33,
       "surface": "private-management"
     },
     {
@@ -655,7 +767,7 @@
       "path": "/api/v1/tasks/{id}/run",
       "handler": "s.v1RunTask",
       "source": "gateway/internal/services/gmtool/api_v1_operations.go",
-      "line": 37,
+      "line": 40,
       "surface": "private-management"
     }
   ]
