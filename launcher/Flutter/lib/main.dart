@@ -303,7 +303,7 @@ class _PreviewHomeState extends State<PreviewHome> {
               ),
             _icon(Icons.settings_outlined, '设置', _settings, key: 'settings'),
             const SizedBox(width: 10),
-            _icon(Icons.remove_rounded, '最小化', () => windowAction('minimize')),
+            _icon(Icons.remove_rounded, '最小化到托盘', () => windowAction('minimize')),
             _icon(Icons.close_rounded, '关闭', () => windowAction('close')),
           ],
         ),

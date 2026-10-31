@@ -7,6 +7,7 @@
 #include <flutter/encodable_value.h>
 
 #include <memory>
+#include <shellapi.h>
 
 #include "win32_window.h"
 
@@ -25,6 +26,16 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  bool AddTrayIcon();
+  void RemoveTrayIcon();
+  void RestoreFromTray();
+  void ShowTrayMenu(POINT position);
+
+  NOTIFYICONDATAW tray_icon_{};
+  UINT taskbar_created_message_ = 0;
+  bool tray_icon_visible_ = false;
+  bool tray_version_4_ = false;
+
   // The project to run.
   flutter::DartProject project_;
 
