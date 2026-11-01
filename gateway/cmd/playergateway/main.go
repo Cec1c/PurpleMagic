@@ -78,7 +78,7 @@ func handlerWithHub(c config, hub *launcherhub.Hub) http.Handler {
 		switch {
 		case hub != nil && (strings.HasPrefix(r.URL.Path, "/launcher/v2/") || strings.HasPrefix(r.URL.Path, "/blobs/")):
 			hub.PublicHandler().ServeHTTP(w, r)
-		case r.Method == "POST" && (r.URL.Path == "/api/account/login" || r.URL.Path == "/api/account/register" || r.URL.Path == "/api/account/password" || r.URL.Path == "/api/account/binding-code"):
+		case r.Method == "POST" && (r.URL.Path == "/api/account/login" || r.URL.Path == "/api/account/register" || r.URL.Path == "/api/account/password" || r.URL.Path == "/api/account/binding-code" || r.URL.Path == "/api/diagnostics/context"):
 			r.Body = http.MaxBytesReader(w, r.Body, 4096)
 			proxy.ServeHTTP(w, r)
 		case r.Method == "GET" && r.URL.Path == "/api/status":
