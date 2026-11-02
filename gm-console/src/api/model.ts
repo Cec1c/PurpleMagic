@@ -40,6 +40,7 @@ export type LiveData = {
   hub?: DTO;
   hubError?: string;
   pending?: Pending;
+  operationHistory: Pending[];
 };
 export type Step = {
   id: string;
@@ -59,6 +60,7 @@ export type Pending = {
   activityChanges?: { id: number; name: string; before: boolean; enabled: boolean }[];
   id: string;
   title: string;
+  createdAt?: string;
   target: string;
   summary: string;
   steps: Step[];
@@ -107,5 +109,6 @@ export const emptyState = (): State => ({
     historyNext: {},
     benefitNext: "",
     mailNext: "",
+    operationHistory: [],
   },
 });

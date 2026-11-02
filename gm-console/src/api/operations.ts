@@ -25,6 +25,7 @@ export async function prepareOperation(
   const base = c ? `/api/v1/characters/${segment(c.id)}` : "";
   const p: Pending = {
     id,
+    createdAt: new Date().toISOString(),
     title: "确认本次修改",
     target: c?.name || "运营配置",
     summary: "",

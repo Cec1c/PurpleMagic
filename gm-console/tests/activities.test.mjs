@@ -119,7 +119,7 @@ test('restored activity operation recovers a saved batch after both write and re
     return result;
   };
   await assert.rejects(f.api.confirm());
-  assert.equal(JSON.parse(f.storage.get('purplemagic-pending-v1')).steps[0].attempted, true);
+  assert.equal(JSON.parse(f.storage.get('purplemagic-operations-v2')).pending.steps[0].attempted, true);
   const restored = new ConsoleAPI(() => {});
   restored.sectionId = 'activities'; restored.meta.authenticated = true;
   restored.http.fetcher = f.fetcher; restored.restore();

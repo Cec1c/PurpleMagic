@@ -92,7 +92,7 @@ test('unknown response can be collapsed, navigated and restored without a new re
  await assert.rejects(api.confirm());api.dismissPending();api.navigate('quests',true);
  const restored=new ConsoleAPI(()=>{});restored.restore();restored.character=async()=>{};restored.enter=async()=>{};
  restored.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,key:init.headers['Idempotency-Key']});return response({requestId:'permanent'});};
- assert.equal(restored.meta.pending.hidden,true);assert.equal(restored.canRepreviewQuests(),false);
+ assert.equal(restored.meta.pending,undefined);assert.equal(restored.meta.operationHistory.length,1);assert.equal(restored.canRepreviewQuests(),false);
  restored.openPending();await restored.confirm();assert.deepEqual(calls[0],calls[1]);restored.cancel();
 });
 

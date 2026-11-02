@@ -124,13 +124,13 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
             <button
               className="primary"
               disabled={busy}
-              onClick={() => void api.guard(() => api.confirm())}
+              onClick={() => void api.guard(() => api.confirm(p.id))}
             >
               {busy ? "正在执行…" : p.confirmed ? "继续并查询回执" : "确认执行"}
             </button>
           )}
           {api.canRepreviewQuests() && (
-            <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewQuests())}>
+            <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewQuests(p.id))}>
               重新预览未完成项
             </button>
           )}
@@ -143,7 +143,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
         <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>
       )}
       {p.confirmed && !p.completed && !p.rejected && (
-        <p className="muted">可收起或刷新页面，从顶部“操作回执”继续。已完成的步骤会保留。</p>
+        <p className="muted">收起后可继续其他操作，从顶部“操作回执”查看或重试本次操作。</p>
       )}
       {p.activityChanges && <ul className="confirmation-recipients">
         {p.activityChanges.map((v) => <li key={v.id}>{v.name}<span>#{v.id} · {v.before ? "开启" : "关闭"} → {v.enabled ? "开启" : "关闭"}</span></li>)}
@@ -182,8 +182,31 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           {p.error}
         </p>
       )}
+      {p.confirmed && <p className="muted">请求编号：{p.id}</p>}
     </Modal>
   );
+}
+export function OperationHistory({ onClose }: { onClose: () => void }) {
+  const api = useLive()!;
+  const receipts = api.operationReceipts();
+  return <Modal title="操作回执" wide onClose={onClose}>
+    <p className="muted">当前标签页的操作记录，刷新后继续保留。重试沿用原请求编号。</p>
+    <ul className="operation-history">
+      {receipts.map(p => <li key={p.id}>
+        <div>
+          <strong>{p.target} · {p.title}</strong>
+          <p>{p.summary}</p>
+          <small>{p.createdAt ? new Date(p.createdAt).toLocaleString("zh-CN") + " · " : ""}
+            {p.completed ? "已取得回执" : p.rejected ? "未通过" : api.meta.busy && api.meta.pending?.id === p.id ? "执行中" : "待确认结果"}
+            {` · ${p.steps.filter(s => s.done).length}/${p.steps.length} 步`}
+          </small>
+          {p.error && <p className="inline-error">{p.error}</p>}
+        </div>
+        <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
+          onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
+      </li>)}
+    </ul>
+  </Modal>;
 }
 export function TaskDetail({
   id,

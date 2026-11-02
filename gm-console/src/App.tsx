@@ -50,7 +50,7 @@ import { Settings } from "./pages/Settings";
 import { ConsoleAPI } from "./api/console";
 import { emptyState } from "./api/model";
 import { LiveContext } from "./api/context";
-import { LoginPanel, LiveConfirmation } from "./api/controls";
+import { LoginPanel, LiveConfirmation, OperationHistory } from "./api/controls";
 import { Empty } from "./ui";
 const demo =
   import.meta.env.VITE_CONSOLE_MODE === "demo" ||
@@ -151,6 +151,7 @@ export function App() {
     [mobileNav, setMobileNav] = useState(false),
     [reset, setReset] = useState(false);
   const [tokenPanel, setTokenPanel] = useState(false);
+  const [receiptPanel, setReceiptPanel] = useState(false);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(
       null,
     ),
@@ -399,9 +400,9 @@ export function App() {
               <strong>{nav.label}</strong>
             </div>
             <div className="topbar-actions">
-              {live && state.api?.pending?.confirmed && (
-                <button className="secondary" onClick={() => live.openPending()}>
-                  操作回执 · {state.api.pending.steps.filter((step) => step.done).length}/{state.api.pending.steps.length}
+              {live && live.operationReceipts().length > 0 && (
+                <button className="secondary" onClick={() => setReceiptPanel(true)}>
+                  操作回执 · {live.operationReceipts().length}
                 </button>
               )}
               <span className="topbar-selected">
@@ -560,6 +561,7 @@ export function App() {
           </Modal>
         )}
         {state.api?.pending && !state.api.pending.hidden && <LiveConfirmation pending={state.api.pending} />}
+        {receiptPanel && live && <OperationHistory onClose={() => setReceiptPanel(false)} />}
         {tokenPanel && live && <Modal title="访问 Token" onClose={() => setTokenPanel(false)} footer={<>
           <button className="secondary" onClick={() => setTokenPanel(false)}>保持连接</button>
           <button className="primary" onClick={() => void live.guard(async () => {

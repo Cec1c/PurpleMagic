@@ -277,22 +277,41 @@ export class ConsoleAPI {
   }
   restore() {
     try {
-      const raw = sessionStorage.getItem("purplemagic-pending-v1");
+      const raw = sessionStorage.getItem("purplemagic-operations-v2");
       if (raw) {
-        const p = JSON.parse(raw);
-        if (p.id && Array.isArray(p.steps)) this.meta.pending = p;
+        const saved = JSON.parse(raw);
+        if (saved.pending?.id && Array.isArray(saved.pending.steps)) this.meta.pending = saved.pending;
+        this.meta.operationHistory = Array.isArray(saved.history)
+          ? saved.history.filter((p: Pending) => p?.id && Array.isArray(p.steps) && p.id !== this.meta.pending?.id)
+          : [];
+      } else {
+        const legacy = sessionStorage.getItem("purplemagic-pending-v1");
+        if (legacy) {
+          const p = JSON.parse(legacy);
+          if (p.id && Array.isArray(p.steps)) this.meta.pending = p;
+        }
       }
     } catch {}
     this.publish();
   }
   persistPending() {
-    if (this.meta.pending)
-      sessionStorage.setItem(
-        "purplemagic-pending-v1",
-        JSON.stringify(this.meta.pending),
-      );
-    else sessionStorage.removeItem("purplemagic-pending-v1");
+    sessionStorage.setItem("purplemagic-operations-v2", JSON.stringify({
+      pending: this.meta.pending, history: this.meta.operationHistory,
+    }));
+    sessionStorage.removeItem("purplemagic-pending-v1");
     this.publish();
+  }
+  operationReceipts() {
+    const p = this.meta.pending;
+    return p?.confirmed ? [p, ...this.meta.operationHistory] : this.meta.operationHistory;
+  }
+  private archivePending() {
+    const p = this.meta.pending;
+    if (p && (p.confirmed || p.steps.some(step => step.done))) {
+      p.hidden = true;
+      this.meta.operationHistory = [p, ...this.meta.operationHistory.filter(old => old.id !== p.id)];
+    }
+    this.meta.pending = undefined;
   }
   async directory(
     mode: "accounts" | "characters",
@@ -1139,10 +1158,8 @@ export class ConsoleAPI {
   }
   async prepare(command: Command, selection: Selection) {
     if (this.meta.busy) return;
-    if (this.meta.pending?.confirmed) {
-      this.openPending();
-      throw new Error("请先处理尚未取得回执的操作");
-    }
+    this.archivePending();
+    this.persistPending();
     this.meta.busy = true;
     this.meta.error = "";
     this.publish();
@@ -1155,24 +1172,28 @@ export class ConsoleAPI {
     }
   }
   cancel() {
-    if (
-      this.meta.pending?.confirmed &&
-      !this.meta.pending.completed &&
-      !this.meta.pending.rejected
-    )
-      throw new Error("已提交的操作请继续查询回执");
-    this.meta.pending = undefined;
+    if (this.meta.busy) throw new Error("操作正在执行，可先收起查看其他页面");
+    this.archivePending();
     this.persistPending();
   }
   dismissPending() {
     const p = this.meta.pending;
     if (!p) return;
-    if (p.confirmed && (!p.completed && !p.rejected || this.meta.busy)) {
+    if (p.confirmed && this.meta.busy) {
       p.hidden = true;
       this.persistPending();
     } else if (!this.meta.busy) this.cancel();
   }
-  openPending() {
+  openPending(id = this.meta.pending?.id || this.meta.operationHistory[0]?.id) {
+    if (!id) return;
+    if (this.meta.pending?.id !== id) {
+      if (this.meta.busy) return;
+      const p = this.meta.operationHistory.find(old => old.id === id);
+      if (!p) return;
+      this.archivePending();
+      this.meta.operationHistory = this.meta.operationHistory.filter(old => old.id !== id);
+      this.meta.pending = p;
+    }
     if (!this.meta.pending) return;
     this.meta.pending.hidden = false;
     this.persistPending();
@@ -1184,9 +1205,9 @@ export class ConsoleAPI {
       p.steps.some((s) => !s.done) &&
       p.steps.every((s) => /\/quest-operations$/.test(s.path));
   }
-  async repreviewQuests() {
+  async repreviewQuests(id = this.meta.pending?.id) {
     const p = this.meta.pending;
-    if (!p || this.meta.busy || !this.canRepreviewQuests()) return;
+    if (!p || p.id !== id || this.meta.busy || !this.canRepreviewQuests()) return;
     this.meta.busy = true;
     this.publish();
     try {
@@ -1208,9 +1229,9 @@ export class ConsoleAPI {
       this.publish();
     }
   }
-  async confirm() {
+  async confirm(id = this.meta.pending?.id) {
     const p = this.meta.pending;
-    if (!p || p.completed || p.rejected || this.meta.busy) return;
+    if (!p || p.id !== id || p.completed || p.rejected || this.meta.busy) return;
     this.meta.busy = true;
     p.confirmed = true;
     p.error = undefined;
@@ -1234,7 +1255,6 @@ export class ConsoleAPI {
       p.errorCode = e instanceof ApiError ? e.code : undefined;
       p.rejected =
         e instanceof ApiError && [400, 403, 404, 409, 422].includes(e.status);
-      this.meta.pending = p;
       this.persistPending();
       throw e;
     } finally {

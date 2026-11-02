@@ -101,3 +101,10 @@
 .benefit-recipient-group summary { cursor: pointer; color: var(--text-2); }
 .benefit-recipient-group .table-scroll { max-height: 300px; overflow: auto; margin-top: 12px; }
 .benefit-reconciliation { min-height: 46px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 16px; color: var(--text-2); font-size: 12px; }
+/* Operation receipts share the console's compact glass dialogs. */
+.operation-history { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.operation-history > li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--glass-border); }
+.operation-history > li > div { min-width: 0; overflow-wrap: anywhere; }
+.operation-history p { margin: 6px 0; }
+.operation-history small { color: var(--text-3); }
+.operation-history button { flex-shrink: 0; }

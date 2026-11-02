@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"dnf90.local/gateway/internal/diagnostics"
@@ -37,6 +38,8 @@ type queueTask struct {
 	Failed      int    `json:"failed"`
 	PVFChecksum string `json:"pvfChecksum"`
 }
+
+var errQueuedTaskPVFChanged = errors.New("queued mail task PVF changed")
 
 // ExternalQueue persists administrator-confirmed work. Delivery and deduplication
 // remain authoritative in the original gateway database, including after restart.
@@ -181,7 +184,7 @@ func (q *ExternalQueue) task(ctx context.Context, id string) (queueTask, json.Ra
 		return task, nil, &servicehttp.PeerError{Kind: "task_identity_mismatch"}
 	}
 	if task.PVFChecksum != "" && task.PVFChecksum != q.peer.Hash() {
-		return task, nil, &servicehttp.PeerError{Kind: "generation_mismatch"}
+		return task, nil, errQueuedTaskPVFChanged
 	}
 	return task, envelope.Data, nil
 }
@@ -189,6 +192,15 @@ func (q *ExternalQueue) Status(id string) string {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return q.state.Jobs[id].Status
+}
+func queueSaveFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
+	diagnostics.Fail(r.Context(), err)
+	code := "queue_unavailable"
+	if errors.Is(err, syscall.ENOSPC) {
+		code = "queue_storage_full"
+		message = "GM 存储空间不足，任务未保存；请清理空间后重试"
+	}
+	v1Fail(w, r, 503, code, message, true)
 }
 func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/tasks/"), "/")
@@ -213,6 +225,10 @@ func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 	task, raw, e := q.task(r.Context(), parts[0])
 	if e != nil {
 		diagnostics.Fail(r.Context(), e)
+		if errors.Is(e, errQueuedTaskPVFChanged) {
+			v1Fail(w, r, 409, "pvf_conflict", "此任务的 PVF 已更新，请按当前物品库重新预览邮件", false)
+			return true
+		}
 		v1Fail(w, r, 503, "gateway_unavailable", "读取任务失败，请重试", true)
 		return true
 	}
@@ -251,7 +267,7 @@ func (q *ExternalQueue) Handle(w http.ResponseWriter, r *http.Request) bool {
 		} else {
 			delete(q.state.Jobs, task.ID)
 		}
-		v1Fail(w, r, 503, "queue_unavailable", "保存发放任务失败，请重试", true)
+		queueSaveFailure(w, r, e, "保存发放任务失败，请重试")
 		return true
 	}
 	var data map[string]any

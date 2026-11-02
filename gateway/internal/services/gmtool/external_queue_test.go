@@ -5,12 +5,93 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"dnf90.local/gateway/internal/servicehttp"
 )
+
+func TestV1ExternalQueueSaveFailureClassifiesDiskFull(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"disk full", &os.PathError{Op: "write", Path: "/private/queue", Err: syscall.ENOSPC}, "queue_storage_full"},
+		{"permission", &os.PathError{Op: "write", Path: "/private/queue", Err: os.ErrPermission}, "queue_unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("POST", "/api/v1/tasks/test/schedule", nil)
+			queueSaveFailure(w, r, tc.err, "保存发放任务失败，请重试")
+			if w.Code != 503 || !strings.Contains(w.Body.String(), tc.code) || strings.Contains(w.Body.String(), "/private/") {
+				t.Fatal(w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestV1ExternalQueueFailedSaveDoesNotStartDelivery(t *testing.T) {
+	id, hash, token := strings.Repeat("1", 32), strings.Repeat("a", 64), strings.Repeat("t", 48)
+	writes := 0
+	server := httptest.NewServer(servicehttp.Protect(token, hash, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			writes++
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": id, "revision": 0, "pending": 1, "pvfChecksum": hash}})
+	})))
+	defer server.Close()
+	peer, _ := servicehttp.New(servicehttp.Config{URL: server.URL, Token: token, PVFSHA256: hash})
+	path := filepath.Join(t.TempDir(), "queue.json")
+	q, err := OpenExternalQueue(path, peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(path)
+	q.path = filepath.Join(path, "not-a-directory.json")
+	w := httptest.NewRecorder()
+	q.Handle(w, httptest.NewRequest("POST", "/api/v1/tasks/"+id+"/schedule", strings.NewReader(`{"revision":0,"confirm":true}`)))
+	if w.Code != 503 || q.Status(id) != "" {
+		t.Fatal(w.Code, w.Body.String(), q.Status(id))
+	}
+	if err := q.step(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(path)
+	if writes != 0 || string(before) != string(after) {
+		t.Fatal("failed persistence changed delivery or durable queue")
+	}
+	q.path = path
+	w = httptest.NewRecorder()
+	q.Handle(w, httptest.NewRequest("POST", "/api/v1/tasks/"+id+"/schedule", strings.NewReader(`{"revision":0,"confirm":true}`)))
+	if w.Code != 200 || q.Status(id) != "active" || writes != 0 {
+		t.Fatal("same task did not recover after storage repair", w.Code, w.Body.String())
+	}
+}
+
+func TestV1ExternalQueueOldTaskPVFRequiresNewPreview(t *testing.T) {
+	id, hash, token := strings.Repeat("1", 32), strings.Repeat("a", 64), strings.Repeat("t", 48)
+	server := httptest.NewServer(servicehttp.Protect(token, hash, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Error("old task attempted a write")
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": id, "revision": 0, "pending": 1, "pvfChecksum": strings.Repeat("b", 64)}})
+	})))
+	defer server.Close()
+	peer, _ := servicehttp.New(servicehttp.Config{URL: server.URL, Token: token, PVFSHA256: hash})
+	q, err := OpenExternalQueue(filepath.Join(t.TempDir(), "queue.json"), peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	q.Handle(w, httptest.NewRequest("POST", "/api/v1/tasks/"+id+"/schedule", strings.NewReader(`{"revision":0,"confirm":true}`)))
+	if w.Code != 409 || !strings.Contains(w.Body.String(), "pvf_conflict") || q.Status(id) != "" {
+		t.Fatal(w.Code, w.Body.String())
+	}
+}
 
 func TestV1ExternalQueueRestartAfterCommittedResponseLoss(t *testing.T) {
 	id, hash, token := strings.Repeat("1", 32), strings.Repeat("a", 64), strings.Repeat("t", 48)

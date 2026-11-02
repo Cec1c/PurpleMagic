@@ -151,7 +151,7 @@ func (q *ExternalQueue) HandleBenefit(w http.ResponseWriter, r *http.Request) bo
 	q.state.Benefits[jobID] = j
 	if err = q.save(); err != nil {
 		delete(q.state.Benefits, jobID)
-		v1Fail(w, r, 503, "queue_unavailable", "保存补发任务失败，请重试", true)
+		queueSaveFailure(w, r, err, "保存补发任务失败，请重试")
 		return true
 	}
 	v1Reply(w, r, 200, v1Envelope{Data: j})
