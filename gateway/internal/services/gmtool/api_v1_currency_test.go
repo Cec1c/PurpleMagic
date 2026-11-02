@@ -22,6 +22,11 @@ import (
 )
 
 func currencyFixture(t *testing.T, shards int) (*Server, repository.AccountManagementUnitOfWork, func() repository.Group) {
+	s, u, open, _ := currencyFixtureDatabases(t, shards)
+	return s, u, open
+}
+
+func currencyFixtureDatabases(t *testing.T, shards int) (*Server, repository.AccountManagementUnitOfWork, func() repository.Group, []string) {
 	t.Helper()
 	dsn := os.Getenv("DNFBRIDGE_PLAYER_TEST_DSN")
 	if dsn == "" {
@@ -92,7 +97,7 @@ func currencyFixture(t *testing.T, shards int) (*Server, repository.AccountManag
 		}
 	}
 	s := &Server{cfg: Config{Table: "web_accounts", Password: "fixture"}, db: db, deps: Deps{Repos: func() (repository.Group, bool) { return open(), true }}, www: http.NotFoundHandler(), sessions: map[string]time.Time{}, failures: map[string][]time.Time{}}
-	return s, g.Account.(repository.AccountManagementUnitOfWork), open
+	return s, g.Account.(repository.AccountManagementUnitOfWork), open, names
 }
 
 type failingReceipts struct {

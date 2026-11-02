@@ -18,6 +18,13 @@ type AccountManagementUnitOfWork interface {
 	AccountManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)
 }
 
+// AccountCurrencyWriter is exposed by the account management transaction. It
+// saves only the wallet balance/version and timestamp, never the account's
+// aggregate metadata. The receipt is committed in that same transaction.
+type AccountCurrencyWriter interface {
+	SaveAccountCurrency(context.Context, AccountRecord) error
+}
+
 type CharacterManagementUnitOfWork interface {
 	WithinCharacterManagement(context.Context, string, string, func(Group, ManagementReceiptStore) error) error
 	CharacterManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)

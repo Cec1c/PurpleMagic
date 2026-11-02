@@ -1,11 +1,13 @@
 package gmtool
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
 
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
@@ -95,6 +97,11 @@ func (s *Server) v1AdjustCurrency(w http.ResponseWriter, r *http.Request) {
 		v1Fail(w, r, 422, "invalid_amount", "请检查点券数量、余额和操作原因", false)
 	case errors.Is(err, adminops.ErrAccount) || errors.Is(err, sql.ErrNoRows):
 		v1Fail(w, r, 404, "account_not_found", "账号存档不存在", false)
+	case errors.Is(err, context.DeadlineExceeded):
+		if s.cfg.Logger != nil {
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-currency-write-timeout", err)
+		}
+		v1Fail(w, r, 503, "currency_timeout", "点券修改等待超时，请使用原请求继续查询回执", true)
 	case err != nil:
 		s.v1Unavailable(w, r, err)
 	default:

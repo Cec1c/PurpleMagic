@@ -114,7 +114,10 @@ func (s *mysqlAccountStore) WithinAccountManagement(ctx context.Context, id stri
 	if err != nil {
 		return err
 	}
-	accounts := &rentalScopedAccountRepository{accountID: id, base: &mysqlAccountStore{mysqlStoreBase: mysqlStoreBase{router: r}}}
+	accounts := &accountCurrencyRepository{
+		rentalScopedAccountRepository: rentalScopedAccountRepository{accountID: id, base: &mysqlAccountStore{mysqlStoreBase: mysqlStoreBase{router: r}}},
+		router:                        r,
+	}
 	table, err := r.writeTable(managementOperationsTable, id)
 	if err != nil {
 		return err

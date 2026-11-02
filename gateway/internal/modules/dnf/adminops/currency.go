@@ -126,7 +126,11 @@ func AdjustCurrency(ctx context.Context, u repository.AccountManagementUnitOfWor
 		}
 		a.Metadata["gm_currency_sequence_v1"] = strconv.FormatInt(seq+1, 10)
 		a.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)
-		if e = accounts.Save(ctx, a); e != nil {
+		wallet, ok := accounts.(repository.AccountCurrencyWriter)
+		if !ok {
+			return errors.New("account currency writer unavailable")
+		}
+		if e = wallet.SaveAccountCurrency(ctx, a); e != nil {
 			return e
 		}
 		result = CurrencyReceipt{RequestID: c.Key, AccountID: c.AccountID, Kind: "currency-adjustment", Currency: "cera", Amount: c.Amount, Before: strconv.FormatInt(before, 10), After: strconv.FormatInt(before+amount, 10), Revision: CurrencyRevision(a), Reason: c.Reason, Actor: c.Actor, CreatedAt: a.UpdatedAt}
