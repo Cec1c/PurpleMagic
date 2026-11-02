@@ -22,20 +22,26 @@ type Clear struct {
 	FatigueSpent  *int64    `json:"fatigueSpent"`
 }
 type Query struct {
-	SortBy        string    `json:"sortBy,omitempty"`
-	SortOrder     string    `json:"sortOrder,omitempty"`
-	Search        string    `json:"search,omitempty"`
-	MaxDurationMS int64     `json:"maxDurationMs,omitempty"`
-	MinHourlyPeak int64     `json:"minHourlyPeak,omitempty"`
-	From          time.Time `json:"from,omitempty"`
-	To            time.Time `json:"to,omitempty"`
-	DungeonID     int64     `json:"dungeonId,omitempty"`
-	Offset        int       `json:"offset,omitempty"`
-	Limit         int       `json:"limit,omitempty"`
+	AccountID          string    `json:"accountId,omitempty"`
+	HideBanned         bool      `json:"hideBanned,omitempty"`
+	ExcludedAccountIDs []string  `json:"-"` // Resolved by the trusted account service.
+	SortBy             string    `json:"sortBy,omitempty"`
+	SortOrder          string    `json:"sortOrder,omitempty"`
+	Search             string    `json:"search,omitempty"`
+	MaxDurationMS      int64     `json:"maxDurationMs,omitempty"`
+	MinHourlyPeak      int64     `json:"minHourlyPeak,omitempty"`
+	From               time.Time `json:"from,omitempty"`
+	To                 time.Time `json:"to,omitempty"`
+	DungeonID          int64     `json:"dungeonId,omitempty"`
+	Offset             int       `json:"offset,omitempty"`
+	Limit              int       `json:"limit,omitempty"`
 }
 
 func (q *Query) Normalize(now time.Time) error {
 	q.Search = strings.TrimSpace(q.Search)
+	if len(q.AccountID) > 128 {
+		return errors.New("invalid account filter")
+	}
 	if q.Limit == 0 {
 		q.Limit = 50
 	}
@@ -72,6 +78,24 @@ type ClearPage struct {
 	HasMore bool         `json:"hasMore"`
 	From    time.Time    `json:"from"`
 	To      time.Time    `json:"to"`
+}
+type AccountClearStats struct {
+	AccountID        string    `json:"accountId"`
+	Account          string    `json:"account"`
+	Count            int64     `json:"count"`
+	FastestMS        int64     `json:"fastestMs"`
+	AverageMS        int64     `json:"averageMs"`
+	FatigueSpent     *int64    `json:"fatigueSpent"`
+	FatigueSamples   int64     `json:"fatigueSamples"`
+	FatiguePerSecond *float64  `json:"fatiguePerSecond"`
+	PeakHourly       int64     `json:"peakHourly"`
+	LastClearAt      time.Time `json:"lastClearAt"`
+}
+type AccountClearPage struct {
+	Rows    []AccountClearStats `json:"rows"`
+	HasMore bool                `json:"hasMore"`
+	From    time.Time           `json:"from"`
+	To      time.Time           `json:"to"`
 }
 type BanTargets struct {
 	LastLoginIP      string   `json:"lastLoginIp,omitempty"`
@@ -190,6 +214,11 @@ type AccountPage struct {
 func (q *Query) NormalizeSort(resource string) error {
 	var allowed string
 	switch resource {
+	case "account-stats":
+		allowed = " accountId account count fastestMs averageMs fatigueSpent fatiguePerSecond peakHourly lastClearAt "
+		if q.SortBy == "" {
+			q.SortBy = "count"
+		}
 	case "clears":
 		allowed = " accountId characterId characterName dungeonId dungeonName difficulty count fastestMs averageMs peakHourly lastClearAt fatigueSpent averageFatigue "
 		if q.SortBy == "" {

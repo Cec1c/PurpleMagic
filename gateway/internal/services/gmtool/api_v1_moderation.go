@@ -8,10 +8,17 @@ import (
 	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/adminapi"
 	"dnf90.local/gateway/internal/modules/dnf/moderation"
+	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
 func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Runtime == nil {
+	localStats := r.Method == http.MethodGet && (r.PathValue("resource") == "account-stats" || r.PathValue("resource") == "clears") && s.deps.Repos != nil
+	if localStats {
+		group, ok := s.deps.Repos()
+		_, supported := group.Character.(repository.ModerationStatsReader)
+		localStats = ok && supported
+	}
+	if s.deps.Runtime == nil && !localStats {
 		v1Fail(w, r, 503, "moderation_unavailable", "游戏反作弊接口暂不可用", true)
 		return
 	}
@@ -46,6 +53,13 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			switch key {
+			case "accountId":
+				q.AccountID = values[0]
+			case "hideBanned":
+				if values[0] != "true" && values[0] != "false" {
+					valid = false
+				}
+				q.HideBanned = values[0] == "true"
 			case "sortBy":
 				q.SortBy = values[0]
 			case "sortOrder":
@@ -88,6 +102,14 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 		}
 		if !valid || q.Normalize(time.Now()) != nil || q.NormalizeSort(r.PathValue("resource")) != nil {
 			v1Fail(w, r, 400, "invalid_query", "请检查查询条件；时间范围最多 31 天", false)
+			return
+		}
+		if localStats {
+			s.v1LocalModerationStats(w, r, q)
+			return
+		}
+		if r.PathValue("resource") == "account-stats" || q.HideBanned || q.AccountID != "" {
+			v1Fail(w, r, 503, "stats_unavailable", "通关统计数据暂不可用", true)
 			return
 		}
 		switch r.PathValue("resource") {
