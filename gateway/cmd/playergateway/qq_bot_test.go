@@ -71,3 +71,32 @@ func TestQQBotPrivateScope(t *testing.T) {
 		t.Fatal("bot endpoint exposed on player listener")
 	}
 }
+
+func TestQQBotMembershipRoutesCannotManageBindings(t *testing.T) {
+	token := strings.Repeat("b", 32)
+	var actions []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in adminapi.Request
+		json.NewDecoder(r.Body).Decode(&in)
+		actions = append(actions, in.Action)
+		json.NewEncoder(w).Encode(adminapi.Response{Version: 1, OK: true, QQChanged: true, QQChecks: []qqbinding.Check{}})
+	}))
+	defer server.Close()
+	client, _ := adminapi.NewClient(server.URL+adminapi.Path, strings.Repeat("g", 32))
+	h := withQQBot(http.NotFoundHandler(), client, token)
+	for _, tc := range []struct {
+		path, body string
+		status     int
+	}{{"checks", "{}", 200}, {"check-due", `{"qq":"234567890"}`, 200}, {"check-result", `{"accountId":"fixture:main","qq":"234567890","revision":2,"lease":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","settingsRevision":4,"outcome":"absent","group":""}`, 200}, {"check-result", `{"action":"delete"}`, 400}, {"change", `{"action":"delete"}`, 404}} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/api/bot/qq-binding/"+tc.path, strings.NewReader(tc.body))
+		r.Header.Set("Authorization", "Bearer "+token)
+		h.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Fatal(tc, w.Code, w.Body.String())
+		}
+	}
+	if strings.Join(actions, ",") != "qq_checks,qq_check_due,qq_check_result" {
+		t.Fatal(actions)
+	}
+}

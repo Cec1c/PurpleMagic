@@ -1,13 +1,14 @@
 let api;
 const pending = new Set(), recent = new Map(), attempts = new Map();
-export function setup(value) { api = value; }
+export function setup(value) { api = value; disposed=false; }
 export function available() {
   const cfg = api.config();
   try { const url = new URL(cfg.endpoint); if (url.protocol !== 'http:' || !['127.0.0.1','[::1]'].includes(url.hostname) || url.pathname !== '/' || url.search || url.hash || url.username || url.password || String(cfg.token).length < 32) throw Error(); }
   catch { return {ok:false, reason:'请配置网关回环地址和绑定凭据'}; }
   return {ok:true};
 }
-export function dispose() { pending.clear(); recent.clear(); attempts.clear(); }
+let disposed=false;
+export function dispose() { disposed=true; pending.clear(); recent.clear(); attempts.clear(); }
 
 // Parse only the received OneBot event. QQ identity never comes from text or AI.
 export function parseCommand(event, selfId) {
@@ -47,7 +48,7 @@ async function request(path,body) {
 }
 
 export const providers = {
-  'moderation.qq-tick': processModeration,
+  'moderation.qq-tick': async args => { await Promise.allSettled([processModeration(args),processMembership(args)]); },
   'moderation.qq-event': processGroupEvent,
   'message.account-binding': async ({event,onebot,sender}) => {
     const cmd=parseCommand(event,onebot.selfId);if(!cmd)return {handled:false};
@@ -127,14 +128,55 @@ async function processModeration({onebot}) {
 async function processGroupEvent({event,onebot}) {
   const join=event?.post_type==='request'&&event.request_type==='group'&&event.sub_type==='add';
   const entered=event?.post_type==='notice'&&event.notice_type==='group_increase';
-  if(!join&&!entered)return {handled:false};
+  const left=event?.post_type==='notice'&&event.notice_type==='group_decrease';
+  if(!join&&!entered&&!left)return {handled:false};
   const qq=String(event.user_id??''),group=String(event.group_id??'');
   if(!numberPattern.test(qq)||!numberPattern.test(group)||qq===String(onebot.selfId))return {handled:false};
   if(!Number.isFinite(Number(event.time))||Math.abs(Date.now()-Number(event.time)*1000)>120000)return {handled:false};
   const cfg=await request('settings');if(!cfg.groups.includes(group))return {handled:false};
+  if(left){await request('check-due',{qq});return {handled:false};}
   if(!(await request('blocked',{qq})).blocked)return {handled:false};
   if(join&&typeof event.flag==='string'&&event.flag.length<=512){
     await onebot.call('set_group_add_request',{flag:event.flag,sub_type:'add',approve:false,reason:'已在黑名单中'},6000);
   }else if(entered){await kickBlacklisted(onebot,qq,group);}
   return {handled:true};
+}
+
+// A successful full member list confirms absence. Timeouts, empty/truncated
+// lists and bot removal are unknown, so none of them invalidate a binding.
+export async function membershipSnapshot(onebot,group) {
+ const info=await onebot.call('get_group_info',{group_id:Number(group),no_cache:true},6000);
+ const members=await onebot.call('get_group_member_list',{group_id:Number(group),no_cache:true},6000);
+ if(String(info?.group_id)!==group||!Number.isInteger(info.member_count)||info.member_count<1||!Array.isArray(members))throw Error('membership_unknown');
+ const ids=new Set(members.map(m=>String(m.user_id)));
+ if(ids.size!==members.length||ids.size!==info.member_count||!ids.has(String(onebot.selfId))||[...ids].some(id=>!numberPattern.test(id)))throw Error('membership_unknown');
+ return ids;
+}
+let membershipBusy=false;
+async function processMembership({onebot}) {
+ if(membershipBusy||!onebot.connected||disposed)return;
+ membershipBusy=true;
+ try {
+  const checks=await request('checks',{});
+  if(checks==null)return;
+  if(!Array.isArray(checks)||checks.length>10)throw Error('invalid membership checks');
+  const snapshots=new Map();
+  for(const check of checks) {
+   if(disposed)return;
+   if(!numberPattern.test(check.qq)||!Array.isArray(check.groups)||check.groups.length<1||check.groups.length>32||!check.groups.every(g=>numberPattern.test(g))||!/^[a-f0-9]{32}$/.test(check.lease))continue;
+   let memberGroup='',unknown=false;
+   for(const group of check.groups) {
+    if(!snapshots.has(group)){
+     try{snapshots.set(group,await membershipSnapshot(onebot,group));}catch{snapshots.set(group,null);}
+    }
+    const members=snapshots.get(group);
+    if(members?.has(check.qq)){memberGroup=group;break;}
+    if(!members)unknown=true;
+   }
+   if(disposed)return;
+   const {accountId,qq,revision,settingsRevision,lease}=check;
+   await request('check-result',{accountId,qq,revision,settingsRevision,lease,outcome:memberGroup?'member':unknown?'unknown':'absent',group:memberGroup});
+  }
+ }catch{if(!disposed)api.warn('群成员复核暂未完成，将自动重试');}
+ finally{membershipBusy=false;}
 }
