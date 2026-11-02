@@ -237,7 +237,7 @@ void main() {
     await model.save(effects: true);
     expect(
       (fake.state['preferences'] as Map)['diagnostics']['consentVersion'],
-      2,
+      3,
     );
     expect(
       (fake.state['preferences'] as Map)['diagnostics']['enabled'],
@@ -253,7 +253,7 @@ void main() {
     final fake = FakeCore();
     (fake.state['preferences'] as Map)['diagnostics'] = {
       'enabled': true,
-      'consentVersion': 2,
+      'consentVersion': 3,
     };
     fake.state['diagnostics'] = {
       'enabled': true,
@@ -281,7 +281,7 @@ void main() {
       final fake = FakeCore();
       (fake.state['preferences'] as Map)['diagnostics'] = {
         'enabled': true,
-        'consentVersion': 2,
+        'consentVersion': 3,
         'problemType': 'interaction',
       };
       fake.state['diagnostics'] = {

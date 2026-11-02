@@ -18,7 +18,7 @@ func TestPlayerProxyBoundary(t *testing.T) {
 	}))
 	defer up.Close()
 	h := handler(config{Upstream: up.URL, ProxySecret: "server-secret", ReleaseDir: t.TempDir()})
-	for _, path := range []string{"/api/game/admin", "/api/player/admin", "/api/v1/dashboard", "/manage/v1/accounts", "/debug/reload", "/launcher/../gateway.json", "/api/patch/file", "/api/account/login?x=1"} {
+	for _, path := range []string{"/api/game/admin", "/api/player/admin", "/api/v1/dashboard", "/manage/v1/accounts", "/debug/reload", "/launcher/../gateway.json", "/api/patch/file", "/api/account/login?x=1", "/api/diagnostics/context?account=other", "/api/diagnostics/admin"} {
 		r := httptest.NewRequest("POST", path, nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
@@ -34,6 +34,18 @@ func TestPlayerProxyBoundary(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != 204 {
 		t.Fatal(w.Code)
+	}
+	r = httptest.NewRequest("POST", "/api/diagnostics/context", strings.NewReader(`{"read_token":"fixture"}`))
+	r.RemoteAddr = "192.0.2.5:3456"
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 204 {
+		t.Fatal("diagnostic read route not proxied", w.Code)
+	}
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/api/diagnostics/context", nil))
+	if w.Code != 404 {
+		t.Fatal("diagnostic credentials must not use URLs")
 	}
 }
 

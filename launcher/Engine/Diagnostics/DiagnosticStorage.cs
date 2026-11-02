@@ -93,11 +93,11 @@ internal sealed class DiagnosticStorage
     {
         lock (gate) {
             EnsureRoot(); var id = job.Summary.SessionId; var previous = ReadIndex(id);
-            if (previous is not null && previous.SchemaVersion != 4) throw new InvalidDataException("旧格式日志已封存，请使用新日志编号。");
+            if (previous is not null && previous.SchemaVersion != 5) throw new InvalidDataException("旧格式日志已封存，请使用新日志编号。");
             var rows = Indexes();
             // A still-running old instance must not displace a newer launch.
             if (previous is null && rows.Length >= 5 && string.CompareOrdinal(job.StartedUtc, rows[4].StartedUtc) < 0) return;
-            var index = previous ?? new(job.Summary, job.StartedUtc, job.EndedUtc, 0, 0, 0, 4);
+            var index = previous ?? new(job.Summary, job.StartedUtc, job.EndedUtc, 0, 0, 0, 5);
             var path = FileFor(id);
             using (var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read)) {
                 // Roll back a failed append to the last durable index. No partial JSON line survives.
@@ -109,13 +109,13 @@ internal sealed class DiagnosticStorage
                 foreach (var line in job.Lines) {
                     var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord) ?? throw new InvalidDataException("日志记录无效。");
                     if (record.SessionId != id) throw new InvalidDataException("日志会话不匹配。");
-                    if (record.RecordVersion != 3) throw new InvalidDataException("日志记录版本不匹配。");
+                    if (record.RecordVersion != 4) throw new InvalidDataException("日志记录版本不匹配。");
                     if (record.Sequence <= index.LastSequence) continue;
                     // Reserve space for exception evidence and its recent operation tail,
                     // even after ordinary samples have filled the file.
                     var fatal = record.Type == "exception" && record.Fields.GetValueOrDefault("first_chance")?.Value == 0;
                     var exit = record.Reason == "game_exit";
-                    var critical = fatal || exit || record.Type == "exception" || record.Evidence?.Kind == "managed_exception" || job.CriticalTail && record.Type != "sample";
+                    var critical = fatal || exit || record.Type == "exception" || record.Module == "server" || record.Evidence?.Kind == "managed_exception" || job.CriticalTail && record.Type != "sample";
                     var limit = MaxLog - (exit ? 32768 : fatal ? 65536 : critical ? 256 * 1024 : 512 * 1024);
                     if ((!critical && truncated) || file.Position + line.Bytes.Length > limit) { truncated = true; continue; }
                     file.Write(line.Bytes); records++;

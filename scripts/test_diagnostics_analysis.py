@@ -5,12 +5,30 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from analyze_diagnostics import analyze, evidence_timeline, validate_v4
+from analyze_diagnostics import analyze, event_row, evidence_timeline, support_summary, validate_v4
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class AnalysisChecks(unittest.TestCase):
+    def test_context_time_and_failure_priority(self):
+        context = dict(status='last_known', observed_at='2026-11-01T01:00:00Z', fields={
+            'character_name': dict(value='Fixture B', status='last_known', reason='')})
+        row = dict(sequence=1, utc='2026-11-01T01:00:02Z', type='event', module='server',
+                   reason='server_context_unavailable', fields={}, context=context)
+        self.assertEqual(event_row(row)['time_source'], 'client_utc')
+        row.update(sequence=2, reason='business_disconnect', utc=context['observed_at'])
+        disconnect = event_row(row)
+        self.assertEqual(disconnect['time_source'], 'server_utc')
+        row.update(sequence=3, reason='native_exception', module='process', fields={'first_chance': {'value': 1}})
+        summary = support_summary(dict(summary={}, ended_utc=row['utc']), [disconnect, event_row(row)])
+        self.assertEqual(summary['time_basis'], 'server_utc')
+        self.assertEqual(summary['event_beijing'], '2026-11-01T09:00:00+08:00')
+        self.assertEqual(summary['character']['value'], 'Fixture B')
+        row['fields']['first_chance']['value'] = 0
+        summary = support_summary(dict(summary={}, ended_utc=row['utc']), [event_row(row), disconnect])
+        self.assertEqual(summary['time_basis'], 'client_utc')
+
     def test_tail_and_stages(self):
         events = [dict(sequence=i + 1, utc='fixture', kind='event', reason='player_operations', fields={}) for i in range(269)]
         for index, first in ((260, 1), (261, 0)):

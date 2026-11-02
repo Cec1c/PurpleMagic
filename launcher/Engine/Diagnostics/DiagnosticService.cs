@@ -14,6 +14,7 @@ internal sealed class DiagnosticSession(ReadOnlyGameProcess? process, string pvf
     public readonly DiagnosticRing Ring = new(process is null ? 256 * 1024 : 2 * 1024 * 1024);
     public At5tModule? Module;
     public DiagnosticObserverClient? Observer;
+    public DiagnosticContextFeed? ContextFeed;
     public string CrashStatus = "starting";
     public double ExitObserved;
     public bool HasOperations, HasExceptions;
@@ -127,6 +128,25 @@ internal sealed class DiagnosticService : IDisposable
         } catch (Exception) { error = "process_tracking_failed"; }
     }
     public void Failure(string code, Exception exception) => Event(code, number: exception.HResult, exception: exception);
+    public void LoginContext(ServerS5A3.PlayerProfile profile, string correlation, ServerS5A3.DiagnosticGrant? grant)
+    {
+        Post(() => {
+            if (!options.Enabled || launcher is null) return;
+            var feed = new DiagnosticContextFeed(correlation, grant is null ? "server_not_provided" : "awaiting_server");
+            launcher.ContextFeed = feed;
+            if (grant is null) { Record(launcher, "event", "server", new() { ["attempt"] = new(launcher.LoginAttempt) }, "partial", 0, "server_context_unavailable"); return; }
+            feed.Start(profile, grant, (kind, context) => Post(() => {
+                if (!options.Enabled) return;
+                var targets = sessions.Where(s => ReferenceEquals(s.ContextFeed, feed)).ToArray();
+                if (targets.Length == 0 && launcher is not null && ReferenceEquals(launcher.ContextFeed, feed)) targets = [launcher];
+                foreach (var s in targets) {
+                    var serverEvent = kind is "context_changed" or "connection_changed" or "character_changed" or "settlement_changed" or "business_disconnect";
+                    Record(s, "event", "server", new() { ["attempt"] = new(s.LoginAttempt) }, context.Status == "current" ? "ok" : "partial", 0, kind, observedUtc: serverEvent ? context.ObservedAt : null, context: context);
+                    if (kind == "business_disconnect") s.CriticalPending = true;
+                }
+            }));
+        });
+    }
     public void Event(string code, double durationMs = 0, double? number = null, Exception? exception = null)
     {
         if (!EventCodes.Contains(code)) return;
@@ -134,6 +154,7 @@ internal sealed class DiagnosticService : IDisposable
             if (!options.Enabled || launcher is null) return;
             var evidence = exception is null ? null : DiagnosticFailure.Capture(exception);
             if (code == "login_started") {
+                if (launcher.ContextFeed is { } prior && !sessions.Any(s => ReferenceEquals(s.ContextFeed, prior))) prior.Dispose();
                 attempt++;
                 var earlier = launcher.Ring.Snapshot();
                 launcher = new(null, pvfHash, publication) { LoginAttempt = attempt };
@@ -154,6 +175,7 @@ internal sealed class DiagnosticService : IDisposable
             }
             if (code is "login_error" or "update_error" or "operation_error" && !sessions.Any(s => s.LoginAttempt == attempt)) {
                 launcher.Capture.AddRange(launcher.Ring.Snapshot()); Flush(launcher, code);
+                if (code == "login_error") launcher.ContextFeed?.Dispose();
             }
         });
     }
@@ -212,7 +234,7 @@ internal sealed class DiagnosticService : IDisposable
                 var index = storage.ReadIndex(id);
                 // Keep the old stream exportable. A new contract starts an explicit
                 // new log segment instead of appending v3 records under a v2 header.
-                if (index is not null && index.SchemaVersion != 4) { process.StartNewLog(); index = null; }
+                if (index is not null && index.SchemaVersion != 5) { process.StartNewLog(); index = null; }
                 return (process, loginAttempt, index, observer);
             } catch { observer?.Dispose(); process.Dispose(); throw; }
         });
@@ -234,18 +256,22 @@ internal sealed class DiagnosticService : IDisposable
             pendingStarts.Remove(process.Identity.Pid);
             // Copy only this launch attempt, never another game's process records.
             if (launchAttempts.TryGetValue(loginAttempt, out var launch))
+            {
+                s.ContextFeed = launch.ContextFeed;
                 foreach (var line in launch.Ring.Snapshot()) {
                     var r = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord)!;
                     if (loginAttempt > 0 && r.Fields.GetValueOrDefault("attempt")?.Value == loginAttempt)
-                        Record(s, r.Type, r.Module, r.Fields, r.Quality, r.ReadMs, r.Reason, observedTime: r.MonotonicMs, observedUtc: r.Utc, evidence: r.Evidence);
+                        Record(s, r.Type, r.Module, r.Fields, r.Quality, r.ReadMs, r.Reason, observedTime: r.MonotonicMs, observedUtc: r.Utc, evidence: r.Evidence, context: r.Context);
                 }
+            }
+            s.ContextFeed ??= new(s.Id, "launch_binding_unavailable");
             launchAttempts.Remove(loginAttempt);
             if (process.Version != "unsupported") s.Module = new(process, process.ModuleBase); else s.Phase = "unsupported";
             sessions.Add(s); managed[process.Identity.Pid] = process.Identity; SaveRegistry();
             s.Identity = Record(s, "identity", "collector", new() {
                 ["pid"] = new(process.Identity.Pid), ["created_unix_ms"] = new(new DateTimeOffset(DateTime.FromFileTimeUtc(process.Identity.Created)).ToUnixTimeMilliseconds()),
                 ["windows_session"] = new(process.Identity.WindowsSession), ["publication_sequence"] = new(publication),
-                ["server_events"] = new(null, "unsupported", "not_connected") }, "ok", 0, "game_bound");
+                ["server_events"] = s.ContextFeed.Snapshot().ReceivedAt is not null ? new(1) : new(null, "not_applicable", "awaiting_server_context") }, "ok", 0, "game_bound");
             Flush(s, "recording");
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or OverflowException) { observer?.Dispose(); retryAfter[process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000; process.Dispose(); error = "process_binding_failed"; }
@@ -280,12 +306,13 @@ internal sealed class DiagnosticService : IDisposable
         }
         if (candidates.Count > 0 && sessions.Count < 2) { var p = candidates.Values.First(); candidates.Remove(p.Identity.Id); StartBinding(p, 0); }
     }
-    private DiagnosticLine Record(DiagnosticSession s, string type, string module, Dictionary<string, DiagnosticField> fields, string quality, double readMs, string? reason = null, bool full = true, double? observedTime = null, string? observedUtc = null, DiagnosticEvidence? evidence = null)
+    private DiagnosticLine Record(DiagnosticSession s, string type, string module, Dictionary<string, DiagnosticField> fields, string quality, double readMs, string? reason = null, bool full = true, double? observedTime = null, string? observedUtc = null, DiagnosticEvidence? evidence = null, DiagnosticContext? context = null)
     {
         var now = (observedTime ?? clock.Elapsed.TotalMilliseconds) + s.TimeOffset; var n = ++s.Sequence;
         foreach (var (name, value) in fields)
             if (s.Missing.Count < 128 && value.Status is "unsupported" or "read_failed") s.Missing.Add(name + ":" + value.Status);
-        var record = new DiagnosticRecord(n, observedUtc ?? DateTime.UtcNow.ToString("O"), now, type, module, s.Id, readMs, quality, fields, reason, type == "sample" && !full ? s.FullSequence : null, evidence);
+        var record = new DiagnosticRecord(n, observedUtc ?? DateTime.UtcNow.ToString("O"), now, type, module, s.Id, readMs, quality, fields, reason, type == "sample" && !full ? s.FullSequence : null, evidence,
+            Context: type is "identity" or "event" or "exception" ? context ?? s.ContextFeed?.Snapshot() ?? DiagnosticContext.Unavailable(s.Id, "not_authenticated") : null);
         if (type == "sample" && full) s.FullSequence = n;
         var raw = JsonSerializer.SerializeToUtf8Bytes(record, DiagnosticJson.Default.DiagnosticRecord);
         if (raw.Length > 65535) { s.Dropped++; s.Previous.Clear(); s.FullSequence = 0; type = "event"; full = false; raw = JsonSerializer.SerializeToUtf8Bytes(record with { Type = "event", Fields = [], Quality = "dropped", Reason = "record_budget", BaseSequence = null, Evidence = null }, DiagnosticJson.Default.DiagnosticRecord); }
@@ -301,7 +328,10 @@ internal sealed class DiagnosticService : IDisposable
     }
     private void Flush(DiagnosticSession s, string reason, bool wait = false)
     {
-        var missing = new List<string> { "server_events_not_connected", "frame_time_not_instrumented", "native_distance_result_not_instrumented", "function_order_is_not_observed" };
+        var context = s.ContextFeed?.Snapshot() ?? DiagnosticContext.Unavailable(s.Id, "not_authenticated");
+        var missing = new List<string> { "frame_time_not_instrumented", "native_distance_result_not_instrumented", "function_order_is_not_observed" };
+        if (context.Status != "current") missing.Add("server_context:" + context.Status + ":" + context.Reason);
+        foreach (var (key, value) in context.Fields) if (value.Status == "unavailable") missing.Add(key + ":" + value.Reason);
         if (s.Process is null) missing.Add("no_game_process");
         else { if (s.Module is null) missing.Add("at5t_unsupported_exe"); if (s.Process.PvfHash == "") missing.Add("pvf_hash_unavailable"); }
         if (s.Process is not null && s.CrashStatus is not ("recording" or "stopped")) missing.Add("native_exceptions:" + s.CrashStatus);
@@ -311,7 +341,9 @@ internal sealed class DiagnosticService : IDisposable
         missing.AddRange(s.Missing);
         var summary = new DiagnosticSummary(s.Id, s.Id, s.Process?.Hash ?? "", s.Process?.PvfHash ?? "", s.Publication, s.Process?.Version ?? "launcher",
             reason, 0, s.Errors, s.Dropped, s.Ring.Overwritten, s.Truncated, [.. missing],
-            [.. categories], s.Interval, CorrelationId: s.Id, ExpectedPvfSha256: s.PvfHash, ReleaseChannel: ServerS5A3.LauncherBuild.Flavor);
+            [.. categories], s.Interval, ServerEventsConnected: context.ReceivedAt is not null,
+            ServerClockOffsetMs: context.Clock.OffsetMs, ServerClockUncertaintyMs: context.Clock.UncertaintyMs,
+            CorrelationId: context.CorrelationId, ExpectedPvfSha256: s.PvfHash, ReleaseChannel: ServerS5A3.LauncherBuild.Flavor, Context: context);
         DiagnosticLine[] lines = [.. s.Capture]; var omitted = 0;
         if (s.CriticalPending) {
             var tail = new List<DiagnosticLine>(); var bytes = 0;
@@ -338,7 +370,7 @@ internal sealed class DiagnosticService : IDisposable
         Observe(s);
         if (s.Process is not null && s.Process.Exited(out var exit)) {
             if (s.ExitObserved == 0) s.ExitObserved = now;
-            if (s.Observer is not null && !s.Observer.Completed && now - s.ExitObserved < 2000) return;
+            if (s.ContextFeed is not null && now - s.ExitObserved < 3000 || s.Observer is not null && !s.Observer.Completed && now - s.ExitObserved < 2000) return;
             Observe(s); s.CriticalPending = true; Record(s, "event", "process", new() { ["exit_code"] = new(exit) }, "ok", 0, "game_exit"); End(s, "game_exit"); return;
         }
         if (now >= s.NextBasic)
@@ -387,9 +419,9 @@ internal sealed class DiagnosticService : IDisposable
         if (reason == "collector_error" && s.Process is not null) retryAfter[s.Process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000;
         s.Observer?.Dispose(); Observe(s, allowRestart: false);
         if (reason != "game_exit") Record(s, "event", "collector", [], "ok", 0, reason);
-        Flush(s, reason, wait: true); sessions.Remove(s); s.Process?.Dispose();
+        Flush(s, reason, wait: true); s.ContextFeed?.Dispose(); sessions.Remove(s); s.Process?.Dispose();
     }
-    private void EndAll(string reason) { bindingObserver?.Dispose(); launcher = null; launchAttempts.Clear(); foreach (var s in sessions.ToArray()) End(s, reason); foreach (var p in candidates.Values) p.Dispose(); candidates.Clear(); }
+    private void EndAll(string reason) { bindingObserver?.Dispose(); launcher?.ContextFeed?.Dispose(); launcher = null; foreach (var launch in launchAttempts.Values) launch.ContextFeed?.Dispose(); launchAttempts.Clear(); foreach (var s in sessions.ToArray()) End(s, reason); foreach (var p in candidates.Values) p.Dispose(); candidates.Clear(); }
     private void Loop()
     {
         using var pacer = new DiagnosticPacer();

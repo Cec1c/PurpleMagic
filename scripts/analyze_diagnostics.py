@@ -4,9 +4,12 @@ import hashlib
 import json
 from pathlib import Path
 import zipfile
+import datetime
+import re
 
 LIMIT = 10 * 1024 * 1024
 SENSITIVE = {'password', 'token', 'authorization', 'arguments', 'command_line', 'chat', 'account', 'install_path'}
+SERVER_EVENTS = {'context_changed', 'connection_changed', 'character_changed', 'settlement_changed', 'business_disconnect'}
 
 CAPTURE_FAILURES = {'stack_unavailable', 'attach_failed', 'access_denied', 'observer_failed',
                     'observer_timeout', 'observer_disconnected', 'observer_dropped',
@@ -16,7 +19,8 @@ CAPTURE_FAILURES = {'stack_unavailable', 'attach_failed', 'access_denied', 'obse
 
 def event_row(row, **extra):
     return dict(extra, sequence=row['sequence'], utc=row['utc'], kind=row['type'],
-                reason=row.get('reason'), fields=row.get('fields', {}), evidence=row.get('evidence'))
+                reason=row.get('reason'), fields=row.get('fields', {}), evidence=row.get('evidence'), context=row.get('context'),
+                time_source='server_utc' if row.get('module') == 'server' and row.get('reason') in SERVER_EVENTS else 'client_utc')
 
 
 def evidence_timeline(events, end_reason=None):
@@ -24,7 +28,7 @@ def evidence_timeline(events, end_reason=None):
     # Ordinary context has a separate 100-event budget and explicit omission ranges.
     def critical(e):
         return (e.get('kind') == 'exception' or (e.get('evidence') or {}).get('kind') in {'native_exception', 'managed_exception'} or
-                e.get('reason') in CAPTURE_FAILURES | {'native_exception', 'game_exit'})
+                e.get('reason') in CAPTURE_FAILURES | {'native_exception', 'game_exit', 'business_disconnect', 'character_changed', 'connection_changed', 'server_event_gap'})
     important = [i for i, e in enumerate(events) if critical(e)]
     ordinary = {i for i in range(min(15, len(events)))}
     ordinary.update(range(max(0, len(events) - 15), len(events)))
@@ -44,7 +48,8 @@ def evidence_timeline(events, end_reason=None):
     terminal = [e for e in events if e.get('reason') == 'native_exception' and
                 e.get('fields', {}).get('first_chance', {}).get('value') == 0]
     exits = [e for e in events if e.get('reason') == 'game_exit']
-    state = 'unhandled_crash' if terminal else 'exited' if exits else 'recording' if end_reason == 'recording' else 'no_crash_observed'
+    disconnections = [e for e in events if e.get('reason') == 'business_disconnect']
+    state = 'unhandled_crash' if terminal else 'business_disconnected' if disconnections else 'exited' if exits else 'recording' if end_reason == 'recording' else 'no_crash_observed'
     return dict(critical_events=[events[i] for i in important],
                 timeline=[e for i, e in enumerate(events) if i in selected],
                 timeline_omitted=len(events) - len(selected), omitted_event_ranges=omitted,
@@ -71,12 +76,12 @@ def analyze_log(path):
         raise ValueError('Log limit or incomplete line')
     rows = [json.loads(line) for line in raw.splitlines()]
     header, footer = rows[0], rows[-1]
-    if header['type'] != 'log_header' or footer['type'] != 'log_summary' or header['schema_version'] not in (2, 3, 4):
+    if header['type'] != 'log_header' or footer['type'] != 'log_summary' or header['schema_version'] not in (2, 3, 4, 5):
         raise ValueError('Missing log header/summary')
-    if footer.get('schema_version') not in (2, 3, 4) or footer['schema_version'] < header['schema_version'] or (footer['schema_version'] == 4 and header['schema_version'] != 4):
+    if footer.get('schema_version') not in (2, 3, 4, 5) or footer['schema_version'] < header['schema_version'] or (footer['schema_version'] >= 4 and header['schema_version'] != footer['schema_version']):
         raise ValueError('Unsupported final log schema')
-    if header['schema_version'] == 4:
-        validate_v4(rows)
+    if header['schema_version'] >= 4:
+        validate_v4(rows, header['schema_version'])
     sid = header['log']['summary']['session_id']
     if footer['log']['summary']['session_id'] != sid:
         raise ValueError('Summary session mismatch')
@@ -85,7 +90,7 @@ def analyze_log(path):
     for row in rows:
         inspect_keys(row)
     for row in rows[1:-1]:
-        if (header['schema_version'] == 4) != (row.get('record_version') == 3):
+        if (header['schema_version'] >= 4 and row.get('record_version') != header['schema_version'] - 1) or (header['schema_version'] < 4 and row.get('record_version', 2) >= 3):
             raise ValueError('Record/envelope version mismatch')
         if row['session_id'] != sid or row['sequence'] <= sequence or row['monotonic_ms'] < observed:
             raise ValueError('Session/sequence/time mismatch')
@@ -107,15 +112,40 @@ def analyze_log(path):
     if len(rows) - 2 != footer['log']['summary']['records']:
         raise ValueError('Record count mismatch')
     return {'schema_version': footer['schema_version'], 'verified': True, 'session_id': sid, 'records': len(rows) - 2,
-            'missing': sorted(missing), **evidence_timeline(events, footer['log']['summary']['end_reason']),
+            'missing': sorted(missing), 'context': footer['log']['summary'].get('context'),
+            'support_summary': support_summary(footer['log'], events), **evidence_timeline(events, footer['log']['summary']['end_reason']),
             'truncated': footer['log']['summary']['truncated'], 'sha256': hashlib.sha256(raw).hexdigest()}
 
 
-def validate_v4(rows):
+def support_summary(log, events):
+    context = log['summary'].get('context') or {}
+    # Fault/disconnect context takes precedence over the latest healthy state.
+    terminal = [e for e in events if e.get('reason') == 'native_exception' and
+                e.get('fields', {}).get('first_chance', {}).get('value') == 0]
+    incidents = terminal or [e for e in events if e.get('reason') == 'business_disconnect' or
+                             (e.get('evidence') or {}).get('kind') == 'managed_exception']
+    event = incidents[-1] if incidents else events[-1] if events else {}
+    context = event.get('context') or context
+    utc = event.get('utc') or log['ended_utc']
+    try:
+        normalized = re.sub(r'(\.\d{6})\d+', r'\1', utc).replace('Z', '+00:00')
+        beijing = datetime.datetime.fromisoformat(normalized).astimezone(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
+    except ValueError:
+        beijing = None
+    fields = context.get('fields', {})
+    return dict(event_utc=utc, event_beijing=beijing, time_basis=event.get('time_source', 'client_utc'),
+                character=fields.get('character_name'), character_id=fields.get('character_id'),
+                connection=fields.get('connection_id'), dungeon=fields.get('dungeon_id'),
+                settlement_phase=fields.get('settlement_phase'), context_status=context.get('status', 'unavailable'),
+                context_observed_at=context.get('observed_at'), correlation_id=context.get('correlation_id'),
+                clock=context.get('clock'), private_player_context=bool(context))
+
+
+def validate_v4(rows, version=4):
     from jsonschema import Draft202012Validator
     schemas = Path(__file__).resolve().parents[1] / 'docs' / 'diagnostics'
-    record = Draft202012Validator(json.loads((schemas / 'record-v3.schema.json').read_text(encoding='utf-8')))
-    envelope = Draft202012Validator(json.loads((schemas / 'envelope-v4.schema.json').read_text(encoding='utf-8')))
+    record = Draft202012Validator(json.loads((schemas / f'record-v{version - 1}.schema.json').read_text(encoding='utf-8')))
+    envelope = Draft202012Validator(json.loads((schemas / f'envelope-v{version}.schema.json').read_text(encoding='utf-8')))
     for i, row in enumerate(rows):
         validator = envelope if i in (0, len(rows) - 1) else record
         if next(validator.iter_errors(row), None) is not None:
