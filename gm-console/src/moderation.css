@@ -10,3 +10,5 @@
 @media(max-width:640px){.qq-settings-header{flex-wrap:wrap}.qq-settings-header>button{margin-left:auto}.qq-group-add{flex-wrap:wrap}}
 
 .moderation-hide-banned{display:flex;align-items:center;gap:.5rem;white-space:nowrap;align-self:center}.moderation-hide-banned input{width:auto;accent-color:var(--primary)}
+
+.ip-range-panel{padding:20px;display:grid;gap:16px}.ip-range-panel table{width:100%}.ip-range-panel .moderation-ip{padding:0}

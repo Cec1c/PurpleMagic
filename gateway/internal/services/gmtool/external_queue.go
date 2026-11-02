@@ -41,6 +41,7 @@ type queueTask struct {
 // ExternalQueue persists administrator-confirmed work. Delivery and deduplication
 // remain authoritative in the original gateway database, including after restart.
 type ExternalQueue struct {
+	ipRanges     *ipRangeQueue
 	mu           sync.Mutex
 	benefitMu    sync.Mutex
 	scanMu       sync.Mutex
@@ -108,6 +109,10 @@ func OpenExternalQueue(path string, peer *servicehttp.Client) (*ExternalQueue, e
 		return nil, e
 	}
 	if e = q.save(); e != nil {
+		return nil, e
+	}
+	q.ipRanges, e = openIPRangeQueue(path+".ip-ranges.json", peer)
+	if e != nil {
 		return nil, e
 	}
 	return q, nil
@@ -312,6 +317,11 @@ func (q *ExternalQueue) step(ctx context.Context) (resultErr error) {
 	return nil
 }
 func (q *ExternalQueue) Run(ctx context.Context, log func(string, ...any)) {
+	if q.ipRanges != nil {
+		done := make(chan struct{})
+		go func() { defer close(done); q.ipRanges.run(ctx) }()
+		defer func() { <-done }()
+	}
 	timer := time.NewTicker(time.Second)
 	defer timer.Stop()
 	for {

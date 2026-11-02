@@ -143,6 +143,9 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		if queue != nil && queue.HandleBenefitReconciliation(w, r) {
 			return
 		}
+		if queue != nil && queue.ipRanges != nil && queue.ipRanges.handle(w, r) {
+			return
+		}
 		if queue != nil && strings.HasPrefix(r.URL.Path, "/api/v1/benefits/") && queue.HandleBenefit(w, r) {
 			return
 		}
@@ -217,6 +220,7 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 			data["backgroundBenefits"] = queue != nil
 			if features, ok := data["features"].(map[string]any); ok {
 				features["pvf.mode"] = s.pvfModeControl() != nil
+				features["ipRanges.write"] = queue != nil && queue.ipRanges != nil && features["moderation.write"] == true
 			}
 			raw, _ = json.Marshal(v)
 		}
