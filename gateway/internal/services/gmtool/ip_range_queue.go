@@ -432,6 +432,12 @@ func (q *ipRangeQueue) step(ctx context.Context) (bool, error) {
 		message = "回执校验未通过，后台自动重试"
 	} else if m.Revert != nil {
 		m.State = "released"
+		if command.Revoke {
+			m.Owned = out.Data.Revision
+		} else {
+			// A restored independent rule belongs in the ordinary list.
+			m.Owned = 0
+		}
 	} else {
 		m.State = "applied"
 		m.Owned = out.Data.Revision
@@ -572,7 +578,7 @@ func (q *ipRangeQueue) groupedBans(w http.ResponseWriter, r *http.Request) {
 	owned := map[string]uint64{}
 	for _, j := range q.jobs {
 		for _, m := range j.Members {
-			if m.Owned > 0 && m.State == "applied" {
+			if m.Owned > owned[m.Command.Target] && (m.State == "applied" || m.State == "released") {
 				owned[m.Command.Target] = m.Owned
 			}
 		}

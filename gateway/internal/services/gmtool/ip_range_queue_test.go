@@ -339,3 +339,36 @@ func TestIPRangeConcurrentRetryWhileWorkerApplies(t *testing.T) {
 		t.Fatal("retry duplicated writes", f.writes)
 	}
 }
+
+func TestIPRangeGroupedListingKeepsReleasedMembersGrouped(t *testing.T) {
+	f := newRangeFixture(t)
+	expiry := time.Now().Add(time.Hour)
+	f.bans["192.0.2.0"] = moderation.Ban{Kind: "ip", Target: "192.0.2.0", Reason: "original", Active: true, Revision: 8, ExpiresAt: &expiry}
+	v, e := f.q.create(context.Background(), ipRangeInput{Target: "192.0.2.0/30", Reason: "range", RequestID: "range-request-000009"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	finishRanges(t, f.q)
+	if _, e = f.q.release(v.ID); e != nil {
+		t.Fatal(e)
+	}
+	finishRanges(t, f.q)
+	w := httptest.NewRecorder()
+	f.q.handle(w, httptest.NewRequest("GET", "/api/v1/anti-cheat/bans?hideRangeMembers=true", nil))
+	var out struct{ Data moderation.BanPage }
+	json.Unmarshal(w.Body.Bytes(), &out)
+	if w.Code != 200 || len(out.Data.Rows) != 1 || out.Data.Rows[0].Reason != "original" {
+		t.Fatal("released members should stay grouped; restored prior rule should be visible", w.Body.String())
+	}
+	v, e = f.q.create(context.Background(), ipRangeInput{Target: "192.0.2.0/30", Reason: "next range", RequestID: "range-request-000010"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	finishRanges(t, f.q)
+	w = httptest.NewRecorder()
+	f.q.handle(w, httptest.NewRequest("GET", "/api/v1/anti-cheat/bans?hideRangeMembers=true", nil))
+	json.Unmarshal(w.Body.Bytes(), &out)
+	if w.Code != 200 || len(out.Data.Rows) != 0 {
+		t.Fatal("latest owned revisions must win across rules", w.Body.String(), v)
+	}
+}
