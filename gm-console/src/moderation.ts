@@ -1,3 +1,4 @@
+export type AccountClearStats = {accountId:string;account:string;count:number;fastestMs:number;averageMs:number;fatigueSpent:number|null;fatigueSamples:number;fatiguePerSecond:number|null;peakHourly:number;lastClearAt:string};
 export type ClearStats = {accountId:string;characterId:string;characterName:string;dungeonId:number;dungeonName:string;difficulty:number;count:number;lastClearAt:string;fastestMs:number;averageMs:number;peakHourly:number;fatigueSpent:number|null;averageFatigue:number|null;fatigueSamples:number};
 export type BanTargets={lastLoginIp?:string;registrationIp?:string;qq?:string;groups?:string[];settingsRevision?:number};
 export type QQAction={id:string;qq:string;group:string;state:string;cause:string;attempts:number};
