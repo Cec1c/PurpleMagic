@@ -4,7 +4,7 @@ namespace Dnf90.Launcher.Diagnostics;
 
 public sealed record DiagnosticOptions(bool Enabled = false, string ProblemType = "auto", int ConsentVersion = 0)
 {
-    public const int CurrentConsent = 2;
+    public const int CurrentConsent = 3;
     public bool HasConsent => ConsentVersion == CurrentConsent;
 }
 public sealed record DiagnosticInstance(string Id, string Window, int Pid, string StartedUtc, string Status, string ExeVersion, bool Selected, string CrashStatus = "starting");
@@ -14,7 +14,8 @@ public sealed record DiagnosticExport(string Path, long Bytes, string Sha256, in
 internal sealed record ProcessIdentity(int Pid, long Created, int WindowsSession, string Path, string Id);
 internal sealed record DiagnosticField(double? Value, string Status = "ok", string? Reason = null);
 internal sealed record DiagnosticRecord(long Sequence, string Utc, double MonotonicMs, string Type, string Module, string SessionId,
-    double ReadMs, string Quality, Dictionary<string, DiagnosticField> Fields, string? Reason = null, long? BaseSequence = null, DiagnosticEvidence? Evidence = null, int RecordVersion = 3);
+    double ReadMs, string Quality, Dictionary<string, DiagnosticField> Fields, string? Reason = null, long? BaseSequence = null, DiagnosticEvidence? Evidence = null, int RecordVersion = 4,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DiagnosticContext? Context = null);
 internal sealed record DiagnosticStackFrame(string Module, string Offset, string? Method = null, string? Address = null, string? ModuleId = null);
 internal sealed record DiagnosticException(string Kind, int HResult, int? NativeCode, DiagnosticStackFrame[] Stack);
 internal sealed record DiagnosticEvidence(string Kind, DiagnosticException[]? Exceptions = null, DiagnosticStackFrame[]? Stack = null,
@@ -44,7 +45,8 @@ internal sealed record DiagnosticSummary(string SessionId, string IncidentId, st
     bool ServerEventsConnected = false, double? ServerClockOffsetMs = null, double? ServerClockUncertaintyMs = null,
     string ObservationKind = "client_polling", string CounterScope = "session_cumulative",
     string? CorrelationId = null, string ExpectedPvfSha256 = "",
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReleaseChannel = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReleaseChannel = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DiagnosticContext? Context = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(DiagnosticLogIndex))]

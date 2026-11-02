@@ -75,7 +75,7 @@ def main():
         assert not initial['diagnostics']['enabled']
         prefs = {'clientDirectory': game_directory, 'account': '', 'rememberAccount': False,
                  'autoCheck': False, 'reducedEffects': True,
-                 'diagnostics': {'enabled': True, 'problemType': 'connection', 'consentVersion': 2}}
+                 'diagnostics': {'enabled': True, 'problemType': 'connection', 'consentVersion': 3}}
         call('preferences', prefs)
         expected = 1
         status = diagnostic_when(lambda d: d['enabled'] and len(d['instances']) == expected and all(i['selected'] for i in d['instances']))

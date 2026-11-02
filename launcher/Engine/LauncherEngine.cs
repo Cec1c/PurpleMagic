@@ -348,7 +348,9 @@ public sealed class LauncherEngine : IDisposable
             var channels = await ChannelProbe.Check(Profile, m => Emit("checking", m));
             diagnostics.Event("channel_verified", stageClock.Elapsed.TotalMilliseconds, channels.ServerId); stageClock.Restart();
             Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile, status => diagnostics.Event("account_http_response", number: status));
-            var reply = await api.Submit("login", input.Account.Trim(), input.Password, Device());
+            var correlation = preferences.Diagnostics is { Enabled: true, HasConsent: true } ? Guid.NewGuid().ToString("N") : null;
+            var reply = await api.Submit("login", input.Account.Trim(), input.Password, Device(), diagnosticCorrelationId: correlation);
+            if (correlation is not null) diagnostics.LoginContext(Profile, correlation, reply.Diagnostics);
             diagnostics.Event("account_verified", stageClock.Elapsed.TotalMilliseconds); stageClock.Restart();
             NativeChannelHistory.Prepare(Profile, channels);
             var executable = Path.Combine(preferences.ClientDirectory, "DNF.exe");

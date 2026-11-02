@@ -8,6 +8,12 @@ internal static class CrashDiagnosticsChecks
 {
     internal static async Task Consent(string temp, PlayerProfile profile, Action<bool, string> check)
     {
+        var previous = Path.Combine(temp, "consent-context-migration"); Directory.CreateDirectory(previous);
+        File.WriteAllBytes(Path.Combine(previous, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(new Preferences(
+            Diagnostics: new(true, ConsentVersion: 2), AntiCheatConsentVersion: 1), WireJson.Default.Preferences));
+        using (var migrated = new LauncherEngine(profile, previous))
+            check(migrated.State.Preferences.Diagnostics?.Enabled == false && migrated.State.Preferences.AntiCheatConsentVersion == 1,
+                "character disclosure requires new diagnostic consent and preserves anticheat consent");
         var path = Path.Combine(temp, "consent-migration"); Directory.CreateDirectory(path);
         var prefs = new Preferences(Diagnostics: new(true, ConsentVersion: 1));
         File.WriteAllBytes(Path.Combine(path, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(prefs, WireJson.Default.Preferences));

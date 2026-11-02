@@ -1,6 +1,8 @@
+> 角色与时间上下文已新增源码候选：外层 5 / 记录 4 / 同意版本 3。完整字段、服务端接口、降级与验证见[角色上下文契约](diagnostics/CHARACTER_CONTEXT_V5.md)。下述原生证据能力沿用。
+
 # 登录器增强诊断
 
-适用登录器 **1.0.7 源码候选**（外层 4 / 记录 3），旧外层 2/3 仍可读取。供玩家、客服及论坛维护者转发的现行说明见 [登录器日志规范](LAUNCHER_LOG_STANDARD.md)；本文保留采集实现与字段细节。
+适用登录器 **角色上下文源码候选**（外层 5 / 记录 4），旧外层 2/3/4 仍可读取。供玩家、客服及论坛维护者转发的现行说明见 [登录器日志规范](LAUNCHER_LOG_STANDARD.md)；本文保留采集实现与字段细节。
 
 设置 → **增强诊断日志** → 打开开关 → 阅读说明并同意。随后正常启动游戏即可。
 
@@ -14,7 +16,7 @@
 
 ## 2026-10-31：异常现场与游戏操作
 
-当前版本保持一个开关、每次启动独立日志、最近五次及原生另存为 `.log`。开启时先显示采集说明，点击“同意并开启”后保存 `consentVersion=2`。旧版已开启诊断的偏好迁移为关闭，重新同意后才扩大采集范围；Host 同样校验同意版本。
+当前版本保持一个开关、每次启动独立日志、最近五次及原生另存为 `.log`。开启时先显示采集说明，点击“同意并开启”后保存 `consentVersion=3`。旧版已开启诊断的偏好迁移为关闭，重新同意后才扩大采集范围；Host 同样校验同意版本。
 
 - **登录器异常**：保存错误类别、HResult、Win32/Socket/HTTP 数值及最多六层内部错误、每层至多 32 个方法栈帧。消息、Data、文件名、URL、参数值不进入导出。NativeAOT 移除的方法元数据标为 `unknown`。更新在登录前失败也会形成可导出的日志。
 - **游戏异常**：独立的同名核心辅助进程通过 Windows 调试接口关联 PID、创建时间和客户端路径均匹配的目标。异常交给游戏原有处理器；只处理调试器初始关联断点。保存常见 SEH 首次通知以及未处理异常的异常码、线程和至多 64 个“模块文件名 + 模块内偏移”栈帧，不生成内存转储、不下载符号。首轮异常可能由游戏自行处理，`first_chance=1` 不等于闪退；`first_chance=0` 表示未处理通知。每个采集器最多 16 次首轮和 2 次未处理通知，后者有独立额度。
@@ -26,7 +28,7 @@
 
 辅助进程只通过当前用户命名管道通信，双方核对管道对端 PID、父进程创建时间及相同核心程序路径；目标指令不走命令行。每个实例分别持有采集器和有界队列。`observed_unix_ms` 是辅助进程实际采集时间，区别于主日志收到该记录的时间。
 
-新日志 envelope 为 `schema_version=4`，每条记录为 `record_version=3`，定义见 [record-v3.schema.json](diagnostics/record-v3.schema.json)。旧格式封存并保留原记录；分析器同时读 2/3/4。原生参数、原始寄存器、页信息、代码窗口、模块身份与阶段耗时详见 [原生证据契约](diagnostics/NATIVE_EVIDENCE_V4.md)。10 MiB 上限中普通采样预留 512 KiB 给异常和最近操作，另为最终未处理异常与汇总保留空间；截断状态保持明确。数据只保存在本机，由玩家手动导出分享。
+新日志 envelope 为 `schema_version=5`，每条记录为 `record_version=4`，定义见 [record-v4.schema.json](diagnostics/record-v4.schema.json)。旧格式封存并保留原记录；分析器同时读 2/3/4/5。原生参数、原始寄存器、页信息、代码窗口、模块身份与阶段耗时详见 [原生证据契约](diagnostics/NATIVE_EVIDENCE_V4.md)。10 MiB 上限中普通采样预留 512 KiB 给异常和最近操作，另为最终未处理异常与汇总保留空间；截断状态保持明确。数据只保存在本机，由玩家手动导出分享。
 
 ## 自动采集
 
@@ -78,9 +80,9 @@
 
 日志位于用户状态目录的 `diagnostics/logs/`，每份配套一个本地索引。中断写入恢复到最后持久化索引对应的完整记录。导出副本不参与自动清理。旧候选的 `clips/*.zip` 保留为历史文件，当前界面只使用启动日志。
 
-每份 `.log` 的第一行 `type=log_header`，最后一行 `type=log_summary`，`schema_version=4`。中间使用 [record-v3.schema.json](diagnostics/record-v3.schema.json) 的事件/采样/异常行；同一次启动序号和单调时间递增。专项完整快照至少每秒一次，差量通过 `base_sequence` 关联。
+每份 `.log` 的第一行 `type=log_header`，最后一行 `type=log_summary`，`schema_version=5`。中间使用 [record-v4.schema.json](diagnostics/record-v4.schema.json) 的事件/采样/异常行；同一次启动序号和单调时间递增。专项完整快照至少每秒一次，差量通过 `base_sequence` 关联。
 
-汇总包括 EXE/PVF 实际完整哈希、预期 PVF 哈希、签名序号、已保存行数、丢样/读取失败/截断与未接入字段。只输出白名单字段；密码、Token、完整启动参数、聊天、账号和安装路径不进入日志。服务端事件尚未接入，汇总记录 `server_events_connected=false`。
+汇总包括 EXE/PVF 实际完整哈希、预期 PVF 哈希、签名序号、已保存行数、丢样/读取失败/截断与未接入字段。只输出白名单字段；密码、Token、完整启动参数、聊天、账号和安装路径不进入日志。配套服务端上下文通过 `context` 记录；旧服务端明确返回能力缺失，`server_events_connected` 仅在实际取得受认证响应后为 true。
 
 ```powershell
 python -m pip install -r scripts/diagnostics/requirements.txt
