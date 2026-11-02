@@ -123,6 +123,7 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/anti-cheat/ban-targets/{account}", s.v1BanTargets)
 	writes.HandleFunc("POST /api/v1/anti-cheat/qq/settings", s.v1QQBinding)
 	mux.HandleFunc("GET /api/v1/anti-cheat/qq/bindings", s.v1QQBinding)
+	writes.HandleFunc("POST /api/v1/anti-cheat/qq/bindings", s.v1QQBindingChange)
 	writes.HandleFunc("POST /api/v1/anti-cheat/bans", s.v1Moderation)
 	writes.HandleFunc("POST /api/v1/accounts/{accountId}/password-reset", s.v1ResetPassword)
 	mux.HandleFunc("GET /api/v1/activities", s.v1Activities)

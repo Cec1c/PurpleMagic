@@ -8,6 +8,31 @@ import (
 	"strings"
 )
 
+func (s *Server) v1QQBindingChange(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Runtime == nil {
+		v1Fail(w, r, 503, "binding_unavailable", "绑定服务暂不可用", true)
+		return
+	}
+	var c qqbinding.Change
+	if !v1DecodeLimit(w, r, &c, 2048) {
+		return
+	}
+	if r.URL.RawQuery != "" || c.Validate() != nil {
+		v1Fail(w, r, 400, "invalid_binding_change", "绑定操作参数无效", false)
+		return
+	}
+	out, err := s.deps.Runtime.Call(r.Context(), adminapi.Request{Action: "qq_change", QQChange: &c})
+	if err != nil || !out.QQChanged {
+		if out.Error != "" {
+			v1Fail(w, r, 409, "binding_conflict", out.Error, false)
+		} else {
+			v1Fail(w, r, 503, "binding_unavailable", "绑定操作暂未取得回执，请重试", true)
+		}
+		return
+	}
+	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"saved": true, "binding": out.QQBinding}})
+}
+
 func (s *Server) v1QQBinding(w http.ResponseWriter, r *http.Request) {
 	if s.deps.Runtime == nil {
 		v1Fail(w, r, 503, "binding_unavailable", "绑定服务暂不可用", true)

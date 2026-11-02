@@ -860,6 +860,7 @@ export class ConsoleAPI {
   }
   async qqBindingSettings(signal?:AbortSignal) {return (await this.http.get("/api/v1/anti-cheat/qq/settings",signal)).data;}
   async saveQQBindingSettings(settings:{enabled:boolean;allowBinding:boolean;groups:string[];revision:number}) {return await this.http.post("/api/v1/anti-cheat/qq/settings",settings);}
+  async changeQQBinding(change:{accountId:string;qq:string;revision:number;action:"enable"|"disable"|"delete";requestId:string}) { return await this.http.post("/api/v1/anti-cheat/qq/bindings",change); }
   async qqBindings(search:string,offset:number,signal?:AbortSignal) {return (await this.http.get(query("/api/v1/anti-cheat/qq/bindings",{search,offset}),signal)).data;}
   async moderation(resource: "account-stats" | "clears" | "accounts" | "bans", params: Record<string,string|number|undefined>, signal?: AbortSignal) {
     return (await this.http.get(query(`/api/v1/anti-cheat/${resource}`,params),signal)).data;

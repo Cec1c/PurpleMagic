@@ -31,6 +31,30 @@ func withQQBot(next http.Handler, client *adminapi.Client, token string) http.Ha
 			return
 		}
 		switch {
+		case r.Method == "POST" && r.URL.Path == "/api/bot/qq-binding/checks":
+			in.Action = "qq_checks"
+		case r.Method == "POST" && r.URL.Path == "/api/bot/qq-binding/check-result":
+			var c qqbinding.CheckResult
+			d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
+			d.DisallowUnknownFields()
+			if d.Decode(&c) != nil || d.Decode(new(any)) != io.EOF {
+				http.Error(w, "invalid request", 400)
+				return
+			}
+			in.Action = "qq_check_result"
+			in.QQCheck = &c
+		case r.Method == "POST" && r.URL.Path == "/api/bot/qq-binding/check-due":
+			var c struct {
+				QQ string `json:"qq"`
+			}
+			d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
+			d.DisallowUnknownFields()
+			if d.Decode(&c) != nil || d.Decode(new(any)) != io.EOF || !qqbinding.Number.MatchString(c.QQ) {
+				http.Error(w, "invalid request", 400)
+				return
+			}
+			in.Action = "qq_check_due"
+			in.QQ = c.QQ
 		case r.Method == "POST" && r.URL.Path == "/api/bot/qq-binding/jobs":
 			in.Action = "qq_jobs"
 		case r.Method == "POST" && r.URL.Path == "/api/bot/qq-binding/ack":
@@ -85,6 +109,10 @@ func withQQBot(next http.Handler, client *adminapi.Client, token string) http.Ha
 			data = map[string]bool{"bound": true}
 		}
 		switch in.Action {
+		case "qq_checks":
+			data = out.QQChecks
+		case "qq_check_due", "qq_check_result":
+			data = map[string]bool{"saved": out.QQChanged}
 		case "qq_jobs":
 			data = out.QQActions
 		case "qq_ack":

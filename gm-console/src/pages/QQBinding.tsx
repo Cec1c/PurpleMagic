@@ -1,15 +1,25 @@
 import {useEffect,useRef,useState} from "react";
 import {LoaderCircle,Search,Save,Link,Plus,Trash2,Users} from "lucide-react";
 import {useLive} from "../api/context";
-import {Empty,Field,Tabs,type PageProps} from "../ui";
+import {Empty,Field,Tabs,Modal,type PageProps} from "../ui";
 type Settings={enabled:boolean;allowBinding:boolean;groups:string[];revision:number};
-type Binding={accountId:string;account:string;qq:string;group:string;boundAt:number};
+type Binding={accountId:string;account:string;qq:string;group:string;boundAt:number;state?:"active"|"left"|"disabled";revision?:number;updatedAt?:number;checkedAt?:number;checkCause?:string};
 type Page={rows:Binding[];hasMore:boolean;total:number};
 export function QQBindingPage({state}:PageProps){
  const live=useLive();const [settings,setSettings]=useState<Settings|null>(null),[groupInput,setGroupInput]=useState("");
  const [page,setPage]=useState<Page>({rows:[],hasMore:false,total:0}),[search,setSearch]=useState(""),[offset,setOffset]=useState(0);
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");
+ const [operation,setOperation]=useState<{row:Binding;action:"enable"|"disable"|"delete";requestId:string}|null>(null),[changing,setChanging]=useState(false),[changeError,setChangeError]=useState("");
  const read=useRef<AbortController|null>(null);
+ const actionLabel={enable:"启用",disable:"禁用",delete:"删除"};
+ const statusLabel=(row:Binding)=>row.state==="left"?"退群失效":row.state==="disabled"?"管理员禁用":"有效";
+ async function change(){
+  if(!operation||!live||changing)return;setChanging(true);setChangeError("");
+  const {row,action,requestId}=operation;
+  try{await live.changeQQBinding({accountId:row.accountId,qq:row.qq,revision:row.revision!,action,requestId});setOperation(null);setNotice(`绑定记录已${actionLabel[action]}`);await load(offset);}
+  catch(e){setChangeError((e as Error).message);}finally{setChanging(false);}
+ }
+
  const editable=!!settings&&!saving&&!!state.api?.features["qqBinding.write"];
  const mode=settings?.enabled?"required":settings?.allowBinding?"optional":"disabled";
  async function load(next=0,policy=false){
@@ -48,8 +58,10 @@ export function QQBindingPage({state}:PageProps){
    <p>群内艾特机器人发送绑定指令；私聊时核对是否加入以上任一群。</p>
    <span className="qq-settings-notice" role="status">{notice}</span>
   </section>
-  <div className="moderation-filters glass"><Field label="账号 / 账号 ID / QQ 号"><input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void load(0)}} placeholder="输入完整账号或 QQ 号"/></Field><button className="primary" disabled={loading} onClick={()=>void load(0)}>{loading?<LoaderCircle size={16} className="spin"/>:<Search size={16}/>}查询</button><span>已绑定 {page.total} 个账号</span></div>
-  <div className="glass moderation-table"><table><thead><tr><th>游戏账号</th><th>QQ 号</th><th>验证群</th><th>绑定时间</th></tr></thead><tbody>{page.rows.map(row=><tr key={row.accountId}><td>{row.account}<small>{row.accountId}</small></td><td>{row.qq}</td><td>{row.group}</td><td>{new Date(row.boundAt*1000).toLocaleString()}</td></tr>)}</tbody></table>{!loading&&!page.rows.length&&<Empty title="暂无绑定记录" detail="玩家完成绑定后将在这里显示"/>}</div>
+  <div className="moderation-filters glass"><Field label="账号 / 账号 ID / QQ 号"><input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void load(0)}} placeholder="输入完整账号或 QQ 号"/></Field><button className="primary" disabled={loading} onClick={()=>void load(0)}>{loading?<LoaderCircle size={16} className="spin"/>:<Search size={16}/>}查询</button><span>共 {page.total} 条绑定记录</span></div>
+  <p className="moderation-caption">每 6 小时复核允许群成员，退群事件会提前复核。退出全部允许群后保留原绑定并标记失效；重新入群后使用原 QQ 和原账号再次绑定即可恢复。管理员禁用需在这里启用。</p>
+  <div className="glass moderation-table"><table><thead><tr><th>游戏账号</th><th>QQ 号</th><th>验证群</th><th>绑定时间</th><th>状态 / 最近复核</th><th>操作</th></tr></thead><tbody>{page.rows.map(row=><tr key={row.accountId}><td>{row.account}<small>{row.accountId}</small></td><td>{row.qq}</td><td>{row.group}</td><td>{new Date(row.boundAt*1000).toLocaleString()}</td><td>{statusLabel(row)}<small>{row.checkedAt?new Date(row.checkedAt*1000).toLocaleString():"尚未复核"}{row.checkCause==="unknown"?" · 查询未完成，等待重试":""}</small></td><td><div className="moderation-actions">{(row.state==="disabled"?["enable","delete"]:row.state==="left"?["enable","disable","delete"]:["disable","delete"]).map(action=><button key={action} className="text-button" disabled={!editable||!row.revision||changing} onClick={()=>{setChangeError("");setOperation({row,action:action as "enable"|"disable"|"delete",requestId:crypto.randomUUID()});}}>{actionLabel[action as keyof typeof actionLabel]}</button>)}</div></td></tr>)}</tbody></table>{!loading&&!page.rows.length&&<Empty title="暂无绑定记录" detail="玩家完成绑定后将在这里显示"/>}</div>
   <div className="moderation-pagination"><button className="secondary" disabled={loading||offset===0} onClick={()=>void load(Math.max(0,offset-50))}>上一页</button><span>第 {Math.floor(offset/50)+1} 页</span><button className="secondary" disabled={loading||!page.hasMore} onClick={()=>void load(offset+50)}>下一页</button></div>
+  {operation&&<Modal title={`${actionLabel[operation.action]}绑定记录`} onClose={()=>{if(!changing)setOperation(null)}} dismissOnBackdrop={!changing} footer={<><button className="secondary" disabled={changing} onClick={()=>setOperation(null)}>取消</button><button className="primary" disabled={changing} onClick={()=>void change()}>{changing&&<LoaderCircle size={16} className="spin"/>}确认{actionLabel[operation.action]}</button></>}><p>{operation.row.account} · QQ {operation.row.qq}</p><p>{operation.action==="delete"?"删除后将释放该账号与 QQ 的绑定关系，玩家可以重新绑定。":operation.action==="disable"?"保留绑定关系，暂停生效。玩家重新发送绑定码不会解除管理员禁用。":"恢复此绑定，并安排群成员复核。"}</p>{changeError&&<p role="alert">{changeError}</p>}</Modal>}
  </div>;
 }
