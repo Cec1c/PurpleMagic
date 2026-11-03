@@ -151,6 +151,7 @@ export type Command =
   | { kind: "delete-items"; keys: string[] }
   | { kind: "replace-item"; key: string; version: number; itemId: string }
   | { kind: "reset-skill-points"; characterId: string }
+  | { kind: "rename-character"; characterId: string; expectedName: string; newName: string }
   | {
       kind: "mail";
       recipients: string[];
@@ -389,6 +390,17 @@ export function applyCommand(
       for (const id of command.ids) s.questStates[c.id][id] = command.status;
       target = c.name;
       summary = `${command.status === "completed" ? "完成" : "重置"} ${command.ids.length} 个任务`;
+      break;
+    }
+    case "rename-character": {
+      const c = offline(s, command.characterId);
+      const name = command.newName.trim();
+      if (c.name !== command.expectedName) throw new Error("角色名已变化，请刷新后重试");
+      if (!name || name.length > 12) throw new Error("请输入有效的角色名");
+      if (s.characters.some(v => v.id !== c.id && v.name === name)) throw new Error("角色名已被使用");
+      target = c.name;
+      summary = `${c.name} → ${name}`;
+      c.name = name;
       break;
     }
     case "growth": {

@@ -58,6 +58,9 @@ func (s *Server) v1Routes() http.Handler {
 	mux := http.NewServeMux()
 	writes := http.NewServeMux()
 	s.v1OperationRoutes(mux, writes)
+	mux.HandleFunc("GET /api/v1/characters/{characterId}/rename-operations", s.v1RenameLog)
+	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations/preview", s.v1RenameOperation)
+	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations", s.v1RenameOperation)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory/{container}/{slot}/options", s.v1InventoryOptions)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory-operations", s.v1InventoryOperationLog)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}/inventory-operations", s.v1InventoryOperationLog)
@@ -315,6 +318,8 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	_, levelWrite := group.Character.(repository.LevelManagementUnitOfWork)
 	features["level.read"] = available && levelRead
 	features["level.write"] = available && levelWrite && s.deps.Runtime != nil
+	_, renameWrite := group.Character.(repository.CharacterRenameUnitOfWork)
+	features["characters.rename"] = available && renameWrite && s.deps.Runtime != nil && s.characterRenameEnabled()
 	_, professionRead := group.Character.(repository.ProfessionManagementReader)
 	_, professionWrite := group.Character.(repository.ProfessionManagementUnitOfWork)
 	features["profession.read"] = available && professionRead && levelRead

@@ -212,6 +212,17 @@ export async function prepareOperation(
       pvfChecksum: api.meta.questPVF,
       reason,
     });
+  } else if (command.kind === "rename-character") {
+    if (!c || command.characterId !== c.id) throw new Error("角色已切换，请重新填写名字");
+    if (!api.meta.features["characters.rename"]) throw new Error("当前服务未启用角色改名");
+    if (c.name !== command.expectedName) throw new Error("角色名已变化，请刷新后重试");
+    const newName = command.newName.trim();
+    if (!newName || newName === c.name) throw new Error("请输入与当前名字不同的新角色名");
+    p.title = "确认角色改名";
+    p.summary = `角色 ID ${c.id}：${c.name} → ${newName}`;
+    await preview(p.summary, base + "/rename-operations", {
+      accountId: c.accountId, expectedName: command.expectedName, newName, reason,
+    });
   } else if (command.kind === "reset-skill-points") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
     const { data } = await api.http.get(base + "/skill-points");
@@ -611,6 +622,10 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
           step.result = data;
         } else throw e;
       }
+    }
+    if (step.result?.kind === "rename-operation") {
+      const renamed = step.result;
+      api.patch({ characters: api.state.characters.map(c => c.id === renamed.characterId && c.accountId === renamed.accountId ? { ...c, name: renamed.after } : c) });
     }
     step.done = true;
     api.persistPending();

@@ -143,16 +143,16 @@
       "group": "GM",
       "feature": "改名、克隆、删除角色",
       "source": "G/A",
-      "status": "旧版实现",
-      "ui": "角色管理页面待迁",
-      "api": "旧 /api/characters/{id}/rename; clone; delete",
+      "status": "改名已接入",
+      "ui": "GM成长页角色改名",
+      "api": "POST /api/v1/characters/{id}/rename-operations; GET rename-operations",
       "facilities": [
         "F03",
         "F04",
         "F09"
       ],
-      "implementedScope": "旧版改名、克隆、删除",
-      "remaining": "新接口、关联数据计划与事务验收"
+      "implementedScope": "名称校验、重名检查、角色离线锁、定点保存、永久回执",
+      "remaining": "克隆与删除角色接口迁移"
     },
     {
       "id": "GM-10",

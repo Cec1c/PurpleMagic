@@ -650,6 +650,9 @@ export function App() {
                 {pending.command.sp} · TP {pending.command.tp}
               </p>
             )}
+            {pending.command.kind === "rename-character" && (
+              <p className="confirm-values">{pending.command.expectedName} → {pending.command.newName}</p>
+            )}
             {pending.command.kind === "currency" && (
               <dl className="detail-list">
                 <div>

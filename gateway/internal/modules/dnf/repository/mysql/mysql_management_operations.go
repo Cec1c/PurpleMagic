@@ -24,7 +24,7 @@ func EnsureManagementSchema(ctx context.Context, db *sql.DB, options MySQLGroupO
 				return err
 			}
 		}
-		for _, receiptTable := range []string{"character_management_operations", "inventory_management_operations", "character_gold_operations", skillPointOperationsTable, levelOperationsTable, professionOperationsTable, expertJobOperationsTable, "container_management_operations", mailboxManagementTable, mailboxCleanupTable} {
+		for _, receiptTable := range []string{characterRenameOperationsTable, "character_management_operations", "inventory_management_operations", "character_gold_operations", skillPointOperationsTable, levelOperationsTable, professionOperationsTable, expertJobOperationsTable, "container_management_operations", mailboxManagementTable, mailboxCleanupTable} {
 			_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS "+mysqlTable(database, r.tablePrefix, receiptTable)+" (sequence_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, character_id VARBINARY(128) NOT NULL, account_id VARBINARY(128) NOT NULL, request_id VARBINARY(128) NOT NULL, payload MEDIUMBLOB NOT NULL, created_at DATETIME(6) NOT NULL, UNIQUE KEY character_request(character_id,request_id), KEY character_sequence(character_id,sequence_id)) ENGINE=InnoDB")
 			if err != nil {
 				return err
@@ -51,7 +51,7 @@ func CheckManagementSchema(ctx context.Context, db *sql.DB, options MySQLGroupOp
 			}
 			rows.Close()
 		}
-		for _, receiptTable := range []string{"character_management_operations", "inventory_management_operations", "character_gold_operations", skillPointOperationsTable, levelOperationsTable, professionOperationsTable, expertJobOperationsTable, "container_management_operations", mailboxManagementTable, mailboxCleanupTable} {
+		for _, receiptTable := range []string{characterRenameOperationsTable, "character_management_operations", "inventory_management_operations", "character_gold_operations", skillPointOperationsTable, levelOperationsTable, professionOperationsTable, expertJobOperationsTable, "container_management_operations", mailboxManagementTable, mailboxCleanupTable} {
 			rows, err := db.QueryContext(ctx, "SELECT sequence_id,character_id,account_id,request_id,payload,created_at FROM "+mysqlTable(database, r.tablePrefix, receiptTable)+" LIMIT 0")
 			if err != nil {
 				return err

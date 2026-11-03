@@ -1067,6 +1067,7 @@ export class ConsoleAPI {
       ["gold.write", `${base}/gold-operations`, "金币"],
       ["currency.write", `${account}/currency-adjustments`, "点券"],
       ["level.write", `${base}/level-operations`, "等级"],
+      ["characters.rename", `${base}/rename-operations`, "角色改名"],
       ["profession.write", `${base}/profession-operations`, "职业"],
       ["skillPoints.write", `${base}/skill-point-operations`, "SP / TP"],
       ["quests.write", `${base}/quest-operations`, "任务"],

@@ -10,6 +10,7 @@ import {
   Coins,
   TrendingUp,
   RotateCcw,
+  PencilLine,
 } from "lucide-react";
 import {
   Tabs,
@@ -46,6 +47,8 @@ export function GmPage({ state, character, request }: PageProps) {
     [points, setPoints] = useState(a.points),
     [tokens, setTokens] = useState(a.tokens);
   const [pointsText, setPointsText] = useState(a.rawPoints || "");
+  const [newName, setNewName] = useState("");
+  useEffect(() => { setNewName(""); }, [character.id, character.name]);
   useEffect(() => {
     if (live) {
       setLevel(numberDraft(character.level));
@@ -92,6 +95,7 @@ export function GmPage({ state, character, request }: PageProps) {
       </div>
       {tab === "growth" ? (
         <div className="form-layout">
+          <div style={{ display: "grid", gap: 20, minWidth: 0 }}>
           <form
             className="glass content-panel"
             onSubmit={(e) => {
@@ -171,6 +175,18 @@ export function GmPage({ state, character, request }: PageProps) {
               </button>
             </div>
           </form>
+          {(!live || state.api?.features["characters.rename"]) && <form className="glass content-panel" onSubmit={e => {
+            e.preventDefault();
+            request({kind:"rename-character", characterId:character.id, expectedName:character.name, newName:newName.trim()});
+          }}>
+            <div className="panel-heading"><h2><PencilLine size={20} />角色改名</h2><Pill>ID {character.id}</Pill></div>
+            <div className="field-grid">
+              <Field label="当前角色名"><input value={character.name} readOnly /></Field>
+              <Field label="新角色名"><input value={newName} onChange={e => setNewName(e.target.value)} maxLength={12} required placeholder="最多 6 个汉字或 12 个英文字母" autoComplete="off" /></Field>
+            </div>
+            <div className="form-footer"><span>{character.online ? "请先退出此角色，再修改名字" : "角色离线时可修改名字"}</span><button className="primary" disabled={!!state.api?.busy || character.online !== false || !newName.trim() || newName.trim() === character.name}><PencilLine size={16} />修改角色名</button></div>
+          </form>}
+          </div>
           <aside className="glass content-panel">
             <h3>当前成长</h3>
             <div className="level-display">
