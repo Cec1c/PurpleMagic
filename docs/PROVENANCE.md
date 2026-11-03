@@ -51,3 +51,5 @@ sampler at `87861a0` (upstream integration `8ead65a`) into the standalone
 launcher engine. The verified layout hashes and added rule/physics evidence
 are documented in [launcher diagnostics](LAUNCHER_DIAGNOSTICS.md). The example
 archive contains synthetic fixture records; original player samples are excluded.
+
+The announcement editor uses react-markdown and remark-gfm (MIT). The Flutter announcement reader uses flutter_markdown_plus and url_launcher (BSD-3-Clause), with the markdown package (BSD-3-Clause). Exact dependency versions and their licenses are retained in the respective lockfiles and package distributions.

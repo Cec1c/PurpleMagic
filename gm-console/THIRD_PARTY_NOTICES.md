@@ -20,3 +20,7 @@ React、React DOM、Vite、TypeScript 及相应类型包按其发布包许可证
 ## PurpleMagic 品牌
 
 witch 与 hat 来自项目所有者提供的品牌图标包；用于品牌标志、登录器图标与 favicon。来源摘要见 [品牌清单](../docs/brand-assets.json)。
+
+## Markdown
+
+公告预览使用 react-markdown 与 remark-gfm（MIT），精确版本和传递依赖见 package-lock.json。原始 HTML 不作为可执行内容渲染。

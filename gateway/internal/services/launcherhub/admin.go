@@ -214,7 +214,7 @@ func (h *Hub) AdminHandler() http.Handler {
 		case r.Method == "GET" && r.URL.Path == "/admin/api/state":
 			h.mu.Lock()
 			defer h.mu.Unlock()
-			reply(w, 200, map[string]any{"csrf": s.CSRF, "expires": s.Expires, "sources": h.state.Sources, "published": h.state.Published, "gmConfigured": h.cfg.GMUpstream != "", "newsRevision": newsRevision(h.state.Published.News), "connectionRevision": connectionRevision(h.state.Published.Profile)})
+			reply(w, 200, map[string]any{"csrf": s.CSRF, "expires": s.Expires, "sources": h.state.Sources, "published": h.state.Published, "gmConfigured": h.cfg.GMUpstream != "", "newsRevision": h.archiveRevision(), "newsManager": true, "newsTotal": len(h.newsEntries()), "connectionRevision": connectionRevision(h.state.Published.Profile)})
 		case r.Method == "PUT" && r.URL.Path == "/admin/api/source":
 			var source Source
 			if e := readBody(w, r, &source); e != nil {
@@ -290,6 +290,10 @@ func (h *Hub) AdminHandler() http.Handler {
 				return
 			}
 			reply(w, 200, result)
+		case r.Method == "GET" && r.URL.Path == "/admin/api/news":
+			h.listNews(w, r)
+		case r.Method == "POST" && r.URL.Path == "/admin/api/news/entries":
+			h.mutateNews(w, r)
 		case r.Method == "PUT" && r.URL.Path == "/admin/api/news":
 			h.publishNews(w, r)
 		case strings.HasPrefix(r.URL.Path, "/admin/"):

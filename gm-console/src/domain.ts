@@ -118,6 +118,9 @@ export type News = {
   title: string;
   body: string;
   published: boolean;
+  category?: string;
+  date?: string;
+  format?: "text" | "markdown";
   originId?: string;
   sourceRevision?: string;
 };
@@ -195,12 +198,18 @@ export type Command =
   | { kind: "benefit-delete"; id: string }
   | { kind: "benefit-redeliver"; id: string }
   | { kind: "task-control"; id: string; action: "resume" | "retry" | "pause" }
+  | { kind: "news-delete"; id: string; sourceRevision?: string }
+  | { kind: "news-move"; id: string; direction: "up" | "down"; sourceRevision?: string }
   | {
       kind: "news";
       id: string;
       title: string;
       body: string;
       published: boolean;
+      category?: string;
+      date?: string;
+      format?: "text" | "markdown";
+      sourceRevision?: string;
     }
   | {
       kind: "sources";
@@ -450,6 +459,17 @@ export function applyCommand(
       summary = b.enabled ? "规则已启用，已自动检查收件名单" : "规则已暂停";
       break;
     }
+    case "news-delete": {
+      const n = s.news.find(n => n.id === command.id);
+      if (!n) throw new Error("公告已删除");
+      s.news = s.news.filter(n => n.id !== command.id);
+      target = n.title; summary = "公告已删除"; break;
+    }
+    case "news-move": {
+      const i = s.news.findIndex(n => n.id === command.id), j = i + (command.direction === "up" ? -1 : 1);
+      if (i >= 0 && j >= 0 && j < s.news.length) [s.news[i], s.news[j]] = [s.news[j], s.news[i]];
+      target = "公告列表"; summary = "公告顺序已更新"; break;
+    }
     case "news": {
       if (!command.title.trim() || !command.body.trim())
         throw new Error("请填写公告标题和正文");
@@ -458,6 +478,7 @@ export function applyCommand(
         Object.assign(n, {
           title: command.title,
           body: command.body,
+          category: command.category, date: command.date, format: command.format,
           published: command.published,
         });
       else
@@ -465,6 +486,7 @@ export function applyCommand(
           id: requestId,
           title: command.title,
           body: command.body,
+          category: command.category, date: command.date, format: command.format,
           published: command.published,
         });
       target = command.title;

@@ -51,14 +51,6 @@ func TestNewsRevisionPublicationAndRecovery(t *testing.T) {
 			t.Fatal("invalid news accepted", body, w.Code)
 		}
 	}
-	many := make([]News, 31)
-	for i := range many {
-		many[i] = News{Title: "x", Category: "综合"}
-	}
-	raw, _ := json.Marshal(many)
-	if w := write(string(raw), current); w.Code != 400 {
-		t.Fatal("count limit ignored")
-	}
 	var wg sync.WaitGroup
 	codes := make(chan int, 2)
 	for _, title := range []string{"窗口甲", "窗口乙"} {
@@ -86,7 +78,7 @@ func TestNewsRevisionPublicationAndRecovery(t *testing.T) {
 	}
 	w := call(restarted.AdminHandler(), "GET", "/admin/api/state", "", cookie, "", "")
 	var state map[string]any
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &state) != nil || state["newsRevision"] != newsRevision(h.state.Published.News) {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &state) != nil || state["newsRevision"] != h.archiveRevision() {
 		t.Fatal("missing editor revision")
 	}
 	public := httptest.NewRecorder()

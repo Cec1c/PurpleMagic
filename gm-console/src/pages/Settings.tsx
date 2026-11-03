@@ -1,22 +1,21 @@
+import { NewsManager } from "../news/NewsManager";
 import { useEnterMotion } from "../motion";
 import { useEffect, useState } from "react";
 import {
-  Megaphone,
   Download,
   Save,
   Send,
-  Plus,
   Server,
   Globe,
-  FileText,
 } from "lucide-react";
-import { Tabs, Field, Pill, type PageProps } from "../ui";
+import { Tabs, Field, type PageProps } from "../ui";
 import { HubLogin } from "../api/controls";
 import { useLive } from "../api/context";
 function HubSettings({
   state,
   request,
   tab,
+  ...props
 }: PageProps & { tab: "news" | "source" }) {
   const live = useLive();
   const sources = state.api?.hub?.sources || [];
@@ -26,9 +25,6 @@ function HubSettings({
     [publicKey, setPublicKey] = useState(source?.publicKey || ""),
     [certificate, setCertificate] = useState(source?.certificateSha256 || ""),
     [sourceEnabled, setSourceEnabled] = useState(source?.enabled ?? true);
-  const [newsId, setNewsId] = useState(state.news[0]?.id || ""),
-    [title, setTitle] = useState(state.news[0]?.title || ""),
-    [body, setBody] = useState(state.news[0]?.body || "");
   const [download, setDownload] = useState(state.sources.download),
     [gameHost, setGameHost] = useState(state.sources.gameHost),
     [gamePort, setGamePort] = useState(state.sources.gamePort);
@@ -41,121 +37,11 @@ function HubSettings({
     setCertificate(s?.certificateSha256 || "");
     setSourceEnabled(s?.enabled ?? true);
   }
-  useEffect(() => {
-    if (title.trim()) {
-      const saved = state.news.find(
-        (n) =>
-          n.title === title && n.body === body && (live ? !n.published : true),
-      );
-      if (saved) setNewsId(saved.id);
-    }
-  }, [state.news, newsId, title, body]);
-  function choose(id: string) {
-    const n = state.news.find((n) => n.id === id);
-    setNewsId(id);
-    setTitle(n?.title || "");
-    setBody(n?.body || "");
-  }
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
       {tab === "news" ? (
-        <div className="news-layout">
-          <aside className="glass content-panel news-list">
-            <div className="panel-heading">
-              <h3>公告列表</h3>
-              <button
-                className="icon-button"
-                aria-label="新建公告"
-                onClick={() => choose("")}
-              >
-                <Plus size={18} />
-              </button>
-            </div>
-            {state.news.map((n) => (
-              <button
-                key={n.id}
-                className={n.id === newsId ? "active" : ""}
-                onClick={() => choose(n.id)}
-              >
-                <FileText size={17} />
-                <span>
-                  <strong>{n.title}</strong>
-                  <small>{n.published ? "已发布" : "草稿"}</small>
-                </span>
-              </button>
-            ))}
-          </aside>
-          <form
-            className="glass content-panel"
-            onSubmit={(e) => {
-              e.preventDefault();
-              request({
-                kind: "news",
-                id: newsId,
-                title,
-                body,
-                published: false,
-              });
-            }}
-          >
-            <div className="panel-heading">
-              <h2>
-                <Megaphone size={20} />
-                {newsId ? "编辑公告" : "新建公告"}
-              </h2>
-              <Pill>
-                {state.news.find((n) => n.id === newsId)?.published
-                  ? "已发布"
-                  : "草稿"}
-              </Pill>
-            </div>
-            <Field label="标题">
-              <input
-                required
-                maxLength={100}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="公告标题"
-              />
-            </Field>
-            <Field label="正文">
-              <textarea
-                required
-                rows={10}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="输入公告内容"
-              />
-            </Field>
-            <div className="form-footer">
-              <span>显示于登录器公告区</span>
-              <div className="button-row">
-                <button className="secondary">
-                  <Save size={15} />
-                  保存草稿
-                </button>
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={!title.trim() || !body.trim()}
-                  onClick={() =>
-                    request({
-                      kind: "news",
-                      id: newsId,
-                      title,
-                      body,
-                      published: true,
-                    })
-                  }
-                >
-                  <Send size={15} />
-                  发布公告
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
+        <NewsManager state={state} request={request} {...props} />
       ) : (
         <div className="form-layout">
           <form

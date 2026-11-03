@@ -32,12 +32,15 @@ type session struct {
 	CSRF    string    `json:"csrf"`
 }
 type persisted struct {
-	AuthFingerprint string             `json:"authFingerprint"`
-	Sources         []Source           `json:"sources"`
-	Sessions        map[string]session `json:"sessions"`
-	Published       Bootstrap          `json:"published"`
-	SourceSequences map[string]int64   `json:"sourceSequences"`
-	SourceDigests   map[string]string  `json:"sourceDigests"`
+	NewsArchive      []NewsEntry              `json:"newsArchive,omitempty"`
+	NewsArchiveReady bool                     `json:"newsArchiveReady,omitempty"`
+	NewsOperations   map[string]newsOperation `json:"newsOperations,omitempty"`
+	AuthFingerprint  string                   `json:"authFingerprint"`
+	Sources          []Source                 `json:"sources"`
+	Sessions         map[string]session       `json:"sessions"`
+	Published        Bootstrap                `json:"published"`
+	SourceSequences  map[string]int64         `json:"sourceSequences"`
+	SourceDigests    map[string]string        `json:"sourceDigests"`
 }
 type Hub struct {
 	baidu     *baidudelivery.Resolver

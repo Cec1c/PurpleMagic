@@ -1,0 +1,31 @@
+.news-layout { align-items:start; }
+.news-search,.news-pagination,.news-actions,.news-hint { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.news-search { padding:0 14px 12px; }
+.news-search input { min-width:0; }
+.news-list .news-rows { max-height:60vh; overflow:auto; }
+.news-rows>button { width:100%; text-align:left; padding:14px 18px; border:0; background:transparent; color:var(--text-2); border-radius:0; }
+.news-rows>button.active { background:var(--accent-soft); }
+.news-rows strong { display:block; overflow-wrap:anywhere; }
+.news-rows small { display:block; margin-top:5px; color:var(--text-3); }
+.news-pagination { padding:14px; flex-wrap:wrap; }
+.news-pagination button { padding:6px 9px; }
+.news-fields { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+.news-editor-body { min-height:340px; margin-top:12px; max-height:65vh; overflow:auto; }
+.news-editor-body textarea { width:100%; min-height:340px; resize:vertical; }
+.news-hint { color:var(--text-3); font-size:12px; margin:12px 0; flex-wrap:wrap; }
+.news-actions { margin-top:20px; flex-wrap:wrap; }
+.news-plain { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.8; }
+.news-markdown { line-height:1.8; overflow-wrap:anywhere; }
+.news-markdown :first-child { margin-top:0; }
+.news-markdown h1,.news-markdown h2,.news-markdown h3 { line-height:1.4; margin:1.2em 0 .6em; }
+.news-markdown p { margin:.7em 0; }
+.news-markdown ul,.news-markdown ol { padding-left:1.7em; }
+.news-markdown blockquote { border-left:3px solid var(--accent); padding:4px 16px; margin:12px 0; color:var(--text-3); }
+.news-markdown pre { overflow:auto; padding:14px; border-radius:12px; background:var(--accent-soft); }
+.news-markdown code { font-family:ui-monospace,monospace; font-size:.9em; }
+.news-markdown a { color:var(--accent); text-decoration:underline; }
+.news-markdown img { max-width:100%; max-height:480px; object-fit:contain; border-radius:12px; }
+.news-table { overflow-x:auto; }
+.news-markdown table { width:100%; border-collapse:collapse; }
+.news-markdown th,.news-markdown td { padding:8px 12px; border:1px solid var(--border-1); text-align:left; }
+@media(max-width:700px) { .news-fields { grid-template-columns:1fr; } .news-list .news-rows { max-height:260px; } }

@@ -82,6 +82,7 @@ type Source struct {
 	Enabled           bool   `json:"enabled"`
 }
 type News struct {
+	Format   string `json:"format,omitempty"`
 	Title    string `json:"title"`
 	Body     string `json:"body"`
 	Category string `json:"category"`

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
+import 'news_body.dart';
 import 'diagnostics_panel.dart';
 import 'account_security_panel.dart';
 import 'launcher_account_field.dart';
@@ -303,7 +304,11 @@ class _PreviewHomeState extends State<PreviewHome> {
               ),
             _icon(Icons.settings_outlined, '设置', _settings, key: 'settings'),
             const SizedBox(width: 10),
-            _icon(Icons.remove_rounded, '最小化到托盘', () => windowAction('minimize')),
+            _icon(
+              Icons.remove_rounded,
+              '最小化到托盘',
+              () => windowAction('minimize'),
+            ),
             _icon(Icons.close_rounded, '关闭', () => windowAction('close')),
           ],
         ),
@@ -497,19 +502,7 @@ class _PreviewHomeState extends State<PreviewHome> {
                         ),
                       ),
                     const Spacer(),
-                    _icon(
-                      Icons.add_rounded,
-                      '更多公告',
-                      () => _article(
-                        '公告中心',
-                        model.news.isEmpty
-                            ? '服务器尚未发布公告。'
-                            : model.news
-                                  .map((n) => '${n['title']}\n${n['body']}')
-                                  .join('\n\n'),
-                      ),
-                      small: true,
-                    ),
+                    _icon(Icons.add_rounded, '更多公告', _newsCenter, small: true),
                   ],
                 ),
                 const Divider(height: 1, color: Color(0x18ffffff)),
@@ -528,6 +521,7 @@ class _PreviewHomeState extends State<PreviewHome> {
                     item['date'] as String? ?? '',
                     item['title'] as String? ?? '',
                     item['body'] as String? ?? '',
+                    item['format'] == 'markdown',
                   ),
                 if (model.news
                     .where(
@@ -559,10 +553,11 @@ class _PreviewHomeState extends State<PreviewHome> {
     String trailing,
     String heading,
     String body,
+    bool markdown,
   ) => Material(
     color: Colors.transparent,
     child: InkWell(
-      onTap: () => _article(heading, body),
+      onTap: () => _article(heading, body, markdown: markdown),
       borderRadius: BorderRadius.circular(5),
       child: SizedBox(
         height: 31,
@@ -1151,64 +1146,96 @@ class _PreviewHomeState extends State<PreviewHome> {
     }
   }
 
-  Future<void> _article(String title, String body) => showDialog<void>(
+  Future<void> _newsCenter() => showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      child: Glass(
-        solid: model.reducedEffects,
-        color: const Color(0xe3221f30),
-        child: SizedBox(
-          width: 470,
-          child: Padding(
-            padding: const EdgeInsets.all(30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('公告中心'),
+      content: SizedBox(
+        width: 600,
+        height: 420,
+        child: model.news.isEmpty
+            ? const Center(child: Text('服务器尚未发布公告。'))
+            : ListView.separated(
+                itemCount: model.news.length,
+                separatorBuilder: (_, _) => const Divider(),
+                itemBuilder: (_, index) {
+                  final n = model.news[index];
+                  return ListTile(
+                    title: Text(n['title'] as String? ?? ''),
+                    subtitle: Text(
+                      "${n['category'] ?? '综合'} · ${n['date'] ?? ''}",
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _article(
+                      n['title'] as String? ?? '',
+                      n['body'] as String? ?? '',
+                      markdown: n['format'] == 'markdown',
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('关闭'),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _article(String title, String body, {bool markdown = false}) =>
+      showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Glass(
+            solid: model.reducedEffects,
+            color: const Color(0xe3221f30),
+            child: SizedBox(
+              width: markdown ? 660 : 470,
+              child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(fontSize: 19, color: gold),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(fontSize: 19, color: gold),
+                          ),
+                        ),
+                        _icon(
+                          Icons.close_rounded,
+                          '关闭弹窗',
+                          () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: NewsBody(body: body, markdown: markdown),
                       ),
                     ),
-                    _icon(
-                      Icons.close_rounded,
-                      '关闭弹窗',
-                      () => Navigator.pop(context),
+                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('知道了'),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Text(
-                      body,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.9,
-                        color: Color(0xffddd5e7),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('知道了'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 
   bool _choosingDirectory = false;
 

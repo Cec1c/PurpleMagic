@@ -423,46 +423,49 @@ export async function prepareOperation(
         },
         { kind: "task", result: task },
       );
-  } else if (command.kind === "news") {
-    if (!api.meta.hub) throw new Error("请先登录公告与下载源管理");
-    if (!command.title.trim()) throw new Error("请填写公告标题");
-    const news = structuredClone(api.meta.hub.published?.news || []);
-    const existingDraft = api.state.news.find(
-      (n) => n.id === command.id && !n.published,
-    );
-    const originId =
-      existingDraft?.originId ??
-      (command.id.startsWith("draft-") ? "" : command.id);
-    if (
-      command.published &&
-      existingDraft?.sourceRevision &&
-      existingDraft.sourceRevision !== api.meta.hub.newsRevision
-    )
-      throw new Error("公告列表已更新，请重新选择要编辑的公告后发布");
-    const item = {
-      title: command.title,
-      body: command.body,
-      category: "综合",
-      date: new Date().toISOString().slice(0, 10),
-    };
-    if (originId !== "" && news[Number(originId)])
-      news[Number(originId)] = { ...news[Number(originId)], ...item };
-    else news.unshift(item);
-    p.target = command.title;
-    p.summary = command.published ? "发布公告到登录器" : "保存公告草稿";
-    if (!command.published) {
-      add("保存草稿", "local-draft", {
-        ...command,
-        originId,
-        sourceRevision:
-          existingDraft?.sourceRevision || api.meta.hub.newsRevision,
-      });
+  } else if (command.kind === "news" || command.kind === "news-delete" || command.kind === "news-move") {
+    const hub = api.meta.hub;
+    if (!hub) throw new Error("请先登录公告与下载源管理");
+    const selected = api.state.news.find(n => n.id === command.id);
+    const draft = selected && !selected.published ? selected : undefined;
+    const originId = draft?.originId ?? (command.id.startsWith("draft-") ? "" : command.id);
+    const revision = command.sourceRevision || draft?.sourceRevision || selected?.sourceRevision || hub.newsRevision;
+    p.target = command.kind === "news" ? command.title : selected?.title || "公告";
+    if (command.kind === "news-delete" && draft) {
+      p.summary = "删除本地公告草稿";
+      add("删除草稿", "local-news-delete", {id: draft.id});
+    } else if (command.kind === "news" && !command.published) {
+      p.summary = "保存公告草稿";
+      add("保存草稿", "local-draft", {...command, originId, sourceRevision:revision});
     } else {
-      p.draftId = command.id;
-      add("发布公告", "/admin/api/news", news, {
-        method: "PUT",
-        headers: { "If-Match": `"${api.meta.hub.newsRevision}"` },
-      });
+      if (revision !== hub.newsRevision) throw new Error("公告列表已更新，请重新载入要编辑的公告");
+      const item = command.kind === "news" ? {
+        title:command.title.trim(), body:command.body, category:command.category || selected?.category || "综合",
+        date:command.date ?? selected?.date ?? new Date().toISOString().slice(0,10), format:command.format || selected?.format || "text",
+      } : undefined;
+      if (item && !item.title) throw new Error("请填写公告标题");
+      p.summary = command.kind === "news-delete" ? "删除这条公告，并从登录器公告中移除" : command.kind === "news-move" ? "调整公告顺序" : "发布公告到登录器";
+      if (hub.newsManager) {
+        add(p.summary, "/admin/api/news/entries", {
+          action:command.kind === "news-delete" ? "delete" : command.kind === "news-move" ? "move" : "save",
+          id:originId, ...(item ? {news:item}:{}), ...(command.kind === "news-move" ? {direction:command.direction}:{}),
+        }, {headers:{"If-Match":`"${revision}"`}});
+      } else {
+        const news = structuredClone(hub.published?.news || []);
+        const i = originId === "" ? -1 : Number(originId);
+        if (i >= 0 && !news[i]) throw new Error("公告已变更，请刷新列表");
+        if (command.kind === "news-delete") news.splice(i,1);
+        else if (command.kind === "news-move") {
+          const j=i+(command.direction === "up" ? -1:1);
+          if (i>=0 && j>=0 && j<news.length) [news[i],news[j]]=[news[j],news[i]];
+        } else {
+          if (item!.format === "markdown") throw new Error("当前网关需要更新后才能发布 Markdown 公告");
+          const {format:_,...plain}=item!;
+          if (i>=0) news[i]=plain; else news.unshift(plain);
+        }
+        add(p.summary,"/admin/api/news",news,{method:"PUT",headers:{"If-Match":`"${revision}"`}});
+      }
+      if (draft) p.draftId=draft.id;
     }
   } else if (command.kind === "sources") {
     const hub = api.meta.hub;
@@ -528,6 +531,11 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
       step.refreshed = true;
       api.persistPending();
     }
+    if (step.path === "local-news-delete") {
+      api.patch({news:api.state.news.filter(n=>n.id!==step.body.id)});
+      sessionStorage.setItem("purplemagic-news-drafts-v1",JSON.stringify(api.state.news.filter(n=>!n.published)));
+      step.done=true; api.persistPending(); continue;
+    }
     if (step.path === "local-draft") {
       const n = step.body;
       const draft = {
@@ -535,6 +543,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
         title: n.title,
         body: n.body,
         published: false,
+        category:n.category, date:n.date, format:n.format,
         originId: n.originId,
         sourceRevision: n.sourceRevision,
       };

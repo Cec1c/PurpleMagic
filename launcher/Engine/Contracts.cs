@@ -7,7 +7,8 @@ using Dnf90.Launcher.Diagnostics;
 
 namespace Dnf90.Launcher;
 
-public sealed record News(string Title, string Body, string Category, string Date);
+public sealed record News(string Title, string Body, string Category, string Date)
+{ public string Format { get; init; } = "text"; }
 public sealed record ContentFile(string Path, long Length, string Sha256, bool Downloadable, string Compression, string BlobSha256, long BlobLength);
 public sealed record ContentRelease(string Version, string SourceId, string Channel, long SourceSequence, string SourcePayloadSha256, string Endpoint, string CertificateSha256, ContentFile[] Files);
 public sealed record BundleRelease(string Version, string Url, long Size, string Sha256)

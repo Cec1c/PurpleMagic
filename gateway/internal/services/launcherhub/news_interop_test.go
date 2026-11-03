@@ -21,7 +21,7 @@ func TestNewsInteropHarness(t *testing.T) {
 	h.profile.CertificateSHA256 = digest(public.Certificate().Raw)
 	h.state.Published.Profile = h.profile
 	cookie, csrf := auth(t, h, false)
-	w := call(h.AdminHandler(), "PUT", "/admin/api/news", `[{"title":"跨语言公告","body":"第一行\n第二行","category":"指南","date":"10 / 15"}]`, cookie, csrf, "https://admin.example.test")
+	w := call(h.AdminHandler(), "PUT", "/admin/api/news", `[{"title":"跨语言公告","body":"## 第一行\n\n**第二行**","format":"markdown","category":"指南","date":"10 / 15"}]`, cookie, csrf, "https://admin.example.test")
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}

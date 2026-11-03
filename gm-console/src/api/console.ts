@@ -1132,29 +1132,39 @@ export class ConsoleAPI {
       this.meta.hubError = "";
       const sources = data.sources || [];
       this.patch({
-        news: [
-          ...JSON.parse(
-            sessionStorage.getItem("purplemagic-news-drafts-v1") || "[]",
-          ),
-          ...(data.published?.news || []).map((n: DTO, i: number) => ({
-            id: String(i),
-            title: n.title,
-            body: n.body,
-            published: true,
-          })),
-        ],
         sources: {
           download: sources[0]?.endpoint || "",
           gameHost: data.published?.profile?.GameHost || "",
           gamePort: data.published?.profile?.BootstrapPort || 0,
         },
       });
+      await this.hubNews(data.newsPage?.offset ?? this.meta.hubNewsOffset ?? 0, this.meta.hubNewsQuery ?? "");
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       this.meta.hubError = (e as Error).message;
       if (e instanceof ApiError && e.status === 401) this.meta.hub = undefined;
       this.publish();
     }
+  }
+  async hubNews(offset = 0, q = ""): Promise<void> {
+    const hub = this.meta.hub;
+    if (!hub) return;
+    const signal = this.signal("hub-news");
+    let page: DTO;
+    if (hub.newsManager) {
+      page = await this.http.raw<DTO>(`/admin/api/news?${new URLSearchParams({offset:String(offset),limit:"20",q})}`, "GET", undefined, undefined, signal);
+      if (page.rows.length === 0 && offset > 0) return this.hubNews(Math.max(0,offset-20),q);
+    } else {
+      const rows = (hub.published?.news || []).map((n: DTO,i:number)=>({...n,id:String(i)}));
+      page = {rows, total:rows.length, archiveTotal:rows.length, offset:0, next:-1, revision:hub.newsRevision};
+    }
+    signal.throwIfAborted();
+    hub.newsPage = page; hub.newsRevision = page.revision;
+    this.meta.hubNewsOffset = page.offset; this.meta.hubNewsQuery = q;
+    this.patch({news:[
+      ...JSON.parse(sessionStorage.getItem("purplemagic-news-drafts-v1") || "[]"),
+      ...page.rows.map((n:DTO)=>({...n,format:n.format || "text",sourceRevision:page.revision,published:true})),
+    ]});
   }
   async prepare(command: Command, selection: Selection) {
     if (this.meta.busy) return;

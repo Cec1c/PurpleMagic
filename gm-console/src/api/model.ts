@@ -39,6 +39,8 @@ export type LiveData = {
   mailNext: string;
   hub?: DTO;
   hubError?: string;
+  hubNewsOffset?: number;
+  hubNewsQuery?: string;
   pending?: Pending;
   operationHistory: Pending[];
 };

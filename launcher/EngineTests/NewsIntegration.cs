@@ -17,10 +17,10 @@ static class NewsIntegration
             {
                 await engine.SavePreferences(new Preferences(AutoCheck:false));
                 await engine.Check();
-                if (engine.State.News.Length != 1 || engine.State.News[0] != new News("跨语言公告", "第一行\n第二行", "指南", "10 / 15")) throw new Exception("signed Hub news did not reach launcher state");
+                if (engine.State.News.Length != 1 || engine.State.News[0] != new News("跨语言公告", "## 第一行\n\n**第二行**", "指南", "10 / 15") { Format = "markdown" }) throw new Exception("signed Hub news did not reach launcher state");
             }
             using var restored = new LauncherEngine(root, state);
-            if (restored.State.News.Length != 1 || restored.State.News[0].Title != "跨语言公告") throw new Exception("cached signed news lost after restart");
+            if (restored.State.News.Length != 1 || restored.State.News[0].Title != "跨语言公告" || restored.State.News[0].Format != "markdown") throw new Exception("cached signed news lost after restart");
             Console.WriteLine("PASS existing Hub news API -> signed bootstrap -> pinned TLS -> launcher state -> verified cached news after restart");
         }
         finally { File.WriteAllText(receipt + ".done", "done"); }

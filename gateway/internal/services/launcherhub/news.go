@@ -3,8 +3,6 @@ package launcherhub
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
-	"unicode/utf8"
 )
 
 func newsRevision(news []News) string {
@@ -19,37 +17,42 @@ func newsRevision(news []News) string {
 // revision specific to news allows independent signed client releases to proceed.
 func (h *Hub) publishNews(w http.ResponseWriter, r *http.Request) {
 	var news []News
-	if err := readBody(w, r, &news); err != nil || news == nil || len(news) > 30 {
-		failure(w, 400, "公告格式或数量无效，最多 30 条")
+	if err := readBody(w, r, &news); err != nil || news == nil {
+		failure(w, 400, "公告请求无效，完整列表 JSON 不能超过 128 KiB；请使用逐条公告管理")
 		return
 	}
 	for _, n := range news {
-		if strings.TrimSpace(n.Title) == "" || len(n.Title) > 160 || len(n.Body) > 12000 || len(n.Date) > 32 ||
-			!utf8.ValidString(n.Title+n.Body+n.Date) || strings.ContainsRune(n.Title+n.Body+n.Date, 0) ||
-			(n.Category != "综合" && n.Category != "更新" && n.Category != "指南") {
-			failure(w, 400, "公告标题、长度或分类无效")
+		if err := validateNews(n); err != nil {
+			failure(w, 400, err.Error())
 			return
 		}
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	// Older editors only read the launcher window. Do not let a whole-window
+	// replacement erase the history they have never seen.
+	if len(h.newsEntries()) > len(h.state.Published.News) {
+		failure(w, 409, "已有历史公告，请使用新版公告管理逐条编辑或删除")
+		return
+	}
 	before, next := newsRevision(h.state.Published.News), newsRevision(news)
-	// A lost response can be replayed without advancing the signed sequence.
 	if before == next {
 		reply(w, 200, map[string]any{"ok": true, "newsRevision": before})
 		return
 	}
-	if expected := r.Header.Get("If-Match"); expected != "" && expected != `"`+before+`"` {
+	if expected := r.Header.Get("If-Match"); expected != "" && expected != `"`+newsRevision(h.state.Published.News)+`"` && expected != `"`+h.archiveRevision()+`"` {
 		failure(w, 409, "公告已被其他窗口修改，请重新载入后编辑")
 		return
 	}
-	previous := h.state.Published
-	h.state.Published.News = news
+	previous := h.state
+	h.state.NewsArchive = entriesFor(news)
+	h.state.NewsArchiveReady = true
+	h.state.Published.News = launcherNews(h.state.NewsArchive)
 	h.state.Published.Sequence++
 	if err := h.save(); err != nil {
-		h.state.Published = previous
+		h.state = previous
 		failure(w, 500, "发布公告失败")
 		return
 	}
-	reply(w, 200, map[string]any{"ok": true, "newsRevision": next})
+	reply(w, 200, map[string]any{"ok": true, "newsRevision": h.archiveRevision()})
 }
