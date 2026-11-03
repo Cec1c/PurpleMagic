@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'l10n/localized_text.dart';
 
 Uri? newsLink(String value) {
   final uri = Uri.tryParse(value);

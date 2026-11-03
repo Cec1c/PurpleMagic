@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { numberDraft, draftNumber } from "../numeric";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
@@ -80,7 +81,7 @@ export function GmPage({ state, character, request }: PageProps) {
     <div ref={motion} className="motion-section">
       <div className="section-tabs">
         <Tabs
-          label="GM 管理"
+          label={t("GM 管理")}
           items={[
             { id: "growth", label: "成长与职业" },
             { id: "currency", label: "金币与点券" },
@@ -109,12 +110,12 @@ export function GmPage({ state, character, request }: PageProps) {
             <div className="panel-heading">
               <h2>
                 <TrendingUp size={20} />
-                角色成长
+                {t("角色成长")}
               </h2>
               <Pill>{character.name}</Pill>
             </div>
             <div className="field-grid">
-              <Field label="角色等级">
+              <Field label={t("角色等级")}>
                 <input
                   type="number"
                   min="1"
@@ -123,18 +124,18 @@ export function GmPage({ state, character, request }: PageProps) {
                   onChange={(e) => setLevel(e.target.value)}
                 />
               </Field>
-              <Field label="根职业">
+              <Field label={t("根职业")}>
                 <select value={root?.value || ""} disabled={!groups.length} onChange={(e) => {
                   const group = groups.find(g => g.value === e.target.value);
                   if (group) setJob(optionValue(group.choices[0]));
                 }}>
-                  {!root && <option value="">选择根职业</option>}
+                  {!root && <option value="">{t("选择根职业")}</option>}
                   {groups.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
                 </select>
               </Field>
-              <Field label="转职 / 觉醒">
+              <Field label={t("转职 / 觉醒")}>
                 <select value={job} onChange={(e) => setJob(e.target.value)}>
-                  {!root && <option value={job}>{character.job}</option>}
+                  {!root && <option value={job}>{t(character.job)}</option>}
                   {(root?.choices || []).map((j) => (
                     <option key={j.value} value={optionValue(j)}>
                       {j.label}
@@ -142,7 +143,7 @@ export function GmPage({ state, character, request }: PageProps) {
                   ))}
                 </select>
               </Field>
-              <Field label="额外 SP">
+              <Field label={t("额外 SP")}>
                 <input
                   type="number"
                   min="0"
@@ -152,7 +153,7 @@ export function GmPage({ state, character, request }: PageProps) {
                   onChange={(e) => setSp(e.target.value)}
                 />
               </Field>
-              <Field label="额外 TP">
+              <Field label={t("额外 TP")}>
                 <input
                   type="number"
                   min="0"
@@ -164,15 +165,15 @@ export function GmPage({ state, character, request }: PageProps) {
               </Field>
             </div>
             <div className="form-footer">
-              <span>修改对象：{character.name}</span>
+              <span>{t("修改对象：")}{character.name}</span>
               <button className="primary" disabled={!!live && !balance}>
                 <Save size={16} />
-                保存修改
+                {t("保存修改")}
               </button>
             </div>
           </form>
           <aside className="glass content-panel">
-            <h3>当前成长</h3>
+            <h3>{t("当前成长")}</h3>
             <div className="level-display">
               {character.level}
               <span>Lv.</span>
@@ -180,30 +181,30 @@ export function GmPage({ state, character, request }: PageProps) {
             <p>{character.job}</p>
             {balance && <dl className="detail-list skill-balances">
               {(["Sp", "Tp"] as const).map(kind => <div key={kind}>
-                <dt>当前 {kind.toUpperCase()}</dt><dd><strong>{number(balance["remaining" + kind])}</strong> / {number(balance["total" + kind])}<small className="cell-meta">已用 {number(balance["total" + kind] - balance["remaining" + kind])} · 等级默认 {number(skillPoints.definition[kind.toLowerCase()])}</small></dd>
+                <dt>{t("当前")} {kind.toUpperCase()}</dt><dd><strong>{number(balance["remaining" + kind])}</strong> / {number(balance["total" + kind])}<small className="cell-meta">{t("已用")} {number(balance["total" + kind] - balance["remaining" + kind])} {t("· 等级默认")} {number(skillPoints.definition[kind.toLowerCase()])}</small></dd>
               </div>)}
             </dl>}
             <dl className="detail-list">
               <div>
-                <dt>额外 SP</dt>
+                <dt>{t("额外 SP")}</dt>
                 <dd>{number(character.sp)}</dd>
               </div>
               <div>
-                <dt>额外 TP</dt>
+                <dt>{t("额外 TP")}</dt>
                 <dd>{number(character.tp)}</dd>
               </div>
               <div>
-                <dt>角色状态</dt>
+                <dt>{t("角色状态")}</dt>
                 <dd>
                   {character.online === null
-                    ? "状态未知"
+                    ? t("状态未知")
                     : character.online
-                      ? "在线"
-                      : "离线"}
+                      ? t("在线")
+                      : t("离线")}
                 </dd>
               </div>
             </dl>
-            {live && <button type="button" className="secondary reset-points" disabled={!balance || !!state.api?.busy} onClick={() => request({kind:"reset-skill-points", characterId:character.id})}><RotateCcw size={15} />恢复等级默认 SP / TP</button>}
+            {live && <button type="button" className="secondary reset-points" disabled={!balance || !!state.api?.busy} onClick={() => request({kind:"reset-skill-points", characterId:character.id})}><RotateCcw size={15} />{t("恢复等级默认 SP / TP")}</button>}
           </aside>
         </div>
       ) : tab === "currency" ? (
@@ -225,11 +226,11 @@ export function GmPage({ state, character, request }: PageProps) {
             <div className="panel-heading">
               <h2>
                 <Coins size={20} />
-                金币与点券
+                {t("金币与点券")}
               </h2>
-              <Pill>账号 {a.name}</Pill>
+              <Pill>{t("账号")} {a.name}</Pill>
             </div>
-            <Field label="角色金币">
+            <Field label={t("角色金币")}>
               <input
                 type="number"
                 min={0}
@@ -239,7 +240,7 @@ export function GmPage({ state, character, request }: PageProps) {
               />
             </Field>
             <div className="field-grid">
-              <Field label="账号点券">
+              <Field label={t("账号点券")}>
                 <input
                   type={live ? "text" : "number"}
                   inputMode="numeric"
@@ -255,7 +256,7 @@ export function GmPage({ state, character, request }: PageProps) {
                 />
               </Field>
               <Field
-                label="账号代币券"
+                label={t("账号代币券")}
                 hint={live ? "当前服务未提供此币种管理接口" : undefined}
               >
                 <input
@@ -269,26 +270,26 @@ export function GmPage({ state, character, request }: PageProps) {
               </Field>
             </div>
             <div className="form-footer">
-              <span>填写修改后的目标数值</span>
+              <span>{t("填写修改后的目标数值")}</span>
               <button className="primary">
                 <Save size={16} />
-                保存修改
+                {t("保存修改")}
               </button>
             </div>
           </form>
           <aside className="glass content-panel">
-            <h3>当前资产</h3>
+            <h3>{t("当前资产")}</h3>
             <dl className="detail-list">
               <div>
-                <dt>金币</dt>
+                <dt>{t("金币")}</dt>
                 <dd className="gold-text">{number(character.gold)}</dd>
               </div>
               <div>
-                <dt>点券</dt>
+                <dt>{t("点券")}</dt>
                 <dd>{number(a.rawPoints ?? a.points)}</dd>
               </div>
               <div>
-                <dt>代币券</dt>
+                <dt>{t("代币券")}</dt>
                 <dd>{number(a.tokens)}</dd>
               </div>
             </dl>
@@ -298,7 +299,7 @@ export function GmPage({ state, character, request }: PageProps) {
         <div className="glass content-panel">
           <h2>
             <Clock3 size={20} />
-            操作记录
+            {t("操作记录")}
           </h2>
           <div className="activity-list">
             {state.receipts.map((r) => (
@@ -316,7 +317,7 @@ export function GmPage({ state, character, request }: PageProps) {
               </div>
             ))}
           </div>
-          {!state.receipts.length && <Empty title="暂无操作记录" />}
+          {!state.receipts.length && <Empty title={t("暂无操作记录")} />}
         </div>
       )}
       <LoadMore show={tab === "history" && Object.keys(state.api?.historyNext || {}).length > 0} onClick={() => void live?.guard(() => live.history(true))} />

@@ -1,0 +1,1763 @@
+{
+  "@@locale": "zh-CN",
+  "m0000": "链接未能打开",
+  "@m0000": {
+    "source": "链接未能打开",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0001": "图片暂时无法读取",
+  "@m0001": {
+    "source": "图片暂时无法读取",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0002": "设置未保存",
+  "@m0002": {
+    "source": "设置未保存",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0003": "90 级  ·  阿拉德冒险",
+  "@m0003": {
+    "source": "90 级  ·  阿拉德冒险",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0004": "诊断已开启",
+  "@m0004": {
+    "source": "诊断已开启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0005": "设置",
+  "@m0005": {
+    "source": "设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0006": "最小化到托盘",
+  "@m0006": {
+    "source": "最小化到托盘",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0007": "关闭",
+  "@m0007": {
+    "source": "关闭",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0008": "愿每一次重逢，都成为新的冒险。",
+  "@m0008": {
+    "source": "愿每一次重逢，都成为新的冒险。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0009": "PurpleMagic · 本服账号与更新",
+  "@m0009": {
+    "source": "PurpleMagic · 本服账号与更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0010": "正在连接核心",
+  "@m0010": {
+    "source": "正在连接核心",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0011": "使用帮助",
+  "@m0011": {
+    "source": "使用帮助",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0012": "开启你的阿拉德之旅",
+  "@m0012": {
+    "source": "开启你的阿拉德之旅",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0013": "选择包含 DNF.exe 和 Script.pvf 的客户端目录，检查更新后输入账号密码。\n\n更新前请退出游戏。记住账号不会保存密码；更新来源由本服后台配置。",
+  "@m0013": {
+    "source": "选择包含 DNF.exe 和 Script.pvf 的客户端目录，检查更新后输入账号密码。\n\n更新前请退出游戏。记住账号不会保存密码；更新来源由本服后台配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0014": "重返阿拉德\n再启冒险征程",
+  "@m0014": {
+    "source": "重返阿拉德\n再启冒险征程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0015": "熟悉的世界\n等待再次相遇",
+  "@m0015": {
+    "source": "熟悉的世界\n等待再次相遇",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0016": "准备就绪\n开启你的旅程",
+  "@m0016": {
+    "source": "准备就绪\n开启你的旅程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0017": "冒险从这里开始。\n\n选择配套客户端，完成版本检查后即可登录。服务器发布的公告显示在下方列表中。",
+  "@m0017": {
+    "source": "冒险从这里开始。\n\n选择配套客户端，完成版本检查后即可登录。服务器发布的公告显示在下方列表中。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0018": "阿拉德，久别重逢",
+  "@m0018": {
+    "source": "阿拉德，久别重逢",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0019": "综合",
+  "@m0019": {
+    "source": "综合",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0020": "更新",
+  "@m0020": {
+    "source": "更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0021": "指南",
+  "@m0021": {
+    "source": "指南",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0022": "更多公告",
+  "@m0022": {
+    "source": "更多公告",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0023": "暂无公告",
+  "@m0023": {
+    "source": "暂无公告",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0024": "置顶",
+  "@m0024": {
+    "source": "置顶",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0025": "欢迎回到阿拉德",
+  "@m0025": {
+    "source": "欢迎回到阿拉德",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0026": "每一段冒险，都值得重新启程",
+  "@m0026": {
+    "source": "每一段冒险，都值得重新启程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0027": "开始游戏",
+  "@m0027": {
+    "source": "开始游戏",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0028": "账号注册",
+  "@m0028": {
+    "source": "账号注册",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0029": "修改密码",
+  "@m0029": {
+    "source": "修改密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0030": "绑定 QQ",
+  "@m0030": {
+    "source": "绑定 QQ",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0031": "账号",
+  "@m0031": {
+    "source": "账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0032": "请输入游戏账号",
+  "@m0032": {
+    "source": "请输入游戏账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0033": "密码",
+  "@m0033": {
+    "source": "密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0034": "请输入密码",
+  "@m0034": {
+    "source": "请输入密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0035": "确认密码",
+  "@m0035": {
+    "source": "确认密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0036": "再次输入密码",
+  "@m0036": {
+    "source": "再次输入密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0037": "记住账号",
+  "@m0037": {
+    "source": "记住账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0038": "已有账号？去登录",
+  "@m0038": {
+    "source": "已有账号？去登录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0039": "还没有账号？注册",
+  "@m0039": {
+    "source": "还没有账号？注册",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0040": "更改",
+  "@m0040": {
+    "source": "更改",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0041": "正在验证…",
+  "@m0041": {
+    "source": "正在验证…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0042": "创建账号",
+  "@m0042": {
+    "source": "创建账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0043": "登录并进入游戏",
+  "@m0043": {
+    "source": "登录并进入游戏",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0044": "请先安装客户端更新",
+  "@m0044": {
+    "source": "请先安装客户端更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0045": "等待客户端就绪",
+  "@m0045": {
+    "source": "等待客户端就绪",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0046": "  ·  反作弊保护",
+  "@m0046": {
+    "source": "  ·  反作弊保护",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0047": "更新登录器",
+  "@m0047": {
+    "source": "更新登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0048": "安装更新",
+  "@m0048": {
+    "source": "安装更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0049": "检查更新",
+  "@m0049": {
+    "source": "检查更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0050": "继续",
+  "@m0050": {
+    "source": "继续",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0051": "暂停",
+  "@m0051": {
+    "source": "暂停",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0052": "请输入账号和密码",
+  "@m0052": {
+    "source": "请输入账号和密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0053": "两次输入的密码不一致",
+  "@m0053": {
+    "source": "两次输入的密码不一致",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0054": "启动反作弊保护",
+  "@m0054": {
+    "source": "启动反作弊保护",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0055": "本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n普通启动时仅保护助手提权；以管理员身份启动登录器时，游戏沿用管理员权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。\n\n同意记录保存在本机，下次不再重复提示。Windows 管理员授权仍会在提权时出现。",
+  "@m0055": {
+    "source": "本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n普通启动时仅保护助手提权；以管理员身份启动登录器时，游戏沿用管理员权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。\n\n同意记录保存在本机，下次不再重复提示。Windows 管理员授权仍会在提权时出现。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0056": "取消",
+  "@m0056": {
+    "source": "取消",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0057": "同意并继续",
+  "@m0057": {
+    "source": "同意并继续",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0058": "注册成功",
+  "@m0058": {
+    "source": "注册成功",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0059": "账号已创建，请切换到开始游戏并登录。",
+  "@m0059": {
+    "source": "账号已创建，请切换到开始游戏并登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0060": "公告中心",
+  "@m0060": {
+    "source": "公告中心",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0061": "服务器尚未发布公告。",
+  "@m0061": {
+    "source": "服务器尚未发布公告。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0062": "关闭弹窗",
+  "@m0062": {
+    "source": "关闭弹窗",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0063": "知道了",
+  "@m0063": {
+    "source": "知道了",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0064": "无法打开目录选择器",
+  "@m0064": {
+    "source": "无法打开目录选择器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0065": "重置本机游戏配置？",
+  "@m0065": {
+    "source": "重置本机游戏配置？",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0066": "将备份并重置 DNF.cfg。游戏内记住的账号名、频道记录和画面、按键等设置可能丢失，需要重新设置。\n\n",
+  "@m0066": {
+    "source": "将备份并重置 DNF.cfg。游戏内记住的账号名、频道记录和画面、按键等设置可能丢失，需要重新设置。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0067": "同一 Windows 用户下的其他 DNF 客户端也可能共用这份配置。请先退出所有 DNF 游戏。\n\n",
+  "@m0067": {
+    "source": "同一 Windows 用户下的其他 DNF 客户端也可能共用这份配置。请先退出所有 DNF 游戏。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0068": "服务器上的账号、角色、装备和进度不会删除。登录器单独记住的账号及客户端目录会保留。",
+  "@m0068": {
+    "source": "服务器上的账号、角色、装备和进度不会删除。登录器单独记住的账号及客户端目录会保留。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0069": "备份并重置",
+  "@m0069": {
+    "source": "备份并重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0070": "游戏配置已重置",
+  "@m0070": {
+    "source": "游戏配置已重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0071": "无需重置",
+  "@m0071": {
+    "source": "无需重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0072": "]}\n\n如需恢复，请退出所有 DNF 游戏，保留新配置后，将这份备份改回 DNF.cfg。",
+  "@m0072": {
+    "source": "]}\n\n如需恢复，请退出所有 DNF 游戏，保留新配置后，将这份备份改回 DNF.cfg。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0073": "未发现 DNF.cfg，没有改动任何文件。下次登录时会自动初始化所需的频道配置。",
+  "@m0073": {
+    "source": "未发现 DNF.cfg，没有改动任何文件。下次登录时会自动初始化所需的频道配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0074": "游戏配置未重置",
+  "@m0074": {
+    "source": "游戏配置未重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0075": "登录器设置",
+  "@m0075": {
+    "source": "登录器设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0076": "关闭设置",
+  "@m0076": {
+    "source": "关闭设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0077": "更新线路",
+  "@m0077": {
+    "source": "更新线路",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0078": "自动更新",
+  "@m0078": {
+    "source": "自动更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0079": "启动时更新登录器和客户端文件，登录器更新后自动重启",
+  "@m0079": {
+    "source": "启动时更新登录器和客户端文件，登录器更新后自动重启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0080": "低特效模式",
+  "@m0080": {
+    "source": "低特效模式",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0081": "关闭背景模糊，保留清晰界面",
+  "@m0081": {
+    "source": "关闭背景模糊，保留清晰界面",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0082": "增强诊断日志",
+  "@m0082": {
+    "source": "增强诊断日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0083": "已开启 · 标记问题与导出片段",
+  "@m0083": {
+    "source": "已开启 · 标记问题与导出片段",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0084": "自动关联游戏，收集问题前后记录",
+  "@m0084": {
+    "source": "自动关联游戏，收集问题前后记录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0085": "本机游戏配置",
+  "@m0085": {
+    "source": "本机游戏配置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0086": "遇到“频道配置过大”等问题时，可备份并重置游戏配置。操作前会说明影响并再次确认。",
+  "@m0086": {
+    "source": "遇到“频道配置过大”等问题时，可备份并重置游戏配置。操作前会说明影响并再次确认。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0087": "正在备份并重置…",
+  "@m0087": {
+    "source": "正在备份并重置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0088": "重置本机游戏配置",
+  "@m0088": {
+    "source": "重置本机游戏配置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0089": "更新与安全",
+  "@m0089": {
+    "source": "更新与安全",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0090": "设置会保存在本机。游戏更新使用本服批准的内容来源；账号密码不会发送到内容源。",
+  "@m0090": {
+    "source": "设置会保存在本机。游戏更新使用本服批准的内容来源；账号密码不会发送到内容源。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0091": "登录器更新未完成",
+  "@m0091": {
+    "source": "登录器更新未完成",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0092": "更新登录器并重启",
+  "@m0092": {
+    "source": "更新登录器并重启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0093": "显示密码",
+  "@m0093": {
+    "source": "显示密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0094": "隐藏密码",
+  "@m0094": {
+    "source": "隐藏密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0095": "开启增强诊断日志",
+  "@m0095": {
+    "source": "开启增强诊断日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0096": "开启期间会收集登录器和游戏的异常码、异常调用栈、故障地址、寄存器、内存页属性、模块版本与摘要，",
+  "@m0096": {
+    "source": "开启期间会收集登录器和游戏的异常码、异常调用栈、故障地址、寄存器、内存页属性、模块版本与摘要，",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0097": "以及异常位置最多 64 字节的模块代码。还会记录游戏窗口处于前台时的玩家操作：",
+  "@m0097": {
+    "source": "以及异常位置最多 64 字节的模块代码。还会记录游戏窗口处于前台时的玩家操作：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0098": "方向键、按键次数、鼠标点击、移动与滚轮活动和焦点变化。\n\n",
+  "@m0098": {
+    "source": "方向键、按键次数、鼠标点击、移动与滚轮活动和焦点变化。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0099": "还会向服务器读取本次登录的角色名与角色编号、频道、副本、房间、结算阶段和连接事件，",
+  "@m0099": {
+    "source": "还会向服务器读取本次登录的角色名与角色编号、频道、副本、房间、结算阶段和连接事件，",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0100": "记录发生时间及客户端与服务器的时钟偏差，方便直接定位问题。\n\n",
+  "@m0100": {
+    "source": "记录发生时间及客户端与服务器的时钟偏差，方便直接定位问题。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0101": "其他按键合并为次数，不记录按键文字、聊天内容、密码或 Token。",
+  "@m0101": {
+    "source": "其他按键合并为次数，不记录按键文字、聊天内容、密码或 Token。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0102": "日志只保存在本机，保留最近 5 次，可由你导出 .log 分享；不会自动上传。\n\n",
+  "@m0102": {
+    "source": "日志只保存在本机，保留最近 5 次，可由你导出 .log 分享；不会自动上传。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0103": "异常采集会以调试方式关联游戏进程，异常发生时短暂暂停进程以读取调用栈。",
+  "@m0103": {
+    "source": "异常采集会以调试方式关联游戏进程，异常发生时短暂暂停进程以读取调用栈。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0104": "权限不足时可点击提升诊断权限，由 Windows 弹出 UAC 确认。",
+  "@m0104": {
+    "source": "权限不足时可点击提升诊断权限，由 Windows 弹出 UAC 确认。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0105": "关闭开关或退出登录器后停止采集。",
+  "@m0105": {
+    "source": "关闭开关或退出登录器后停止采集。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0106": "同意并开启",
+  "@m0106": {
+    "source": "同意并开启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0107": "无法打开另存为窗口，请重试。",
+  "@m0107": {
+    "source": "无法打开另存为窗口，请重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0108": "关闭诊断面板",
+  "@m0108": {
+    "source": "关闭诊断面板",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0109": "开启增强诊断",
+  "@m0109": {
+    "source": "开启增强诊断",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0110": "按每次游戏启动记录，保留最近 5 次。",
+  "@m0110": {
+    "source": "按每次游戏启动记录，保留最近 5 次。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0111": "已关闭",
+  "@m0111": {
+    "source": "已关闭",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0112": "异常栈采集需要额外权限",
+  "@m0112": {
+    "source": "异常栈采集需要额外权限",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0113": "确认 Windows UAC 后，为本次游戏采集异常栈。",
+  "@m0113": {
+    "source": "确认 Windows UAC 后，为本次游戏采集异常栈。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0114": "提升诊断权限",
+  "@m0114": {
+    "source": "提升诊断权限",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0115": "正在关联异常栈采集器…",
+  "@m0115": {
+    "source": "正在关联异常栈采集器…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0116": "本次游戏的异常栈采集未就绪，基础日志仍在记录。",
+  "@m0116": {
+    "source": "本次游戏的异常栈采集未就绪，基础日志仍在记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0117": "最近的启动日志",
+  "@m0117": {
+    "source": "最近的启动日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0118": "开启后启动游戏，日志会显示在这里。",
+  "@m0118": {
+    "source": "开启后启动游戏，日志会显示在这里。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0119": "导出",
+  "@m0119": {
+    "source": "导出",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0120": "请输入账号和原密码",
+  "@m0120": {
+    "source": "请输入账号和原密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0121": "新密码至少 6 位，两次输入需一致",
+  "@m0121": {
+    "source": "新密码至少 6 位，两次输入需一致",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0122": "操作已完成",
+  "@m0122": {
+    "source": "操作已完成",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0123": "游戏账号",
+  "@m0123": {
+    "source": "游戏账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0124": "原密码",
+  "@m0124": {
+    "source": "原密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0125": "账号密码",
+  "@m0125": {
+    "source": "账号密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0126": "新密码",
+  "@m0126": {
+    "source": "新密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0127": "确认新密码",
+  "@m0127": {
+    "source": "确认新密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0128": "获取六位绑定码后，在允许群内艾特机器人，或私聊发送“/绑定 绑定码”。10 分钟有效，成功后失效。",
+  "@m0128": {
+    "source": "获取六位绑定码后，在允许群内艾特机器人，或私聊发送“/绑定 绑定码”。10 分钟有效，成功后失效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0129": "绑定码已过期，请重新获取",
+  "@m0129": {
+    "source": "绑定码已过期，请重新获取",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0130": "绑定指令已复制",
+  "@m0130": {
+    "source": "绑定指令已复制",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0131": "复制绑定指令",
+  "@m0131": {
+    "source": "复制绑定指令",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0132": "连续验证失败 3 次，冷却 1 分钟。",
+  "@m0132": {
+    "source": "连续验证失败 3 次，冷却 1 分钟。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0133": "确认修改",
+  "@m0133": {
+    "source": "确认修改",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0134": "获取绑定码",
+  "@m0134": {
+    "source": "获取绑定码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0135": "登录器正在更新，请稍后再打开。",
+  "@m0135": {
+    "source": "登录器正在更新，请稍后再打开。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0136": "登录器文件不完整或恢复失败。请保持 app 文件夹完整，并重新解压完整发布包。",
+  "@m0136": {
+    "source": "登录器文件不完整或恢复失败。请保持 app 文件夹完整，并重新解压完整发布包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0137": "便携包清单无效。",
+  "@m0137": {
+    "source": "便携包清单无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0138": "使用说明.txt",
+  "@m0138": {
+    "source": "使用说明.txt",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0139": "便携包包含不支持的文件。",
+  "@m0139": {
+    "source": "便携包包含不支持的文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0140": "便携包缺少运行文件。",
+  "@m0140": {
+    "source": "便携包缺少运行文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0141": "便携入口文件损坏，请重新下载完整便携包。",
+  "@m0141": {
+    "source": "便携入口文件损坏，请重新下载完整便携包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0142": "该目录不是此便携包创建的，已保留原文件。",
+  "@m0142": {
+    "source": "该目录不是此便携包创建的，已保留原文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0143": "已释放的运行文件不完整，已停止启动并保留现有更新数据。",
+  "@m0143": {
+    "source": "已释放的运行文件不完整，已停止启动并保留现有更新数据。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0144": "便携目录被其他文件占用。",
+  "@m0144": {
+    "source": "便携目录被其他文件占用。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0145": "便携包长度不符。",
+  "@m0145": {
+    "source": "便携包长度不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0146": "便携包校验失败，请重新下载。",
+  "@m0146": {
+    "source": "便携包校验失败，请重新下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0147": "便携包文件清单不符。",
+  "@m0147": {
+    "source": "便携包文件清单不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0148": "便携包文件条目无效。",
+  "@m0148": {
+    "source": "便携包文件条目无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0149": "便携包文件大小超出清单。",
+  "@m0149": {
+    "source": "便携包文件大小超出清单。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0150": "便携包的安装标识无效。",
+  "@m0150": {
+    "source": "便携包的安装标识无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0151": "不支持此启动参数。",
+  "@m0151": {
+    "source": "不支持此启动参数。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0152": "发行包类型无效。",
+  "@m0152": {
+    "source": "发行包类型无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0153": "登录器启动失败。",
+  "@m0153": {
+    "source": "登录器启动失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0154": "运行文件无法准备，请检查本机目录权限、剩余空间及是否正在更新。原有文件已保留。",
+  "@m0154": {
+    "source": "运行文件无法准备，请检查本机目录权限、剩余空间及是否正在更新。原有文件已保留。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0155": "未知登录器操作。",
+  "@m0155": {
+    "source": "未知登录器操作。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0156": "无法连接服务器或证书验证失败。请检查网络和后台配置。",
+  "@m0156": {
+    "source": "无法连接服务器或证书验证失败。请检查网络和后台配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0157": "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",
+  "@m0157": {
+    "source": "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0158": "操作已取消或超时。",
+  "@m0158": {
+    "source": "操作已取消或超时。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0159": "操作未完成，请重试并联系管理员。",
+  "@m0159": {
+    "source": "操作未完成，请重试并联系管理员。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0160": "请求过大。",
+  "@m0160": {
+    "source": "请求过大。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0161": "请求格式无效。",
+  "@m0161": {
+    "source": "请求格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0162": "更新路径无效。",
+  "@m0162": {
+    "source": "更新路径无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0163": "正在读取本机设置…",
+  "@m0163": {
+    "source": "正在读取本机设置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0164": "本服批准源",
+  "@m0164": {
+    "source": "本服批准源",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0165": "已自动识别客户端目录。",
+  "@m0165": {
+    "source": "已自动识别客户端目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0166": "请选择客户端目录，检查更新后登录。",
+  "@m0166": {
+    "source": "请选择客户端目录，检查更新后登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0167": "客户端目录已就绪。",
+  "@m0167": {
+    "source": "客户端目录已就绪。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0168": "请先更新登录器，再安装资源或登录游戏。",
+  "@m0168": {
+    "source": "请先更新登录器，再安装资源或登录游戏。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0169": "就绪回执路径无效。",
+  "@m0169": {
+    "source": "就绪回执路径无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0170": "就绪回执与更新事务不匹配。",
+  "@m0170": {
+    "source": "就绪回执与更新事务不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0171": "已有操作正在进行。",
+  "@m0171": {
+    "source": "已有操作正在进行。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0172": "登录器更新已取消，可手动重试。",
+  "@m0172": {
+    "source": "登录器更新已取消，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0173": "登录器更新未完成，请查看提示。",
+  "@m0173": {
+    "source": "登录器更新未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0174": "尚未发布登录器更新。",
+  "@m0174": {
+    "source": "尚未发布登录器更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0175": "当前登录器已是最新版本。",
+  "@m0175": {
+    "source": "当前登录器已是最新版本。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0176": "请从完整安装目录启动登录器。",
+  "@m0176": {
+    "source": "请从完整安装目录启动登录器。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0177": "登录器父进程不匹配。",
+  "@m0177": {
+    "source": "登录器父进程不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0178": "正在下载登录器完整更新包…",
+  "@m0178": {
+    "source": "正在下载登录器完整更新包…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0179": "更新助手启动失败。",
+  "@m0179": {
+    "source": "更新助手启动失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0180": "登录器更新已准备完成，正在重启…",
+  "@m0180": {
+    "source": "登录器更新已准备完成，正在重启…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0181": "自动更新已暂停，可手动重试。",
+  "@m0181": {
+    "source": "自动更新已暂停，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0182": "自动更新未完成，可手动重试。",
+  "@m0182": {
+    "source": "自动更新未完成，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0183": "当前操作完成后再修改设置。",
+  "@m0183": {
+    "source": "当前操作完成后再修改设置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0184": "诊断问题类型无效。",
+  "@m0184": {
+    "source": "诊断问题类型无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0185": "请先阅读并同意异常栈与游戏操作采集说明。",
+  "@m0185": {
+    "source": "请先阅读并同意异常栈与游戏操作采集说明。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0186": "设置内容过长。",
+  "@m0186": {
+    "source": "设置内容过长。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0187": "设置已保存。",
+  "@m0187": {
+    "source": "设置已保存。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0188": "请先确认重置本机游戏配置。",
+  "@m0188": {
+    "source": "请先确认重置本机游戏配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0189": "当前操作完成后再重置游戏配置。",
+  "@m0189": {
+    "source": "当前操作完成后再重置游戏配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0190": "正在备份并重置本机游戏配置…",
+  "@m0190": {
+    "source": "正在备份并重置本机游戏配置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0191": "本机游戏配置已备份并重置，请重新登录。",
+  "@m0191": {
+    "source": "本机游戏配置已备份并重置，请重新登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0192": "未发现本机游戏配置，无需重置。",
+  "@m0192": {
+    "source": "未发现本机游戏配置，无需重置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0193": "游戏配置未重置，请查看提示。",
+  "@m0193": {
+    "source": "游戏配置未重置，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0194": "检查未完成，可重试或查看错误提示。",
+  "@m0194": {
+    "source": "检查未完成，可重试或查看错误提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0195": "正在读取本服签名发布信息…",
+  "@m0195": {
+    "source": "正在读取本服签名发布信息…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0196": "后台更新服务尚未部署；登录使用现有本服兼容配置。",
+  "@m0196": {
+    "source": "后台更新服务尚未部署；登录使用现有本服兼容配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0197": "发布数据超过限制。",
+  "@m0197": {
+    "source": "发布数据超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0198": "发布信息已验证。",
+  "@m0198": {
+    "source": "发布信息已验证。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0199": "发布信息已更新，请先选择客户端目录。",
+  "@m0199": {
+    "source": "发布信息已更新，请先选择客户端目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0200": "正在校验客户端资源…",
+  "@m0200": {
+    "source": "正在校验客户端资源…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0201": "客户端资源与本服批准版本一致。",
+  "@m0201": {
+    "source": "客户端资源与本服批准版本一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0202": "发现 {plan.Length} 个待更新文件，请点击安装更新。",
+  "@m0202": {
+    "source": "发现 {plan.Length} 个待更新文件，请点击安装更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0203": "客户端兼容校验通过；后台尚未发布资源更新。",
+  "@m0203": {
+    "source": "客户端兼容校验通过；后台尚未发布资源更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0204": "下载已暂停，点击继续会保留已下载的断点。",
+  "@m0204": {
+    "source": "下载已暂停，点击继续会保留已下载的断点。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0205": "更新未完成，已保留当前版本与可恢复记录。",
+  "@m0205": {
+    "source": "更新未完成，已保留当前版本与可恢复记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0206": "正在下载 ",
+  "@m0206": {
+    "source": "正在下载 ",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0207": "正在提交更新，保留恢复记录…",
+  "@m0207": {
+    "source": "正在提交更新，保留恢复记录…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0208": "更新完成，客户端资源已通过双重摘要校验。",
+  "@m0208": {
+    "source": "更新完成，客户端资源已通过双重摘要校验。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0209": "此登录器未启用 QQ 绑定功能。",
+  "@m0209": {
+    "source": "此登录器未启用 QQ 绑定功能。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0210": "正在注册本服账号…",
+  "@m0210": {
+    "source": "正在注册本服账号…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0211": "注册成功，请登录。",
+  "@m0211": {
+    "source": "注册成功，请登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0212": "注册未完成，请查看提示。",
+  "@m0212": {
+    "source": "注册未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0213": "正在验证客户端与本服版本…",
+  "@m0213": {
+    "source": "正在验证客户端与本服版本…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0214": "请先完成客户端资源更新。",
+  "@m0214": {
+    "source": "请先完成客户端资源更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0215": "公会兼容补丁已应用，原版客户端已备份。",
+  "@m0215": {
+    "source": "公会兼容补丁已应用，原版客户端已备份。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0216": "该账号已经启动，请使用另一个账号。",
+  "@m0216": {
+    "source": "该账号已经启动，请使用另一个账号。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0217": "登录器已关闭。",
+  "@m0217": {
+    "source": "登录器已关闭。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0218": "正在请求管理员授权以启动反作弊保护；退出登录器将结束本次游戏…",
+  "@m0218": {
+    "source": "正在请求管理员授权以启动反作弊保护；退出登录器将结束本次游戏…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0219": "AC00：本服已要求反作弊保护，请使用 anticheat 发行包。",
+  "@m0219": {
+    "source": "AC00：本服已要求反作弊保护，请使用 anticheat 发行包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0220": "正在验证账号…",
+  "@m0220": {
+    "source": "正在验证账号…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0221": "最多同时运行两个游戏客户端。",
+  "@m0221": {
+    "source": "最多同时运行两个游戏客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0222": "游戏进程创建失败。",
+  "@m0222": {
+    "source": "游戏进程创建失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0223": "游戏进程已创建，正在等待客户端启动…",
+  "@m0223": {
+    "source": "游戏进程已创建，正在等待客户端启动…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0224": "客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。",
+  "@m0224": {
+    "source": "客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0225": " 客户端正在运行。",
+  "@m0225": {
+    "source": " 客户端正在运行。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0226": "登录未完成，请查看提示。",
+  "@m0226": {
+    "source": "登录未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0227": "账号或密码长度无效。",
+  "@m0227": {
+    "source": "账号或密码长度无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0228": "更新或恢复文件前请退出所有游戏客户端。",
+  "@m0228": {
+    "source": "更新或恢复文件前请退出所有游戏客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0229": "登录器更新摘要不匹配。",
+  "@m0229": {
+    "source": "登录器更新摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0230": "登录器下载未完成，可重试。",
+  "@m0230": {
+    "source": "登录器下载未完成，可重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0231": "登录器更新响应未通过校验，已丢弃临时文件。",
+  "@m0231": {
+    "source": "登录器更新响应未通过校验，已丢弃临时文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0232": "登录器下载已取消，可继续下载。",
+  "@m0232": {
+    "source": "登录器下载已取消，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0233": "登录器下载超时，可继续下载。",
+  "@m0233": {
+    "source": "登录器下载超时，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0234": "登录器下载连接失败，可继续下载。",
+  "@m0234": {
+    "source": "登录器下载连接失败，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0235": "登录器下载未完成，可继续下载。",
+  "@m0235": {
+    "source": "登录器下载未完成，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0236": "资源下载身份无效。",
+  "@m0236": {
+    "source": "资源下载身份无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0237": "资源摘要不匹配。",
+  "@m0237": {
+    "source": "资源摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0238": "资源下载未通过校验，已丢弃临时文件。",
+  "@m0238": {
+    "source": "资源下载未通过校验，已丢弃临时文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0239": "资源下载连接失败，可继续下载。",
+  "@m0239": {
+    "source": "资源下载连接失败，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0240": "资源下载中断，可继续下载。",
+  "@m0240": {
+    "source": "资源下载中断，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0241": "登录器包信息无效。",
+  "@m0241": {
+    "source": "登录器包信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0242": "登录器包必须使用受信网关的内容寻址地址。",
+  "@m0242": {
+    "source": "登录器包必须使用受信网关的内容寻址地址。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0243": "登录器下载跳转地址不允许。",
+  "@m0243": {
+    "source": "登录器下载跳转地址不允许。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0244": "登录器下载跳转循环。",
+  "@m0244": {
+    "source": "登录器下载跳转循环。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0245": "登录器下载跳转无效或超过限制。",
+  "@m0245": {
+    "source": "登录器下载跳转无效或超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0246": "登录器下载断点范围不匹配。",
+  "@m0246": {
+    "source": "登录器下载断点范围不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0247": "完整响应包含断点范围。",
+  "@m0247": {
+    "source": "完整响应包含断点范围。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0248": "登录器下载源暂不可用。",
+  "@m0248": {
+    "source": "登录器下载源暂不可用。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0249": "登录器下载编码或长度不匹配。",
+  "@m0249": {
+    "source": "登录器下载编码或长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0250": "登录器更新负载超过签名大小。",
+  "@m0250": {
+    "source": "登录器更新负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0251": "登录器下载中断。",
+  "@m0251": {
+    "source": "登录器下载中断。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0252": "游戏配置路径不是文件。",
+  "@m0252": {
+    "source": "游戏配置路径不是文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0253": "更新恢复记录无效。",
+  "@m0253": {
+    "source": "更新恢复记录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0254": "更新恢复阶段无效。",
+  "@m0254": {
+    "source": "更新恢复阶段无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0255": "需要先恢复之前的更新。",
+  "@m0255": {
+    "source": "需要先恢复之前的更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0256": "暂存或备份状态无效。",
+  "@m0256": {
+    "source": "暂存或备份状态无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0257": "游戏进程身份已变化。",
+  "@m0257": {
+    "source": "游戏进程身份已变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0258": "游戏模块身份无效。",
+  "@m0258": {
+    "source": "游戏模块身份无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0259": "游戏模块格式不匹配。",
+  "@m0259": {
+    "source": "游戏模块格式不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0260": "日志编号无效。",
+  "@m0260": {
+    "source": "日志编号无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0261": "日志索引无效。",
+  "@m0261": {
+    "source": "日志索引无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0262": "旧格式日志已封存，请使用新日志编号。",
+  "@m0262": {
+    "source": "旧格式日志已封存，请使用新日志编号。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0263": "日志文件长度不匹配。",
+  "@m0263": {
+    "source": "日志文件长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0264": "日志记录无效。",
+  "@m0264": {
+    "source": "日志记录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0265": "日志会话不匹配。",
+  "@m0265": {
+    "source": "日志会话不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0266": "日志记录版本不匹配。",
+  "@m0266": {
+    "source": "日志记录版本不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0267": "这份日志已清理，请选择最近的日志。",
+  "@m0267": {
+    "source": "这份日志已清理，请选择最近的日志。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0268": "请保存为 .log 文件。",
+  "@m0268": {
+    "source": "请保存为 .log 文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0269": "请选择日志存储区以外的保存位置。",
+  "@m0269": {
+    "source": "请选择日志存储区以外的保存位置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0270": "日志记录不完整。",
+  "@m0270": {
+    "source": "日志记录不完整。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0271": "诊断已结束。",
+  "@m0271": {
+    "source": "诊断已结束。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0272": "诊断操作正在排队，请稍后重试。",
+  "@m0272": {
+    "source": "诊断操作正在排队，请稍后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0273": "此启动无需提升诊断权限。",
+  "@m0273": {
+    "source": "此启动无需提升诊断权限。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0274": "正在导出，请稍候。",
+  "@m0274": {
+    "source": "正在导出，请稍候。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0275": "日志尚未写入，请检查保存位置后重试。",
+  "@m0275": {
+    "source": "日志尚未写入，请检查保存位置后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0276": "日志记录异常：",
+  "@m0276": {
+    "source": "日志记录异常：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0277": "正在记录本次启动",
+  "@m0277": {
+    "source": "正在记录本次启动",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0278": "正在读取游戏版本",
+  "@m0278": {
+    "source": "正在读取游戏版本",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0279": "等待游戏启动",
+  "@m0279": {
+    "source": "等待游戏启动",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0280": "发布清单超过限制。",
+  "@m0280": {
+    "source": "发布清单超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0281": "发布清单无效。",
+  "@m0281": {
+    "source": "发布清单无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0282": "本服发布签名不匹配。",
+  "@m0282": {
+    "source": "本服发布签名不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0283": "发布产品、格式或序号无效。",
+  "@m0283": {
+    "source": "发布产品、格式或序号无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0284": "账号入口或信任根发生不允许的变化。",
+  "@m0284": {
+    "source": "账号入口或信任根发生不允许的变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0285": "最低登录器版本无效。",
+  "@m0285": {
+    "source": "最低登录器版本无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0286": "频道兼容方案标识无效。",
+  "@m0286": {
+    "source": "频道兼容方案标识无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0287": "内容源配置无效。",
+  "@m0287": {
+    "source": "内容源配置无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0288": "内容文件路径、大小或格式无效。",
+  "@m0288": {
+    "source": "内容文件路径、大小或格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0289": "压缩文件信息无效。",
+  "@m0289": {
+    "source": "压缩文件信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0290": "内容与本服 EXE/PVF 兼容指纹不一致。",
+  "@m0290": {
+    "source": "内容与本服 EXE/PVF 兼容指纹不一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0291": "登录器发布信息无效。",
+  "@m0291": {
+    "source": "登录器发布信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0292": "发布序号倒退或同序号内容发生变化。",
+  "@m0292": {
+    "source": "发布序号倒退或同序号内容发生变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0293": "内容源序号倒退或内容冲突。",
+  "@m0293": {
+    "source": "内容源序号倒退或内容冲突。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0294": "客户端资源检查（只按实际文件内容决定下载）",
+  "@m0294": {
+    "source": "客户端资源检查（只按实际文件内容决定下载）",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0295": "目录：",
+  "@m0295": {
+    "source": "目录：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0296": "版本：",
+  "@m0296": {
+    "source": "版本：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0297": "文件\t检查结果\t本地字节\t预期字节\t本地SHA256\t预期SHA256",
+  "@m0297": {
+    "source": "文件\t检查结果\t本地字节\t预期字节\t本地SHA256\t预期SHA256",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0298": "一致，无需下载",
+  "@m0298": {
+    "source": "一致，无需下载",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0299": "文件缺失",
+  "@m0299": {
+    "source": "文件缺失",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0300": "文件大小不同",
+  "@m0300": {
+    "source": "文件大小不同",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0301": "文件摘要不同",
+  "@m0301": {
+    "source": "文件摘要不同",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0302": "缺少或不匹配的基线文件：{file.Path}。请使用配套完整客户端。",
+  "@m0302": {
+    "source": "缺少或不匹配的基线文件：{file.Path}。请使用配套完整客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0303": "需要下载：{result.Count} 项，{result.Sum(TransferSize)} 字节（压缩传输量）。",
+  "@m0303": {
+    "source": "需要下载：{result.Count} 项，{result.Sum(TransferSize)} 字节（压缩传输量）。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0304": "下载来源返回了错误的断点范围。",
+  "@m0304": {
+    "source": "下载来源返回了错误的断点范围。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0305": "更新下载请求失败，请稍后重试。",
+  "@m0305": {
+    "source": "更新下载请求失败，请稍后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0306": "下载长度与签名清单不一致。",
+  "@m0306": {
+    "source": "下载长度与签名清单不一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0307": "更新负载超过签名大小。",
+  "@m0307": {
+    "source": "更新负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0308": "下载中断，可继续下载。",
+  "@m0308": {
+    "source": "下载中断，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0309": "下载摘要不匹配，已丢弃损坏负载。",
+  "@m0309": {
+    "source": "下载摘要不匹配，已丢弃损坏负载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0310": "解压负载超过签名大小。",
+  "@m0310": {
+    "source": "解压负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0311": "解压后文件长度不匹配。",
+  "@m0311": {
+    "source": "解压后文件长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0312": "解压后文件摘要不匹配。",
+  "@m0312": {
+    "source": "解压后文件摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0313": "登录器进程尚未完全退出。",
+  "@m0313": {
+    "source": "登录器进程尚未完全退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0314": "还有登录器进程使用运行目录，请关闭所有登录器窗口后重试。",
+  "@m0314": {
+    "source": "还有登录器进程使用运行目录，请关闭所有登录器窗口后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0315": "运行文件被其他进程占用",
+  "@m0315": {
+    "source": "运行文件被其他进程占用",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0316": "运行目录访问被拒绝",
+  "@m0316": {
+    "source": "运行目录访问被拒绝",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0317": "磁盘空间不足",
+  "@m0317": {
+    "source": "磁盘空间不足",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0318": "旧版未记录具体原因的文件操作失败",
+  "@m0318": {
+    "source": "旧版未记录具体原因的文件操作失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0319": "文件操作失败",
+  "@m0319": {
+    "source": "文件操作失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0320": "新登录器启动检查失败",
+  "@m0320": {
+    "source": "新登录器启动检查失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0321": "（Windows 错误 {outcome.NativeError}）",
+  "@m0321": {
+    "source": "（Windows 错误 {outcome.NativeError}）",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0322": "上次登录器更新失败：{detail}{code}，已保留旧版。点击“更新登录器”重试。",
+  "@m0322": {
+    "source": "上次登录器更新失败：{detail}{code}，已保留旧版。点击“更新登录器”重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0323": "当前不是支持整体更新的登录器安装目录。",
+  "@m0323": {
+    "source": "当前不是支持整体更新的登录器安装目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0324": "登录器更新包文件数无效。",
+  "@m0324": {
+    "source": "登录器更新包文件数无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0325": "登录器包包含重复路径、链接或超大文件。",
+  "@m0325": {
+    "source": "登录器包包含重复路径、链接或超大文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0326": "登录器包缺少必要文件。",
+  "@m0326": {
+    "source": "登录器包缺少必要文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0327": "更新包程序格式无效。",
+  "@m0327": {
+    "source": "更新包程序格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0328": "更新事务目录无效。",
+  "@m0328": {
+    "source": "更新事务目录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0329": "缺少登录器发布信息。",
+  "@m0329": {
+    "source": "缺少登录器发布信息。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0330": "登录器包摘要不符。",
+  "@m0330": {
+    "source": "登录器包摘要不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0331": "新登录器未返回就绪回执。",
+  "@m0331": {
+    "source": "新登录器未返回就绪回执。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0332": "保护更新包缺少构建标识。",
+  "@m0332": {
+    "source": "保护更新包缺少构建标识。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0333": "构建标识过大。",
+  "@m0333": {
+    "source": "构建标识过大。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0334": "更新包构建标识不匹配。",
+  "@m0334": {
+    "source": "更新包构建标识不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0335": "诊断日志 (*.log)",
+  "@m0335": {
+    "source": "诊断日志 (*.log)",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0336": "PurpleMagic — 日志另存为",
+  "@m0336": {
+    "source": "PurpleMagic — 日志另存为",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0337": "PurpleMagic — 选择包含 DNF.exe 和 Script.pvf 的客户端目录",
+  "@m0337": {
+    "source": "PurpleMagic — 选择包含 DNF.exe 和 Script.pvf 的客户端目录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0338": "选择此目录",
+  "@m0338": {
+    "source": "选择此目录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0339": "PurpleMagic — 点击恢复登录器",
+  "@m0339": {
+    "source": "PurpleMagic — 点击恢复登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0340": "无法读取所选位置，请重试。",
+  "@m0340": {
+    "source": "无法读取所选位置，请重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0341": "打开登录器",
+  "@m0341": {
+    "source": "打开登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0342": "退出登录器",
+  "@m0342": {
+    "source": "退出登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0343": "监护消息长度无效。",
+  "@m0343": {
+    "source": "监护消息长度无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0344": "保护文件校验失败。",
+  "@m0344": {
+    "source": "保护文件校验失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0345": "AC02：已取消管理员授权，保护模式下未启动游戏。",
+  "@m0345": {
+    "source": "AC02：已取消管理员授权，保护模式下未启动游戏。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0346": "AC03：保护助手未就绪，请检查管理员授权和保护文件。",
+  "@m0346": {
+    "source": "AC03：保护助手未就绪，请检查管理员授权和保护文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0347": "AC04：保护助手已退出。",
+  "@m0347": {
+    "source": "AC04：保护助手已退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0348": "AC05：游戏保护关联失败，已结束本次启动。",
+  "@m0348": {
+    "source": "AC05：游戏保护关联失败，已结束本次启动。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0349": "AC06：命中反作弊规则，本次游戏已停止。详情见本机保护记录。",
+  "@m0349": {
+    "source": "AC06：命中反作弊规则，本次游戏已停止。详情见本机保护记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0350": "AC07：反作弊监护已结束，本次游戏随之关闭。",
+  "@m0350": {
+    "source": "AC07：反作弊监护已结束，本次游戏随之关闭。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "@m0352": {
+    "source": "语言",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0352": "语言"
+}

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useState, useEffect } from "react";
 import { Mail, ArrowUpRight, Users, UserRound, Search } from "lucide-react";
 import { useLive } from "../api/context";
@@ -47,7 +48,7 @@ export function PlayerPicker({
   return (
     <>
       <SearchField
-        placeholder="搜索账号、角色名或 ID"
+        placeholder={t("搜索账号、角色名或 ID")}
         value={q}
         onChange={setQ}
       />
@@ -59,7 +60,7 @@ export function PlayerPicker({
               <div className="picker-account">
                 {!pickOnly && (
                   <CheckBox
-                    label={`账号 ${a.name} 的全部现有角色`}
+                    label={`${t("账号")} ${a.name} ${t("的全部现有角色")}`}
                     checked={selection.accounts.includes(a.id)}
                     onChange={() =>
                       setSelection({
@@ -73,7 +74,7 @@ export function PlayerPicker({
                 <strong>{a.name}</strong>
                 <small>
                   {state.characters.filter((c) => c.accountId === a.id).length}{" "}
-                  个角色
+                  {t("个角色")}
                 </small>
               </div>
               {rows
@@ -120,23 +121,23 @@ export function PlayerPicker({
                     <div>
                       <strong>{c.name}</strong>
                       <small>
-                        Lv.{c.level} · {c.job}
+                        Lv.{c.level} · {t(c.job)}
                       </small>
                     </div>
                     <span className={`status ${c.online ? "online" : ""}`}>
                       <i />
                       {c.online === null
-                        ? "状态未知"
+                        ? t("状态未知")
                         : c.online
-                          ? "在线"
-                          : "离线"}
+                          ? t("在线")
+                          : t("离线")}
                     </span>
                     {pickOnly && (
                       <button
                         className="secondary"
                         onClick={() => onChoose?.(c.id)}
                       >
-                        选择
+                        {t("选择")}
                       </button>
                     )}
                   </div>
@@ -144,7 +145,7 @@ export function PlayerPicker({
             </section>
           ))}
       </div>
-      {!rows.length && <Empty title="没有匹配的角色" />}
+      {!rows.length && <Empty title={t("没有匹配的角色")} />}
       <LoadMore
         show={!!state.api?.directory.next}
         onClick={() =>
@@ -153,8 +154,8 @@ export function PlayerPicker({
       />
       {!pickOnly && (
         <p className="muted">
-          已选择 {resolveRecipients(state, selection).length}{" "}
-          个角色；选择账号会包含该账号全部现有角色。
+          {t("已选择")} {resolveRecipients(state, selection).length}{" "}
+          {t("个角色；选择账号会包含该账号全部现有角色。")}
         </p>
       )}
     </>
@@ -213,20 +214,20 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
     <>
       <div className="workspace-intro">
         <div>
-          <h2>{accountMode ? "账号与角色目录" : "查找一位冒险家"}</h2>
+          <h2>{accountMode ? t("账号与角色目录") : t("查找一位冒险家")}</h2>
           <p>
             {accountMode
-              ? "查看账号归属、角色信息与共享资产"
-              : "按账号、角色名或 ID 查询，选定后进入角色工作区"}
+              ? t("查看账号归属、角色信息与共享资产")
+              : t("按账号、角色名或 ID 查询，选定后进入角色工作区")}
           </p>
         </div>
         <Pill>
-          {state.accounts.length} 个账号 · {state.characters.length} 个角色
+          {state.accounts.length}{t("个账号 ·")} {state.characters.length}{t("个角色")}
         </Pill>
       </div>
       <div className="toolbar">
         <Tabs
-          label="查询范围"
+          label={t("查询范围")}
           items={[
             { id: "characters", label: "角色" },
             { id: "accounts", label: "账号" },
@@ -239,18 +240,18 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           }}
         />
         <SearchField
-          placeholder="账号 / 角色名 / ID"
+          placeholder={t("账号 / 角色名 / ID")}
           value={q}
           onChange={setQ}
         />
         <select
-          aria-label="在线状态"
+          aria-label={t("在线状态")}
           value={online}
           onChange={(e) => { setOnline(e.target.value); if (e.target.value !== "all") setMode("characters"); }}
         >
-          <option value="all">全部状态</option>
-          <option value="online">在线</option>
-          <option value="offline">离线</option>
+          <option value="all">{t("全部状态")}</option>
+          <option value="online">{t("在线")}</option>
+          <option value="offline">{t("离线")}</option>
         </select>
       </div>
       <div className="table-panel glass">
@@ -260,7 +261,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
               <tr>
                 <th className="check-cell">
                   <CheckBox
-                    label="全选查询结果"
+                    label={t("全选查询结果")}
                     checked={
                       listIds.length > 0 &&
                       listIds.every((id) => checkedIds.includes(id))
@@ -275,11 +276,11 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                     }
                   />
                 </th>
-                <th>{mode === "accounts" ? "账号" : "角色"}</th>
-                <th>{mode === "accounts" ? "角色数" : "等级 / 职业"}</th>
-                <th>{mode === "accounts" ? "点券" : "账号"}</th>
-                <th>{mode === "accounts" && !live ? "代币券" : "状态"}</th>
-                <th>操作</th>
+                <th>{mode === "accounts" ? t("账号") : t("角色")}</th>
+                <th>{mode === "accounts" ? t("角色数") : t("等级 / 职业")}</th>
+                <th>{mode === "accounts" ? t("点券") : t("账号")}</th>
+                <th>{mode === "accounts" && !live ? t("代币券") : t("状态")}</th>
+                <th>{t("操作")}</th>
               </tr>
             </thead>
             <tbody>
@@ -306,10 +307,10 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                         {
                           (a.characterCount ?? state.characters.filter((c) => c.accountId === a.id).length)
                         }{" "}
-                        个
+                        {t("个")}
                       </td>
                       <td>{number(a.rawPoints ?? a.points)}</td>
-                      <td>{live ? a.status : number(a.tokens)}</td>
+                      <td>{live ? t(a.status) : number(a.tokens)}</td>
                       <td>
                         <button
                           className="text-button"
@@ -319,12 +320,12 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                             setMode("characters");
                           }}
                         >
-                          查看角色
+                          {t("查看角色")}
                           <ArrowUpRight size={14} />
                         </button>
                         {accountMode && live?.meta.features["accounts.password-reset"] && (
                           <button className="text-button" onClick={() => setResetAccount({ id: a.id, name: a.name })}>
-                            重置密码
+                            {t("重置密码")}
                           </button>
                         )}
                       </td>
@@ -372,7 +373,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                       </td>
                       <td>
                         <strong>Lv.{c.level}</strong>
-                        <small className="cell-meta">{c.job}</small>
+                        <small className="cell-meta">{t(c.job)}</small>
                       </td>
                       <td>
                         {state.accounts.find((a) => a.id === c.accountId)?.name}
@@ -381,10 +382,10 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                         <span className={`status ${c.online ? "online" : ""}`}>
                           <i />
                           {c.online === null
-                            ? "状态未知"
+                            ? t("状态未知")
                             : c.online
-                              ? "在线"
-                              : "离线"}
+                              ? t("在线")
+                              : t("离线")}
                         </span>
                       </td>
                       <td>
@@ -392,7 +393,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                           className="text-button"
                           onClick={() => open(c.id)}
                         >
-                          打开工作区
+                          {t("打开工作区")}
                           <ArrowUpRight size={14} />
                         </button>
                       </td>
@@ -402,14 +403,14 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           </table>
         </div>
         {(mode === "accounts" ? accounts.length : rows.length) === 0 && (
-          <Empty title="没有匹配结果" detail="尝试其他账号、名称或 ID" />
+          <Empty title={t("没有匹配结果")} detail="尝试其他账号、名称或 ID" />
         )}
         <div className="table-footer">
           <span>
             <Search size={14} />
-            {mode === "accounts" ? accounts.length : rows.length} 条结果
+            {mode === "accounts" ? accounts.length : rows.length} {t("条结果")}
           </span>
-          <span>已选 {selected.length} 个收件角色</span>
+          <span>{t("已选")} {selected.length} {t("个收件角色")}</span>
         </div>
       </div>
       <LoadMore
@@ -421,18 +422,18 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
       {resetAccount && <ResetPassword account={resetAccount} onClose={() => setResetAccount(null)} />}
       {accountScope && (
         <button className="text-button" onClick={() => setAccountScope("")}>
-          查看全部角色
+          {t("查看全部角色")}
         </button>
       )}
       {selected.length > 0 && (
         <div className="selection-bar glass">
           <div>
             <CheckBox
-              label="清空所选收件人"
+              label={t("清空所选收件人")}
               checked={true}
               onChange={() => setSelection({ accounts: [], characters: [] })}
             />
-            <strong>已选择 {selected.length} 个角色</strong>
+            <strong>{t("已选择")} {selected.length} {t("个角色")}</strong>
             <span className="muted">
               {state.characters
                 .filter((c) => selected.includes(c.id))
@@ -442,7 +443,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           </div>
           <button className="primary" onClick={() => go("mail")}>
             <Mail size={16} />
-            批量发邮件
+            {t("批量发邮件")}
           </button>
         </div>
       )}

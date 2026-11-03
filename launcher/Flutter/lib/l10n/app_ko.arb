@@ -1,0 +1,1763 @@
+{
+  "@@locale": "ko-KR",
+  "m0000": "링크를 열 수 없습니다.",
+  "@m0000": {
+    "source": "链接未能打开",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0001": "이미지를 불러올 수 없습니다.",
+  "@m0001": {
+    "source": "图片暂时无法读取",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0002": "설정을 저장하지 못했습니다",
+  "@m0002": {
+    "source": "设置未保存",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0003": "90레벨 · 아라드 모험",
+  "@m0003": {
+    "source": "90 级  ·  阿拉德冒险",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0004": "진단 로그 켜짐",
+  "@m0004": {
+    "source": "诊断已开启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0005": "설정",
+  "@m0005": {
+    "source": "设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0006": "트레이로 최소화",
+  "@m0006": {
+    "source": "最小化到托盘",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0007": "닫기",
+  "@m0007": {
+    "source": "关闭",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0008": "다시 만난 이 순간이 새로운 모험이 되길 바랍니다.",
+  "@m0008": {
+    "source": "愿每一次重逢，都成为新的冒险。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0009": "PurpleMagic · 서버 계정 및 업데이트",
+  "@m0009": {
+    "source": "PurpleMagic · 本服账号与更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0010": "핵심 서비스에 연결 중",
+  "@m0010": {
+    "source": "正在连接核心",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0011": "이용 안내",
+  "@m0011": {
+    "source": "使用帮助",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0012": "아라드 모험을 시작하세요",
+  "@m0012": {
+    "source": "开启你的阿拉德之旅",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0013": "DNF.exe와 Script.pvf가 있는 클라이언트 폴더를 선택하고 업데이트를 확인한 뒤 계정과 비밀번호를 입력하세요.\n\n업데이트 전에는 게임을 종료하세요. 계정 기억 기능은 비밀번호를 저장하지 않습니다. 업데이트 주소는 서버 운영 도구에서 설정합니다.",
+  "@m0013": {
+    "source": "选择包含 DNF.exe 和 Script.pvf 的客户端目录，检查更新后输入账号密码。\n\n更新前请退出游戏。记住账号不会保存密码；更新来源由本服后台配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0014": "아라드로 돌아가서\n모험을 다시 시작하세요",
+  "@m0014": {
+    "source": "重返阿拉德\n再启冒险征程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0015": "익숙한 세계\n다시 만나기를 기다립니다",
+  "@m0015": {
+    "source": "熟悉的世界\n等待再次相遇",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0016": "준비\n여행을 시작하세요",
+  "@m0016": {
+    "source": "准备就绪\n开启你的旅程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0017": "모험은 여기서 시작됩니다.\n\n클라이언트 폴더를 선택하고 버전을 확인한 뒤 로그인하세요. 서버 공지는 아래에 표시됩니다.",
+  "@m0017": {
+    "source": "冒险从这里开始。\n\n选择配套客户端，完成版本检查后即可登录。服务器发布的公告显示在下方列表中。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0018": "아라드, 오랜만에 다시 만나요",
+  "@m0018": {
+    "source": "阿拉德，久别重逢",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0019": "종합",
+  "@m0019": {
+    "source": "综合",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0020": "업데이트",
+  "@m0020": {
+    "source": "更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0021": "가이드",
+  "@m0021": {
+    "source": "指南",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0022": "추가 공지",
+  "@m0022": {
+    "source": "更多公告",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0023": "아직 공지가 없습니다.",
+  "@m0023": {
+    "source": "暂无公告",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0024": "상단에 고정",
+  "@m0024": {
+    "source": "置顶",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0025": "아라드에 다시 오신 것을 환영합니다",
+  "@m0025": {
+    "source": "欢迎回到阿拉德",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0026": "모든 모험은 다시 시작할 가치가 있습니다",
+  "@m0026": {
+    "source": "每一段冒险，都值得重新启程",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0027": "게임 시작",
+  "@m0027": {
+    "source": "开始游戏",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0028": "회원가입",
+  "@m0028": {
+    "source": "账号注册",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0029": "비밀번호 변경",
+  "@m0029": {
+    "source": "修改密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0030": "QQ 연결",
+  "@m0030": {
+    "source": "绑定 QQ",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0031": "계정",
+  "@m0031": {
+    "source": "账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0032": "게임 계정을 입력하세요",
+  "@m0032": {
+    "source": "请输入游戏账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0033": "비밀번호",
+  "@m0033": {
+    "source": "密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0034": "비밀번호를 입력하세요",
+  "@m0034": {
+    "source": "请输入密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0035": "비밀번호 확인",
+  "@m0035": {
+    "source": "确认密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0036": "비밀번호를 다시 입력하세요",
+  "@m0036": {
+    "source": "再次输入密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0037": "계정 기억하기",
+  "@m0037": {
+    "source": "记住账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0038": "계정이 있나요? 로그인",
+  "@m0038": {
+    "source": "已有账号？去登录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0039": "계정이 없나요? 회원가입",
+  "@m0039": {
+    "source": "还没有账号？注册",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0040": "변경",
+  "@m0040": {
+    "source": "更改",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0041": "확인 중…",
+  "@m0041": {
+    "source": "正在验证…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0042": "계정 만들기",
+  "@m0042": {
+    "source": "创建账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0043": "로그인하고 게임 시작",
+  "@m0043": {
+    "source": "登录并进入游戏",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0044": "먼저 클라이언트 업데이트를 설치하세요",
+  "@m0044": {
+    "source": "请先安装客户端更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0045": "클라이언트 준비 중",
+  "@m0045": {
+    "source": "等待客户端就绪",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0046": "  ·  안티치트 보호",
+  "@m0046": {
+    "source": "  ·  反作弊保护",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0047": "런처 업데이트",
+  "@m0047": {
+    "source": "更新登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0048": "업데이트 설치",
+  "@m0048": {
+    "source": "安装更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0049": "업데이트 확인",
+  "@m0049": {
+    "source": "检查更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0050": "계속",
+  "@m0050": {
+    "source": "继续",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0051": "일시중지",
+  "@m0051": {
+    "source": "暂停",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0052": "게임 계정과 비밀번호를 입력하세요.",
+  "@m0052": {
+    "source": "请输入账号和密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0053": "두 번 입력한 비밀번호가 일치하지 않습니다",
+  "@m0053": {
+    "source": "两次输入的密码不一致",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0054": "안티치트 보호 시작",
+  "@m0054": {
+    "source": "启动反作弊保护",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0055": "이 서버에서는 게임 보호 기능을 사용합니다. 보호 도구는 Windows 관리자 권한을 요청하고 게임 파일과 설정된 프로세스 규칙을 확인합니다. 기록은 이 PC에 저장되며 자동으로 전송되지 않습니다.\n\n일반 실행에서는 보호 도구에만 관리자 권한을 부여합니다. 런처를 관리자 권한으로 실행하면 게임도 같은 권한으로 실행됩니다. 런처를 종료하거나 보호가 중단되면 게임도 종료됩니다. 창을 최소화해도 보호는 계속됩니다.\n\n동의 내역은 이 PC에 저장되어 다음에는 다시 묻지 않습니다. 관리자 권한을 요청할 때 Windows 확인 창은 계속 표시됩니다.",
+  "@m0055": {
+    "source": "本服已开启保护。辅助程序将请求 Windows 管理员授权，锁定本次游戏资源，并检查游戏模块及已配置的进程规则。记录保存在本机，不自动上传。\n\n普通启动时仅保护助手提权；以管理员身份启动登录器时，游戏沿用管理员权限。退出登录器或监护中断会结束本次游戏；最小化不受影响。\n\n同意记录保存在本机，下次不再重复提示。Windows 管理员授权仍会在提权时出现。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0056": "취소",
+  "@m0056": {
+    "source": "取消",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0057": "동의하고 계속",
+  "@m0057": {
+    "source": "同意并继续",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0058": "가입 완료",
+  "@m0058": {
+    "source": "注册成功",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0059": "계정이 생성되었습니다. 게임 시작 화면으로 이동해 로그인하세요.",
+  "@m0059": {
+    "source": "账号已创建，请切换到开始游戏并登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0060": "공지사항",
+  "@m0060": {
+    "source": "公告中心",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0061": "서버에 등록된 공지가 없습니다.",
+  "@m0061": {
+    "source": "服务器尚未发布公告。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0062": "팝업 창 닫기",
+  "@m0062": {
+    "source": "关闭弹窗",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0063": "확인",
+  "@m0063": {
+    "source": "知道了",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0064": "폴더 선택 창을 열 수 없습니다.",
+  "@m0064": {
+    "source": "无法打开目录选择器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0065": "이 PC의 게임 설정을 초기화할까요?",
+  "@m0065": {
+    "source": "重置本机游戏配置？",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0066": "DNF.cfg를 백업한 다음 초기화합니다. 게임에 저장된 계정 이름, 채널 기록, 화면 및 키 설정이 사라져 다시 설정해야 할 수 있습니다.\n\n",
+  "@m0066": {
+    "source": "将备份并重置 DNF.cfg。游戏内记住的账号名、频道记录和画面、按键等设置可能丢失，需要重新设置。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0067": "동일한 Windows 사용자의 다른 DNF 클라이언트도 이 설정을 공유할 수 있습니다. 먼저 모든 DNF 게임을 종료하세요.\n\n",
+  "@m0067": {
+    "source": "同一 Windows 用户下的其他 DNF 客户端也可能共用这份配置。请先退出所有 DNF 游戏。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0068": "서버의 계정, 캐릭터, 장비, 진행 상황은 삭제되지 않습니다. 런처에 저장된 계정과 클라이언트 폴더도 유지됩니다.",
+  "@m0068": {
+    "source": "服务器上的账号、角色、装备和进度不会删除。登录器单独记住的账号及客户端目录会保留。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0069": "백업 후 초기화",
+  "@m0069": {
+    "source": "备份并重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0070": "게임 설정을 초기화했습니다",
+  "@m0070": {
+    "source": "游戏配置已重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0071": "초기화할 설정이 없습니다",
+  "@m0071": {
+    "source": "无需重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0072": "]}\n\n복원이 필요한 경우 모든 DNF 게임을 종료하고 새 설정을 유지한 다음 이 백업을 다시 DNF.cfg로 변경하십시오. ",
+  "@m0072": {
+    "source": "]}\n\n如需恢复，请退出所有 DNF 游戏，保留新配置后，将这份备份改回 DNF.cfg。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0073": "DNF.cfg가 없어 파일을 변경하지 않았습니다. 필요한 채널 설정은 다음 로그인 때 자동으로 초기화됩니다.",
+  "@m0073": {
+    "source": "未发现 DNF.cfg，没有改动任何文件。下次登录时会自动初始化所需的频道配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0074": "게임 설정이 재설정되지 않았습니다",
+  "@m0074": {
+    "source": "游戏配置未重置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0075": "런처 설정",
+  "@m0075": {
+    "source": "登录器设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0076": "설정 닫기",
+  "@m0076": {
+    "source": "关闭设置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0077": "업데이트 서버",
+  "@m0077": {
+    "source": "更新线路",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0078": "자동 업데이트",
+  "@m0078": {
+    "source": "自动更新",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0079": "시작할 때 런처와 클라이언트 파일을 업데이트합니다. 런처가 업데이트되면 자동으로 다시 시작합니다.",
+  "@m0079": {
+    "source": "启动时更新登录器和客户端文件，登录器更新后自动重启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0080": "저사양 효과 모드",
+  "@m0080": {
+    "source": "低特效模式",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0081": "배경 흐림을 끄고 선명한 화면을 유지합니다",
+  "@m0081": {
+    "source": "关闭背景模糊，保留清晰界面",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0082": "향상된 진단 로그",
+  "@m0082": {
+    "source": "增强诊断日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0083": "사용 중 · 진단 기록 내보내기",
+  "@m0083": {
+    "source": "已开启 · 标记问题与导出片段",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0084": "문제 발생 전후 자동으로 게임을 연결하고 기록을 수집합니다",
+  "@m0084": {
+    "source": "自动关联游戏，收集问题前后记录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0085": "로컬 게임 설정",
+  "@m0085": {
+    "source": "本机游戏配置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0086": "\"채널 설정 용량이 너무 큼\"과 같은 문제가 생기면 게임 설정을 백업하고 초기화할 수 있습니다. 작업 전에 영향을 설명하고 다시 확인합니다.",
+  "@m0086": {
+    "source": "遇到“频道配置过大”等问题时，可备份并重置游戏配置。操作前会说明影响并再次确认。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0087": "백업 및 재설정 중...",
+  "@m0087": {
+    "source": "正在备份并重置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0088": "로컬 게임 설정 재설정",
+  "@m0088": {
+    "source": "重置本机游戏配置",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0089": "업데이트 및 보안",
+  "@m0089": {
+    "source": "更新与安全",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0090": "설정은 로컬에 저장됩니다. 게임 업데이트는 이 서버에서 승인한 콘텐츠 소스를 사용합니다. 계정 비밀번호는 콘텐츠 소스로 전송되지 않습니다. ",
+  "@m0090": {
+    "source": "设置会保存在本机。游戏更新使用本服批准的内容来源；账号密码不会发送到内容源。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0091": "런처 업데이트가 완료되지 않았습니다.",
+  "@m0091": {
+    "source": "登录器更新未完成",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0092": "런처를 업데이트하고 다시 시작",
+  "@m0092": {
+    "source": "更新登录器并重启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0093": "비밀번호 표시",
+  "@m0093": {
+    "source": "显示密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0094": "비밀번호 숨기기",
+  "@m0094": {
+    "source": "隐藏密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0095": "향상된 진단 로그 켜기",
+  "@m0095": {
+    "source": "开启增强诊断日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0096": "기능을 켜면 런처와 게임의 예외 코드, 호출 스택, 오류 주소, 레지스터, 메모리 페이지 속성, 모듈 버전과 해시를 수집합니다.",
+  "@m0096": {
+    "source": "开启期间会收集登录器和游戏的异常码、异常调用栈、故障地址、寄存器、内存页属性、模块版本与摘要，",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0097": "오류가 발생한 위치의 모듈 코드도 최대 64바이트까지 수집합니다. 게임 창이 활성 상태일 때는 다음 조작을 기록합니다:",
+  "@m0097": {
+    "source": "以及异常位置最多 64 字节的模块代码。还会记录游戏窗口处于前台时的玩家操作：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0098": "방향키, 키 입력 횟수, 마우스 클릭, 포인터 이동, 휠 조작, 창 포커스 변경.\n\n",
+  "@m0098": {
+    "source": "方向键、按键次数、鼠标点击、移动与滚轮活动和焦点变化。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0099": "이번 게임 실행의 캐릭터 이름과 ID, 채널, 던전, 방, 결산 단계, 연결 이벤트도 서버에서 읽어옵니다.",
+  "@m0099": {
+    "source": "还会向服务器读取本次登录的角色名与角色编号、频道、副本、房间、结算阶段和连接事件，",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0100": "문제를 찾을 수 있도록 발생 시각과 클라이언트·서버의 시각 차이도 기록합니다.\n\n",
+  "@m0100": {
+    "source": "记录发生时间及客户端与服务器的时钟偏差，方便直接定位问题。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0101": "그 밖의 키 입력은 횟수만 합산합니다. 누른 키의 내용, 채팅, 비밀번호, Token은 기록하지 않습니다.",
+  "@m0101": {
+    "source": "其他按键合并为次数，不记录按键文字、聊天内容、密码或 Token。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0102": "기록은 이 PC에만 저장하고 최근 5회분을 보관합니다. 필요하면 .log 파일로 직접 내보낼 수 있으며 자동 업로드하지 않습니다.\n\n",
+  "@m0102": {
+    "source": "日志只保存在本机，保留最近 5 次，可由你导出 .log 分享；不会自动上传。\n\n",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0103": "예외 정보를 수집할 때 게임 프로세스를 디버깅 방식으로 연결합니다. 예외가 발생하면 호출 스택을 읽는 동안 프로세스를 잠시 멈춥니다.",
+  "@m0103": {
+    "source": "异常采集会以调试方式关联游戏进程，异常发生时短暂暂停进程以读取调用栈。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0104": "권한이 부족하면 진단 권한 높이기를 선택하세요. Windows에서 UAC 확인 창이 표시됩니다.",
+  "@m0104": {
+    "source": "权限不足时可点击提升诊断权限，由 Windows 弹出 UAC 确认。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0105": "스위치를 끄거나 런처를 종료하면 기록을 중지합니다.",
+  "@m0105": {
+    "source": "关闭开关或退出登录器后停止采集。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0106": "동의하고 켜기",
+  "@m0106": {
+    "source": "同意并开启",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0107": "다른 이름으로 저장 창을 열 수 없습니다. 다시 시도하세요.",
+  "@m0107": {
+    "source": "无法打开另存为窗口，请重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0108": "진단 패널을 닫습니다",
+  "@m0108": {
+    "source": "关闭诊断面板",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0109": "향상된 진단 켜기",
+  "@m0109": {
+    "source": "开启增强诊断",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0110": "게임을 시작할 때마다 기록하고 최근 5회분을 보관합니다.",
+  "@m0110": {
+    "source": "按每次游戏启动记录，保留最近 5 次。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0111": "꺼짐",
+  "@m0111": {
+    "source": "已关闭",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0112": "예외 스택 수집에는 추가 권한이 필요합니다",
+  "@m0112": {
+    "source": "异常栈采集需要额外权限",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0113": "Windows UAC에서 허용하면 이번 게임의 예외 호출 스택을 수집합니다.",
+  "@m0113": {
+    "source": "确认 Windows UAC 后，为本次游戏采集异常栈。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0114": "진단 권한 높이기",
+  "@m0114": {
+    "source": "提升诊断权限",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0115": "예외 스택 수집기 연결 중...",
+  "@m0115": {
+    "source": "正在关联异常栈采集器…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0116": "이 게임의 예외 스택 수집이 준비되지 않았으며 기본 로그가 아직 기록 중입니다. ",
+  "@m0116": {
+    "source": "本次游戏的异常栈采集未就绪，基础日志仍在记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0117": "최근 시작 로그",
+  "@m0117": {
+    "source": "最近的启动日志",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0118": "게임을 시작하면 여기에 로그가 표시됩니다. ",
+  "@m0118": {
+    "source": "开启后启动游戏，日志会显示在这里。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0119": "내보내기",
+  "@m0119": {
+    "source": "导出",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0120": "계정과 기존 비밀번호를 입력하세요",
+  "@m0120": {
+    "source": "请输入账号和原密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0121": "새 비밀번호는 6자 이상이며 두 번 입력한 값이 같아야 합니다",
+  "@m0121": {
+    "source": "新密码至少 6 位，两次输入需一致",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0122": "작업을 완료했습니다",
+  "@m0122": {
+    "source": "操作已完成",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0123": "게임 계정",
+  "@m0123": {
+    "source": "游戏账号",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0124": "기존 비밀번호",
+  "@m0124": {
+    "source": "原密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0125": "계정 비밀번호",
+  "@m0125": {
+    "source": "账号密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0126": "새 비밀번호",
+  "@m0126": {
+    "source": "新密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0127": "새 비밀번호 확인",
+  "@m0127": {
+    "source": "确认新密码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0128": "6자리 바인딩 코드를 획득한 후 그룹에 아이테 로봇을 허용하거나 비공개 메시지로 \"/바인딩 바인딩 코드\"를 보내세요. 10분 동안 유효하며 성공하면 만료됩니다. ",
+  "@m0128": {
+    "source": "获取六位绑定码后，在允许群内艾特机器人，或私聊发送“/绑定 绑定码”。10 分钟有效，成功后失效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0129": "바인딩 코드가 만료되었습니다. 다시 받으십시오.",
+  "@m0129": {
+    "source": "绑定码已过期，请重新获取",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0130": "바인딩 명령을 복사했습니다",
+  "@m0130": {
+    "source": "绑定指令已复制",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0131": "바인딩 명령 복사",
+  "@m0131": {
+    "source": "复制绑定指令",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0132": "연속해서 3번 인증에 실패하면 시스템이 1분 동안 냉각됩니다. ",
+  "@m0132": {
+    "source": "连续验证失败 3 次，冷却 1 分钟。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0133": "수정 확인",
+  "@m0133": {
+    "source": "确认修改",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0134": "바인딩 코드 받기",
+  "@m0134": {
+    "source": "获取绑定码",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0135": "런처를 업데이트하고 있습니다. 잠시 후 다시 실행하세요.",
+  "@m0135": {
+    "source": "登录器正在更新，请稍后再打开。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0136": "런처 파일이 불완전하거나 복구에 실패했습니다. app 폴더 전체를 유지하고 완전한 배포 패키지를 다시 압축 해제하세요.",
+  "@m0136": {
+    "source": "登录器文件不完整或恢复失败。请保持 app 文件夹完整，并重新解压完整发布包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0137": "운반 케이스 목록이 유효하지 않습니다. ",
+  "@m0137": {
+    "source": "便携包清单无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0138": "use.txt\\에 대한 지침",
+  "@m0138": {
+    "source": "使用说明.txt",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0139": "휴대용 패키지에 지원되지 않는 파일이 포함되어 있습니다. ",
+  "@m0139": {
+    "source": "便携包包含不支持的文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0140": "휴대용 패키지에 실행 파일이 없습니다.",
+  "@m0140": {
+    "source": "便携包缺少运行文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0141": "휴대용 포털 파일이 손상되었습니다. 전체 휴대용 패키지를 다시 다운로드하세요. ",
+  "@m0141": {
+    "source": "便携入口文件损坏，请重新下载完整便携包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0142": "이 디렉토리는 이 이식 가능한 패키지로 생성되지 않았으며 원본 파일이 유지되었습니다. ",
+  "@m0142": {
+    "source": "该目录不是此便携包创建的，已保留原文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0143": "릴리스된 실행 파일이 불완전하여 시작이 중지되었으며 기존 업데이트 데이터를 유지합니다. ",
+  "@m0143": {
+    "source": "已释放的运行文件不完整，已停止启动并保留现有更新数据。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0144": "포터블 런처 폴더에 다른 파일이 있습니다.",
+  "@m0144": {
+    "source": "便携目录被其他文件占用。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0145": "가방 길이가 맞지 않습니다. ",
+  "@m0145": {
+    "source": "便携包长度不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0146": "휴대용 패키지 확인에 실패했습니다. 다시 다운로드하세요. ",
+  "@m0146": {
+    "source": "便携包校验失败，请重新下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0147": "휴대용 케이스 문서 목록이 일치하지 않습니다. ",
+  "@m0147": {
+    "source": "便携包文件清单不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0148": "휴대용 패키지 파일 항목이 잘못되었습니다. ",
+  "@m0148": {
+    "source": "便携包文件条目无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0149": "휴대용 패키지 파일 크기가 목록을 초과합니다. ",
+  "@m0149": {
+    "source": "便携包文件大小超出清单。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0150": "휴대용 케이스의 설치 ID가 유효하지 않습니다. ",
+  "@m0150": {
+    "source": "便携包的安装标识无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0151": "이 시작 매개변수는 지원되지 않습니다. ",
+  "@m0151": {
+    "source": "不支持此启动参数。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0152": "릴리스 패키지 유형이 잘못되었습니다. ",
+  "@m0152": {
+    "source": "发行包类型无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0153": "런처를 시작하지 못했습니다.",
+  "@m0153": {
+    "source": "登录器启动失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0154": "실행 파일을 준비하지 못했습니다. 폴더 권한, 남은 공간, 업데이트 진행 여부를 확인하세요. 기존 파일은 유지했습니다.",
+  "@m0154": {
+    "source": "运行文件无法准备，请检查本机目录权限、剩余空间及是否正在更新。原有文件已保留。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0155": "알 수 없는 런처 작업입니다.",
+  "@m0155": {
+    "source": "未知登录器操作。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0156": "서버에 연결할 수 없거나 인증서 확인에 실패했습니다. 네트워크 연결과 서버 설정을 확인하세요. ",
+  "@m0156": {
+    "source": "无法连接服务器或证书验证失败。请检查网络和后台配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0157": "파일을 읽거나 쓸 수 없습니다. 디렉터리 권한, 남은 공간, 게임 종료 여부를 확인하세요. ",
+  "@m0157": {
+    "source": "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0158": "작업이 취소되었거나 시간이 초과되었습니다. ",
+  "@m0158": {
+    "source": "操作已取消或超时。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0159": "작업이 완료되지 않았습니다. 다시 시도한 후 관리자에게 문의하세요. ",
+  "@m0159": {
+    "source": "操作未完成，请重试并联系管理员。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0160": "요청이 너무 큽니다. ",
+  "@m0160": {
+    "source": "请求过大。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0161": "요청 형식이 잘못되었습니다. ",
+  "@m0161": {
+    "source": "请求格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0162": "업데이트 경로가 잘못되었습니다. ",
+  "@m0162": {
+    "source": "更新路径无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0163": "로컬 설정을 읽는 중...",
+  "@m0163": {
+    "source": "正在读取本机设置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0164": "이 서버에서 승인된 소스",
+  "@m0164": {
+    "source": "本服批准源",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0165": "클라이언트 폴더를 자동으로 찾았습니다.",
+  "@m0165": {
+    "source": "已自动识别客户端目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0166": "클라이언트 디렉토리를 선택하고 업데이트를 확인한 후 로그인하십시오. ",
+  "@m0166": {
+    "source": "请选择客户端目录，检查更新后登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0167": "클라이언트 디렉터리가 준비되었습니다. ",
+  "@m0167": {
+    "source": "客户端目录已就绪。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0168": "리소스를 설치하거나 게임에 로그인하기 전에 런처부터 업데이트하세요.",
+  "@m0168": {
+    "source": "请先更新登录器，再安装资源或登录游戏。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0169": "준비 수신 경로가 잘못되었습니다. ",
+  "@m0169": {
+    "source": "就绪回执路径无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0170": "준비 영수증이 업데이트 거래와 일치하지 않습니다.",
+  "@m0170": {
+    "source": "就绪回执与更新事务不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0171": "진행 중인 작업이 있습니다. ",
+  "@m0171": {
+    "source": "已有操作正在进行。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0172": "런처 업데이트를 취소했습니다. 필요하면 직접 다시 시도하세요.",
+  "@m0172": {
+    "source": "登录器更新已取消，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0173": "런처 업데이트가 완료되지 않았습니다. 안내를 확인하세요.",
+  "@m0173": {
+    "source": "登录器更新未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0174": "아직 런처 업데이트가 배포되지 않았습니다.",
+  "@m0174": {
+    "source": "尚未发布登录器更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0175": "최신 런처를 사용 중입니다.",
+  "@m0175": {
+    "source": "当前登录器已是最新版本。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0176": "전체 설치 폴더에서 런처를 실행하세요.",
+  "@m0176": {
+    "source": "请从完整安装目录启动登录器。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0177": "런처의 부모 프로세스가 일치하지 않습니다.",
+  "@m0177": {
+    "source": "登录器父进程不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0178": "런처 전체 업데이트 패키지를 다운로드하고 있습니다…",
+  "@m0178": {
+    "source": "正在下载登录器完整更新包…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0179": "업데이트 도우미를 시작하지 못했습니다. ",
+  "@m0179": {
+    "source": "更新助手启动失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0180": "런처 업데이트 준비가 끝났습니다. 다시 시작합니다…",
+  "@m0180": {
+    "source": "登录器更新已准备完成，正在重启…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0181": "자동 업데이트가 일시중지되었습니다. 수동으로 다시 시도할 수 있습니다. ",
+  "@m0181": {
+    "source": "自动更新已暂停，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0182": "자동 업데이트가 완료되지 않았으므로 수동으로 다시 시도할 수 있습니다. ",
+  "@m0182": {
+    "source": "自动更新未完成，可手动重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0183": "현재 작업이 완료된 후 설정을 수정하세요. ",
+  "@m0183": {
+    "source": "当前操作完成后再修改设置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0184": "진단 문제 유형이 잘못되었습니다. ",
+  "@m0184": {
+    "source": "诊断问题类型无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0185": "먼저 예외 스택 및 게임 운영 수집 지침을 읽고 동의하시기 바랍니다.",
+  "@m0185": {
+    "source": "请先阅读并同意异常栈与游戏操作采集说明。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0186": "설정 내용이 너무 깁니다. ",
+  "@m0186": {
+    "source": "设置内容过长。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0187": "설정이 저장되었습니다. ",
+  "@m0187": {
+    "source": "设置已保存。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0188": "먼저 로컬 게임 설정을 재설정했는지 확인하세요. ",
+  "@m0188": {
+    "source": "请先确认重置本机游戏配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0189": "현재 작업이 완료된 후 게임 설정을 재설정하세요. ",
+  "@m0189": {
+    "source": "当前操作完成后再重置游戏配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0190": "로컬 게임 설정 백업 및 재설정 중...",
+  "@m0190": {
+    "source": "正在备份并重置本机游戏配置…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0191": "로컬 게임 설정이 백업 및 재설정되었습니다. 다시 로그인해 주세요. ",
+  "@m0191": {
+    "source": "本机游戏配置已备份并重置，请重新登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0192": "기본 게임 설정을 찾을 수 없습니다. 재설정할 필요가 없습니다. ",
+  "@m0192": {
+    "source": "未发现本机游戏配置，无需重置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0193": "게임 설정이 재설정되지 않았습니다. 메시지를 확인하세요. ",
+  "@m0193": {
+    "source": "游戏配置未重置，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0194": "확인이 완료되지 않았습니다. 다시 시도하거나 오류 안내를 확인하세요.",
+  "@m0194": {
+    "source": "检查未完成，可重试或查看错误提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0195": "이 서버의 서명 릴리스 정보를 읽는 중...",
+  "@m0195": {
+    "source": "正在读取本服签名发布信息…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0196": "서버 업데이트 기능이 아직 배포되지 않았습니다. 로그인에는 이 서버와 호환되는 기존 설정을 사용합니다. ",
+  "@m0196": {
+    "source": "后台更新服务尚未部署；登录使用现有本服兼容配置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0197": "배포 데이터가 제한을 초과했습니다.",
+  "@m0197": {
+    "source": "发布数据超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0198": "배포 정보를 확인했습니다.",
+  "@m0198": {
+    "source": "发布信息已验证。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0199": "배포 정보가 갱신되었습니다. 클라이언트 폴더를 선택하세요.",
+  "@m0199": {
+    "source": "发布信息已更新，请先选择客户端目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0200": "클라이언트 리소스 확인 중...",
+  "@m0200": {
+    "source": "正在校验客户端资源…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0201": "클라이언트 리소스가 이 서버의 승인된 버전과 일치합니다. ",
+  "@m0201": {
+    "source": "客户端资源与本服批准版本一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0202": "업데이트된 {plan.Length} 파일이 발견되었습니다. 업데이트 설치를 클릭하세요. ",
+  "@m0202": {
+    "source": "发现 {plan.Length} 个待更新文件，请点击安装更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0203": "클라이언트 호환성 확인을 통과했습니다. 리소스 업데이트가 아직 백그라운드에서 릴리스되지 않았습니다. ",
+  "@m0203": {
+    "source": "客户端兼容校验通过；后台尚未发布资源更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0204": "다운로드가 일시중지되었습니다. 계속을 클릭하면 다운로드된 중단점이 유지됩니다. ",
+  "@m0204": {
+    "source": "下载已暂停，点击继续会保留已下载的断点。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0205": "업데이트가 완료되지 않았으며 현재 버전과 복구 가능한 기록이 유지되었습니다. ",
+  "@m0205": {
+    "source": "更新未完成，已保留当前版本与可恢复记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0206": "다운로드 중 ",
+  "@m0206": {
+    "source": "正在下载 ",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0207": "업데이트 제출 중, 복구 기록 보관 중...",
+  "@m0207": {
+    "source": "正在提交更新，保留恢复记录…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0208": "업데이트를 마쳤습니다. 클라이언트 리소스의 이중 해시 검증을 통과했습니다.",
+  "@m0208": {
+    "source": "更新完成，客户端资源已通过双重摘要校验。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0209": "이 런처에서는 QQ 연동을 사용할 수 없습니다.",
+  "@m0209": {
+    "source": "此登录器未启用 QQ 绑定功能。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0210": "서버 계정 등록 중...",
+  "@m0210": {
+    "source": "正在注册本服账号…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0211": "등록이 완료되었습니다. 로그인하세요. ",
+  "@m0211": {
+    "source": "注册成功，请登录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0212": "등록이 완료되지 않았습니다. 메시지를 확인하세요. ",
+  "@m0212": {
+    "source": "注册未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0213": "클라이언트 및 서버 버전 확인 중...",
+  "@m0213": {
+    "source": "正在验证客户端与本服版本…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0214": "먼저 클라이언트 리소스 업데이트를 완료하세요. ",
+  "@m0214": {
+    "source": "请先完成客户端资源更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0215": "길드 호환성 패치가 적용되었으며 원본 클라이언트가 백업되었습니다.",
+  "@m0215": {
+    "source": "公会兼容补丁已应用，原版客户端已备份。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0216": "이 계정은 이미 활성화되었습니다. 다른 계정을 사용해 주세요. ",
+  "@m0216": {
+    "source": "该账号已经启动，请使用另一个账号。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0217": "로그인이 종료되었습니다. ",
+  "@m0217": {
+    "source": "登录器已关闭。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0218": "안티치트 보호를 위해 관리자 권한을 요청하고 있습니다. 런처를 종료하면 게임도 종료됩니다…",
+  "@m0218": {
+    "source": "正在请求管理员授权以启动反作弊保护；退出登录器将结束本次游戏…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0219": "AC00: 이 서버는 안티치트 보호가 필요합니다. 안티치트 배포 패키지를 사용하세요. ",
+  "@m0219": {
+    "source": "AC00：本服已要求反作弊保护，请使用 anticheat 发行包。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0220": "계정 확인 중...",
+  "@m0220": {
+    "source": "正在验证账号…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0221": "최대 2개의 게임 클라이언트를 동시에 실행합니다. ",
+  "@m0221": {
+    "source": "最多同时运行两个游戏客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0222": "게임 프로세스 생성에 실패했습니다. ",
+  "@m0222": {
+    "source": "游戏进程创建失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0223": "게임 프로세스가 생성되었으며 클라이언트가 시작되기를 기다리고 있습니다...",
+  "@m0223": {
+    "source": "游戏进程已创建，正在等待客户端启动…",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0224": "클라이언트가 일찍 종료되었습니다(코드 {game.ExitCode}). 20초 정도 기다린 후 다시 시도하세요. ",
+  "@m0224": {
+    "source": "客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0225": "클라이언트가 실행 중입니다. ",
+  "@m0225": {
+    "source": " 客户端正在运行。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0226": "로그인이 완료되지 않았습니다. 메시지를 확인하세요. ",
+  "@m0226": {
+    "source": "登录未完成，请查看提示。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0227": "계정 또는 비밀번호 길이가 유효하지 않습니다. ",
+  "@m0227": {
+    "source": "账号或密码长度无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0228": "파일을 업데이트하거나 복원하기 전에 모든 게임 클라이언트를 종료하십시오. ",
+  "@m0228": {
+    "source": "更新或恢复文件前请退出所有游戏客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0229": "런처 업데이트 해시가 일치하지 않습니다.",
+  "@m0229": {
+    "source": "登录器更新摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0230": "런처 다운로드가 완료되지 않았습니다. 다시 시도할 수 있습니다.",
+  "@m0230": {
+    "source": "登录器下载未完成，可重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0231": "런처 업데이트 응답 검증에 실패해 임시 파일을 삭제했습니다.",
+  "@m0231": {
+    "source": "登录器更新响应未通过校验，已丢弃临时文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0232": "런처 다운로드를 취소했습니다. 이어서 받을 수 있습니다.",
+  "@m0232": {
+    "source": "登录器下载已取消，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0233": "런처 다운로드 시간이 초과되었습니다. 이어서 받을 수 있습니다.",
+  "@m0233": {
+    "source": "登录器下载超时，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0234": "런처 다운로드 연결에 실패했습니다. 이어서 받을 수 있습니다.",
+  "@m0234": {
+    "source": "登录器下载连接失败，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0235": "런처 다운로드가 완료되지 않았습니다. 이어서 받을 수 있습니다.",
+  "@m0235": {
+    "source": "登录器下载未完成，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0236": "리소스 다운로드 ID가 잘못되었습니다. ",
+  "@m0236": {
+    "source": "资源下载身份无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0237": "리소스 해시가 일치하지 않습니다.",
+  "@m0237": {
+    "source": "资源摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0238": "리소스 다운로드가 확인에 실패하여 임시 파일이 삭제되었습니다. ",
+  "@m0238": {
+    "source": "资源下载未通过校验，已丢弃临时文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0239": "리소스 다운로드 연결에 실패했습니다. 계속 다운로드할 수 있습니다. ",
+  "@m0239": {
+    "source": "资源下载连接失败，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0240": "리소스 다운로드가 중단되었으며 계속할 수 있습니다. ",
+  "@m0240": {
+    "source": "资源下载中断，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0241": "런처 패키지 정보가 올바르지 않습니다.",
+  "@m0241": {
+    "source": "登录器包信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0242": "런처 패키지는 신뢰된 게이트웨이의 콘텐츠 주소를 사용해야 합니다.",
+  "@m0242": {
+    "source": "登录器包必须使用受信网关的内容寻址地址。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0243": "런처 다운로드 리디렉션 주소가 허용되지 않습니다.",
+  "@m0243": {
+    "source": "登录器下载跳转地址不允许。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0244": "런처 다운로드 리디렉션이 반복됩니다.",
+  "@m0244": {
+    "source": "登录器下载跳转循环。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0245": "런처 다운로드 리디렉션이 올바르지 않거나 허용 횟수를 초과했습니다.",
+  "@m0245": {
+    "source": "登录器下载跳转无效或超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0246": "런처 다운로드 재개 범위가 일치하지 않습니다.",
+  "@m0246": {
+    "source": "登录器下载断点范围不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0247": "전체 응답에는 중단점 범위가 포함됩니다. ",
+  "@m0247": {
+    "source": "完整响应包含断点范围。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0248": "런처 다운로드 원본을 일시적으로 사용할 수 없습니다.",
+  "@m0248": {
+    "source": "登录器下载源暂不可用。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0249": "런처 다운로드 인코딩 또는 길이가 일치하지 않습니다.",
+  "@m0249": {
+    "source": "登录器下载编码或长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0250": "런처 업데이트 파일이 서명된 크기를 초과했습니다.",
+  "@m0250": {
+    "source": "登录器更新负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0251": "런처 다운로드가 중단되었습니다.",
+  "@m0251": {
+    "source": "登录器下载中断。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0252": "게임 설정 경로가 파일이 아닙니다. ",
+  "@m0252": {
+    "source": "游戏配置路径不是文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0253": "업데이트 복구 기록이 잘못되었습니다. ",
+  "@m0253": {
+    "source": "更新恢复记录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0254": "업데이트 복구 단계가 잘못되었습니다. ",
+  "@m0254": {
+    "source": "更新恢复阶段无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0255": "먼저 이전 업데이트를 복원해야 합니다. ",
+  "@m0255": {
+    "source": "需要先恢复之前的更新。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0256": "준비 또는 백업 상태가 잘못되었습니다. ",
+  "@m0256": {
+    "source": "暂存或备份状态无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0257": "게임 프로세스의 정체성이 변경되었습니다. ",
+  "@m0257": {
+    "source": "游戏进程身份已变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0258": "게임 모듈 ID가 유효하지 않습니다. ",
+  "@m0258": {
+    "source": "游戏模块身份无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0259": "게임 모듈 형식이 일치하지 않습니다. ",
+  "@m0259": {
+    "source": "游戏模块格式不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0260": "로그 번호가 잘못되었습니다.",
+  "@m0260": {
+    "source": "日志编号无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0261": "로그 인덱스가 잘못되었습니다. ",
+  "@m0261": {
+    "source": "日志索引无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0262": "이전 형식의 로그가 보관되었습니다. 새 로그 번호를 사용하세요. ",
+  "@m0262": {
+    "source": "旧格式日志已封存，请使用新日志编号。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0263": "로그 파일 길이가 일치하지 않습니다. ",
+  "@m0263": {
+    "source": "日志文件长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0264": "로깅이 잘못되었습니다. ",
+  "@m0264": {
+    "source": "日志记录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0265": "로그 세션 불일치. ",
+  "@m0265": {
+    "source": "日志会话不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0266": "로깅 버전이 일치하지 않습니다. ",
+  "@m0266": {
+    "source": "日志记录版本不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0267": "이 로그는 삭제되었습니다. 가장 최근 로그를 선택하세요. ",
+  "@m0267": {
+    "source": "这份日志已清理，请选择最近的日志。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0268": ".log 파일로 저장하세요. ",
+  "@m0268": {
+    "source": "请保存为 .log 文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0269": "로그 저장 영역이 아닌 다른 저장 위치를 선택해 주세요. ",
+  "@m0269": {
+    "source": "请选择日志存储区以外的保存位置。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0270": "로깅이 불완전합니다. ",
+  "@m0270": {
+    "source": "日志记录不完整。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0271": "진단이 끝났습니다. ",
+  "@m0271": {
+    "source": "诊断已结束。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0272": "진단 작업이 대기 중입니다. 나중에 다시 시도해 주세요. ",
+  "@m0272": {
+    "source": "诊断操作正在排队，请稍后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0273": "이번 실행에는 진단 권한을 높일 필요가 없습니다.",
+  "@m0273": {
+    "source": "此启动无需提升诊断权限。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0274": "내보내는 중입니다. 잠시 기다려 주세요. ",
+  "@m0274": {
+    "source": "正在导出，请稍候。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0275": "아직 로그가 작성되지 않았습니다. 저장 위치를 확인하신 후 다시 시도해 주세요.",
+  "@m0275": {
+    "source": "日志尚未写入，请检查保存位置后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0276": "로깅 예외:",
+  "@m0276": {
+    "source": "日志记录异常：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0277": "이 시작을 기록",
+  "@m0277": {
+    "source": "正在记录本次启动",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0278": "게임 버전 로드 중",
+  "@m0278": {
+    "source": "正在读取游戏版本",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0279": "게임이 시작되기를 기다리는 중",
+  "@m0279": {
+    "source": "等待游戏启动",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0280": "배포 매니페스트가 허용 크기를 초과했습니다.",
+  "@m0280": {
+    "source": "发布清单超过限制。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0281": "배포 매니페스트가 올바르지 않습니다.",
+  "@m0281": {
+    "source": "发布清单无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0282": "이 서버의 배포 서명이 일치하지 않습니다.",
+  "@m0282": {
+    "source": "本服发布签名不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0283": "배포 제품, 형식 또는 일련번호가 올바르지 않습니다.",
+  "@m0283": {
+    "source": "发布产品、格式或序号无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0284": "계정 접속 주소 또는 신뢰 루트가 허용되지 않은 방식으로 변경되었습니다.",
+  "@m0284": {
+    "source": "账号入口或信任根发生不允许的变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0285": "최소 런처 버전이 올바르지 않습니다.",
+  "@m0285": {
+    "source": "最低登录器版本无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0286": "채널 호환성 체계 ID가 잘못되었습니다. ",
+  "@m0286": {
+    "source": "频道兼容方案标识无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0287": "콘텐츠 원본 설정이 올바르지 않습니다.",
+  "@m0287": {
+    "source": "内容源配置无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0288": "콘텐츠 파일 경로, 크기 또는 형식이 잘못되었습니다. ",
+  "@m0288": {
+    "source": "内容文件路径、大小或格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0289": "압축 파일 정보가 잘못되었습니다. ",
+  "@m0289": {
+    "source": "压缩文件信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0290": "콘텐츠가 이 서버의 EXE/PVF 호환 지문과 일치하지 않습니다.",
+  "@m0290": {
+    "source": "内容与本服 EXE/PVF 兼容指纹不一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0291": "런처 배포 정보가 올바르지 않습니다.",
+  "@m0291": {
+    "source": "登录器发布信息无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0292": "배포 일련번호가 이전 값보다 낮거나 같은 일련번호의 콘텐츠가 변경되었습니다.",
+  "@m0292": {
+    "source": "发布序号倒退或同序号内容发生变化。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0293": "콘텐츠 원본 일련번호가 이전 값보다 낮거나 콘텐츠가 충돌합니다.",
+  "@m0293": {
+    "source": "内容源序号倒退或内容冲突。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0294": "클라이언트 리소스 확인(실제 파일 내용을 기준으로만 다운로드)",
+  "@m0294": {
+    "source": "客户端资源检查（只按实际文件内容决定下载）",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0295": "디렉토리:",
+  "@m0295": {
+    "source": "目录：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0296": "버전:",
+  "@m0296": {
+    "source": "版本：",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0297": "파일\t검사 결과\t로컬 크기\t예상 크기\t로컬 SHA-256\t예상 SHA-256",
+  "@m0297": {
+    "source": "文件\t检查结果\t本地字节\t预期字节\t本地SHA256\t预期SHA256",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0298": "일치함 · 다운로드 불필요",
+  "@m0298": {
+    "source": "一致，无需下载",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0299": "파일 누락",
+  "@m0299": {
+    "source": "文件缺失",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0300": "파일 크기가 다릅니다",
+  "@m0300": {
+    "source": "文件大小不同",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0301": "파일 해시가 다릅니다",
+  "@m0301": {
+    "source": "文件摘要不同",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0302": "기준 파일이 없거나 일치하지 않습니다: {file.Path}. 호환되는 전체 클라이언트를 사용하세요.",
+  "@m0302": {
+    "source": "缺少或不匹配的基线文件：{file.Path}。请使用配套完整客户端。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0303": "다운로드 필요: {result.Count}개, {result.Sum(TransferSize)}바이트(압축 전송 크기).",
+  "@m0303": {
+    "source": "需要下载：{result.Count} 项，{result.Sum(TransferSize)} 字节（压缩传输量）。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0304": "다운로드 원본이 잘못된 재개 범위를 반환했습니다.",
+  "@m0304": {
+    "source": "下载来源返回了错误的断点范围。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0305": "업데이트 다운로드 요청이 실패했습니다. 나중에 다시 시도해 주세요.",
+  "@m0305": {
+    "source": "更新下载请求失败，请稍后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0306": "다운로드 크기가 서명된 매니페스트와 일치하지 않습니다.",
+  "@m0306": {
+    "source": "下载长度与签名清单不一致。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0307": "업데이트 파일이 서명된 크기를 초과했습니다.",
+  "@m0307": {
+    "source": "更新负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0308": "다운로드가 중단되었습니다. 이어서 받을 수 있습니다.",
+  "@m0308": {
+    "source": "下载中断，可继续下载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0309": "다운로드 해시가 일치하지 않아 손상된 파일을 삭제했습니다.",
+  "@m0309": {
+    "source": "下载摘要不匹配，已丢弃损坏负载。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0310": "압축 해제된 파일이 서명된 크기를 초과했습니다.",
+  "@m0310": {
+    "source": "解压负载超过签名大小。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0311": "압축 해제 후 파일 크기가 일치하지 않습니다.",
+  "@m0311": {
+    "source": "解压后文件长度不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0312": "압축 해제 후 파일 해시가 일치하지 않습니다.",
+  "@m0312": {
+    "source": "解压后文件摘要不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0313": "런처 프로세스가 아직 완전히 종료되지 않았습니다.",
+  "@m0313": {
+    "source": "登录器进程尚未完全退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0314": "실행 폴더를 사용 중인 런처가 있습니다. 런처 창을 모두 닫고 다시 시도하세요.",
+  "@m0314": {
+    "source": "还有登录器进程使用运行目录，请关闭所有登录器窗口后重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0315": "실행 중인 파일이 다른 프로세스에 의해 사용되고 있습니다.",
+  "@m0315": {
+    "source": "运行文件被其他进程占用",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0316": "실행 폴더 접근이 거부되었습니다.",
+  "@m0316": {
+    "source": "运行目录访问被拒绝",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0317": "디스크 공간이 부족합니다",
+  "@m0317": {
+    "source": "磁盘空间不足",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0318": "이전 버전에서 기록되지 않은 파일 작업 오류입니다.",
+  "@m0318": {
+    "source": "旧版未记录具体原因的文件操作失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0319": "파일 작업이 실패했습니다",
+  "@m0319": {
+    "source": "文件操作失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0320": "새 런처의 시작 확인에 실패했습니다.",
+  "@m0320": {
+    "source": "新登录器启动检查失败",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0321": "(Windows 오류 {outcome.NativeError})",
+  "@m0321": {
+    "source": "（Windows 错误 {outcome.NativeError}）",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0322": "이전 런처 업데이트 실패: {detail}{code} 기존 버전은 유지했습니다. \"런처 업데이트\"를 눌러 다시 시도하세요.",
+  "@m0322": {
+    "source": "上次登录器更新失败：{detail}{code}，已保留旧版。点击“更新登录器”重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0323": "현재 폴더는 런처 전체 업데이트를 지원하는 설치 위치가 아닙니다.",
+  "@m0323": {
+    "source": "当前不是支持整体更新的登录器安装目录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0324": "런처 업데이트 패키지의 파일 개수가 올바르지 않습니다.",
+  "@m0324": {
+    "source": "登录器更新包文件数无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0325": "런처 패키지에 중복 경로, 링크 또는 지나치게 큰 파일이 포함되어 있습니다.",
+  "@m0325": {
+    "source": "登录器包包含重复路径、链接或超大文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0326": "런처 패키지에 필요한 파일이 없습니다.",
+  "@m0326": {
+    "source": "登录器包缺少必要文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0327": "업데이트 패키지 프로그램 형식이 잘못되었습니다. ",
+  "@m0327": {
+    "source": "更新包程序格式无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0328": "업데이트 트랜잭션 디렉터리가 잘못되었습니다. ",
+  "@m0328": {
+    "source": "更新事务目录无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0329": "런처 배포 정보가 없습니다.",
+  "@m0329": {
+    "source": "缺少登录器发布信息。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0330": "런처 패키지 해시가 일치하지 않습니다.",
+  "@m0330": {
+    "source": "登录器包摘要不符。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0331": "새 런처가 준비 완료 응답을 보내지 않았습니다.",
+  "@m0331": {
+    "source": "新登录器未返回就绪回执。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0332": "보호 업데이트 패키지에 빌드 ID가 없습니다. ",
+  "@m0332": {
+    "source": "保护更新包缺少构建标识。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0333": "빌드 ID가 너무 큽니다. ",
+  "@m0333": {
+    "source": "构建标识过大。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0334": "패키지 빌드 ID 불일치를 업데이트합니다. ",
+  "@m0334": {
+    "source": "更新包构建标识不匹配。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0335": "진단 로그(*.log)",
+  "@m0335": {
+    "source": "诊断日志 (*.log)",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0336": "PurpleMagic — 다른 이름으로 로그 저장",
+  "@m0336": {
+    "source": "PurpleMagic — 日志另存为",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0337": "PurpleMagic — DNF.exe와 Script.pvf가 있는 클라이언트 폴더 선택",
+  "@m0337": {
+    "source": "PurpleMagic — 选择包含 DNF.exe 和 Script.pvf 的客户端目录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0338": "이 폴더 선택",
+  "@m0338": {
+    "source": "选择此目录",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0339": "PurpleMagic — 런처 복구 클릭",
+  "@m0339": {
+    "source": "PurpleMagic — 点击恢复登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0340": "선택한 위치를 읽을 수 없습니다. 다시 시도해 주세요. ",
+  "@m0340": {
+    "source": "无法读取所选位置，请重试。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0341": "런처 열기",
+  "@m0341": {
+    "source": "打开登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0342": "런처 종료",
+  "@m0342": {
+    "source": "退出登录器",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0343": "가드 메시지 길이가 잘못되었습니다. ",
+  "@m0343": {
+    "source": "监护消息长度无效。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0344": "보호 파일 검증에 실패했습니다.",
+  "@m0344": {
+    "source": "保护文件校验失败。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0345": "AC02: 관리자 권한이 취소되어 보호 모드에서 게임이 시작되지 않습니다. ",
+  "@m0345": {
+    "source": "AC02：已取消管理员授权，保护模式下未启动游戏。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0346": "AC03: 보호 도우미가 준비되지 않았습니다. 관리자 인증 및 보호 파일을 확인하세요. ",
+  "@m0346": {
+    "source": "AC03：保护助手未就绪，请检查管理员授权和保护文件。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0347": "AC04: 보호 도우미가 종료되었습니다.",
+  "@m0347": {
+    "source": "AC04：保护助手已退出。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0348": "AC05: 게임 보호 연결에 실패하여 시작이 종료되었습니다. ",
+  "@m0348": {
+    "source": "AC05：游戏保护关联失败，已结束本次启动。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0349": "AC06: 안티치트 규칙에 감지되어 게임을 중단했습니다. 자세한 내용은 이 PC의 보호 기록을 확인하세요.",
+  "@m0349": {
+    "source": "AC06：命中反作弊规则，本次游戏已停止。详情见本机保护记录。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0350": "AC07: 안티치트 감시가 종료되어 게임을 닫았습니다.",
+  "@m0350": {
+    "source": "AC07：反作弊监护已结束，本次游戏随之关闭。",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "@m0351": {
+    "source": "语言",
+    "description": "PurpleMagic launcher UI text."
+  },
+  "m0351": "언어"
+}

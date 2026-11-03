@@ -1,3 +1,4 @@
+import { getLocale, t } from "../i18n.ts";
 import type {
   Account,
   Character,
@@ -1001,10 +1002,10 @@ export class ConsoleAPI {
           scopeLabel: v.scope === "account" ? "每账号一次" : "每角色一次",
           rewardSummary: [
             v.reward.cera
-              ? `点券 ${Number(v.reward.cera).toLocaleString()}`
+              ? `点券 ${Number(v.reward.cera).toLocaleString(getLocale())}`
               : "",
             v.reward.gold
-              ? `金币 ${Number(v.reward.gold).toLocaleString()}`
+              ? `金币 ${Number(v.reward.gold).toLocaleString(getLocale())}`
               : "",
             ...(v.reward.attachments || []).map(
               (a: DTO) => `${v.itemName || a.name || a.itemId} × ${a.count}`,
@@ -1045,8 +1046,8 @@ export class ConsoleAPI {
         (data || []).map((v) => ({
           id: v.id,
           kind: "mail",
-          target: `${v.total} 个角色`,
-          summary: `${v.reward.title} · 已发 ${v.sent} / ${v.total}${v.failed ? ` · 失败 ${v.failed}` : ""} · ${v.state === "preview" ? "待确认" : v.state === "completed" ? "已完成" : v.state === "failed" ? "待重试" : "处理中"}`,
+          target: `${v.total}${t("个角色")}`,
+          summary: `${v.reward.title} · ${t("已发")} ${v.sent} / ${v.total}${v.failed ? ` · ${t("失败")} ${v.failed}` : ""} · ${t(v.state === "preview" ? "待确认" : v.state === "completed" ? "已完成" : v.state === "failed" ? "待重试" : "处理中")}`,
           at: v.createdAt,
           details: v,
         })),
@@ -1093,8 +1094,8 @@ export class ConsoleAPI {
           rows.push({
             id: `${label}:${v.requestId}`,
             kind: v.kind || label,
-            target: label,
-            summary: `${label} · ${v.reason || "管理操作"}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : ""}`,
+            target: t(label),
+            summary: `${t(label)} · ${v.reason || t("管理操作")}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : ""}`,
             at: v.createdAt,
             details: v,
           });

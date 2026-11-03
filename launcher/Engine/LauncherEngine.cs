@@ -46,6 +46,11 @@ public sealed class LauncherEngine : IDisposable
 #endif
         var file = Path.Combine(stateRoot, "preferences.json");
         if (File.Exists(file)) preferences = JsonSerializer.Deserialize(File.ReadAllBytes(file), WireJson.Default.Preferences) ?? new();
+        if (preferences.Language is not ("auto" or "ko-KR" or "zh-CN"))
+        {
+            preferences = preferences with { Language = "auto" };
+            SafeFiles.Atomic(file, JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
+        }
         if (preferences.Diagnostics is { Enabled: true, HasConsent: false } legacy) {
             preferences = preferences with { Diagnostics = legacy with { Enabled = false } };
             SafeFiles.Atomic(file, JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
@@ -168,6 +173,7 @@ public sealed class LauncherEngine : IDisposable
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("当前操作完成后再修改设置。");
         try
         {
+            if (value.Language is not ("auto" or "ko-KR" or "zh-CN")) throw new InvalidDataException("语言设置无效。");
             if (value.Diagnostics?.ProblemType is not (null or "auto" or "quests" or "interaction" or "connection" or "performance")) throw new InvalidDataException("诊断问题类型无效。");
             if (value.Diagnostics is { Enabled: true, HasConsent: false }) throw new InvalidOperationException("请先阅读并同意异常栈与游戏操作采集说明。");
             if (value.Account.Length > 64 || value.ClientDirectory.Length > 1000) throw new InvalidDataException("设置内容过长。");

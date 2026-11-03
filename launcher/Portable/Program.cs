@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Dnf90.Portable;
@@ -36,8 +37,11 @@ try
 }
 catch (Exception error)
 {
-    var message = error is InvalidDataException or InvalidOperationException ? error.Message :
-        "运行文件无法准备，请检查本机目录权限、剩余空间及是否正在更新。原有文件已保留。";
+    var korean = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ko";
+    var message = korean
+        ? PortableMessages.Korean.GetValueOrDefault(error.Message, "실행 파일을 준비하지 못했습니다. 이 PC의 폴더 권한과 남은 공간을 확인한 뒤 다시 시도하세요. 기존 파일은 보존했습니다.")
+        : error is InvalidDataException or InvalidOperationException ? error.Message :
+            "运行文件无法准备，请检查本机目录权限、剩余空间及是否正在更新。原有文件已保留。";
     if (prepareOnly)
     {
         using var stderr = Console.OpenStandardError();
@@ -45,6 +49,29 @@ catch (Exception error)
     }
     else Native.MessageBox(IntPtr.Zero, message, "PurpleMagic", 0x10);
     return 2;
+}
+
+internal static class PortableMessages
+{
+    internal static readonly IReadOnlyDictionary<string, string> Korean = new Dictionary<string, string>
+    {
+        ["不支持此启动参数。"] = "지원하지 않는 실행 옵션입니다.",
+        ["发行包类型无效。"] = "배포 패키지 유형이 올바르지 않습니다.",
+        ["登录器启动失败。"] = "런처를 시작하지 못했습니다.",
+        ["便携包清单无效。"] = "포터블 패키지 목록이 올바르지 않습니다.",
+        ["便携包包含不支持的文件。"] = "포터블 패키지에 지원하지 않는 파일이 들어 있습니다.",
+        ["便携包缺少运行文件。"] = "포터블 패키지에 필요한 실행 파일이 없습니다.",
+        ["便携入口文件损坏，请重新下载完整便携包。"] = "포터블 실행 파일이 손상되었습니다. 패키지 전체를 다시 다운로드하세요.",
+        ["该目录不是此便携包创建的，已保留原文件。"] = "이 폴더는 포터블 패키지가 만든 폴더가 아닙니다. 기존 파일을 보존했습니다.",
+        ["已释放的运行文件不完整，已停止启动并保留现有更新数据。"] = "압축을 푼 실행 파일이 완전하지 않아 실행을 중단했습니다. 기존 업데이트 데이터는 보존했습니다.",
+        ["便携目录被其他文件占用。"] = "포터블 폴더에 다른 파일이 있어 사용할 수 없습니다.",
+        ["便携包长度不符。"] = "포터블 패키지 크기가 올바르지 않습니다.",
+        ["便携包校验失败，请重新下载。"] = "포터블 패키지 검증에 실패했습니다. 다시 다운로드하세요.",
+        ["便携包文件清单不符。"] = "포터블 패키지의 파일 목록이 일치하지 않습니다.",
+        ["便携包文件条目无效。"] = "포터블 패키지의 파일 항목이 올바르지 않습니다.",
+        ["便携包文件大小超出清单。"] = "포터블 패키지의 파일 크기가 목록에 지정된 값을 초과합니다.",
+        ["便携包的安装标识无效。"] = "포터블 패키지 설치 정보가 올바르지 않습니다."
+    };
 }
 
 internal static partial class Native

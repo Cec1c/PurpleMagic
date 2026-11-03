@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useState } from "react";
 import { useLive } from "../api/context";
 import { LoadMore } from "../api/controls";
@@ -12,7 +13,7 @@ export function QueryPage(props: PageProps) {
       {live && (
         <div className="section-tabs">
           <Tabs
-            label="查询范围"
+            label={t("查询范围")}
             items={[
               { id: "players", label: "账号与角色" },
               { id: "items", label: "PVF 物品库" },
@@ -60,20 +61,20 @@ export function ItemLibrary({ state }: PageProps) {
     <>
       <div className="toolbar">
         <SearchField
-          placeholder="搜索 PVF 物品名称或 ID"
+          placeholder={t("搜索 PVF 物品名称或 ID")}
           value={q}
           onChange={setQ}
         />
         <select
-          aria-label="物品类型"
+          aria-label={t("物品类型")}
           value={kind}
           onChange={(e) => setKind(e.target.value)}
         >
-          <option value="">全部类型</option>
-          <option value="equipment">装备</option>
-          <option value="stackable">可堆叠物品</option>
+          <option value="">{t("全部类型")}</option>
+          <option value="equipment">{t("装备")}</option>
+          <option value="stackable">{t("可堆叠物品")}</option>
         </select>
-        <span className="muted">{library?.total ?? 0} 个物品</span>
+        <span className="muted">{library?.total ?? 0} {t("个物品")}</span>
         <button
           className="secondary"
           onClick={() => {
@@ -81,7 +82,7 @@ export function ItemLibrary({ state }: PageProps) {
             void live.guard(() => live.library(q, kind));
           }}
         >
-          刷新
+          {t("刷新")}
         </button>
       </div>
       <div className="table-panel glass">
@@ -89,11 +90,11 @@ export function ItemLibrary({ state }: PageProps) {
           <table>
             <thead>
               <tr>
-                <th>物品</th>
-                <th>类型</th>
-                <th>品级</th>
-                <th>等级</th>
-                <th>叠加上限</th>
+                <th>{t("物品")}</th>
+                <th>{t("类型")}</th>
+                <th>{t("品级")}</th>
+                <th>{t("等级")}</th>
+                <th>{t("叠加上限")}</th>
               </tr>
             </thead>
             <tbody>
@@ -111,12 +112,12 @@ export function ItemLibrary({ state }: PageProps) {
                     </button>
                     <small className="cell-meta">
                       #{v.itemId}
-                      {v.invalid ? " · 定义不可用" : ""}
+                      {v.invalid ? t(" · 定义不可用") : ""}
                     </small>
                   </td>
                   <td>
                     {v.category ||
-                      (v.kind === "equipment" ? "装备" : "可堆叠物品")}
+                      (v.kind === "equipment" ? t("装备") : t("可堆叠物品"))}
                   </td>
                   <td>
                     {["普通", "高级", "稀有", "神器", "史诗", "传说"][
@@ -130,17 +131,17 @@ export function ItemLibrary({ state }: PageProps) {
             </tbody>
           </table>
         </div>
-        {!rows.length && <Empty title="没有符合条件的物品" />}
+        {!rows.length && <Empty title={t("没有符合条件的物品")} />}
       </div>
       <LoadMore
         show={!!library?.next && library?.q === q && library?.kind === kind}
         onClick={() => void live.guard(() => live.library(q, kind, true))}
       />
       {focus && detail?.id === focus && (
-        <section className="glass content-panel" aria-label="PVF 物品详情">
+        <section className="glass content-panel" aria-label={t("PVF 物品详情")}>
           <h3>{detail.item?.name || `物品 ${focus}`}</h3>
           {detail.loading ? (
-            <p role="status">正在读取物品详情</p>
+            <p role="status">{t("正在读取物品详情")}</p>
           ) : (
             <>
               {(detail.texts || []).map((v: any, i: number) => (
@@ -156,7 +157,7 @@ export function ItemLibrary({ state }: PageProps) {
                 </p>
               ))}
               <details>
-                <summary>物品属性与条件</summary>
+                <summary>{t("物品属性与条件")}</summary>
                 <Sections rows={detail.sections || []} />
               </details>
               <small className="muted">PVF {detail.pvfChecksum}</small>

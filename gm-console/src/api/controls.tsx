@@ -1,3 +1,5 @@
+import { getLocale } from "../i18n";
+import { t } from "../i18n";
 import { useEffect, useState, useRef } from "react";
 import { KeyRound, ArrowRight, RefreshCw, CheckCircle2, Eye, EyeOff, Upload } from "lucide-react";
 import { useLive } from "./context";
@@ -20,7 +22,7 @@ export function LoginPanel() {
   return (
     <form
       className="glass login-panel auth-card"
-      aria-label="Token 登录"
+      aria-label={t("Token 登录")}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -38,10 +40,10 @@ export function LoginPanel() {
       <div className="auth-brand">
         <span className="auth-mark"><img src="./brand/witch.png" alt="" width="56" height="56" /></span>
         <h1>Purple<span>Magic</span></h1>
-        <p>阿拉德 · GM 工作台</p>
+        <p>{t("阿拉德 · GM 工作台")}</p>
       </div>
       <div className="token-field">
-        <label htmlFor="access-token">访问 Token</label>
+        <label htmlFor="access-token">{t("访问 Token")}</label>
         <div className="token-input">
           <KeyRound size={17} />
         <input
@@ -50,12 +52,12 @@ export function LoginPanel() {
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="粘贴访问 Token"
+          placeholder={t("粘贴访问 Token")}
           required
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
-          <button type="button" className="icon-button" aria-label={visible ? "隐藏 Token" : "显示 Token"} onClick={() => setVisible(!visible)}>
+          <button type="button" className="icon-button" aria-label={visible ? t("隐藏 Token") : t("显示 Token")} onClick={() => setVisible(!visible)}>
             {visible ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
         </div>
@@ -63,12 +65,12 @@ export function LoginPanel() {
       <div className="token-options">
         <label className="checkline">
           <input className="checkbox" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          在此设备记忆 30 天
+          {t("在此设备记忆 30 天")}
         </label>
-      <label className="token-import" title="导入 Token 文件">
-        <Upload size={14} /> 导入文件
+      <label className="token-import" title={t("导入 Token 文件")}>
+        <Upload size={14} /> {t("导入文件")}
         <input
-          aria-label="导入 Token 文件"
+          aria-label={t("导入 Token 文件")}
           type="file"
           accept=".json,.txt"
           onChange={async (e) => {
@@ -93,11 +95,11 @@ export function LoginPanel() {
       </div>
       {error && (
         <p role="alert" className="inline-error">
-          {error}
+          {t(error)}
         </p>
       )}
       <button className="primary auth-submit" disabled={busy || !key.trim()}>
-        {busy ? "正在登录…" : "进入工作台"}
+        {busy ? t("正在登录…") : t("进入工作台")}
         {busy ? <RefreshCw className="is-spinning" size={16} /> : <ArrowRight size={17} />}
       </button>
     </form>
@@ -108,7 +110,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
   const busy = api.meta.busy;
   return (
     <Modal
-      title={p.confirmed ? "操作进度与回执" : p.title}
+      title={p.confirmed ? t("操作进度与回执") : p.title}
       onClose={() => api.dismissPending()}
       dismissOnBackdrop={false}
       footer={
@@ -118,7 +120,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
             disabled={busy && !p.confirmed}
             onClick={() => api.dismissPending()}
           >
-            {p.completed ? "完成" : p.rejected ? "结束此操作" : p.confirmed ? "收起" : "取消"}
+            {p.completed ? t("完成") : p.rejected ? t("结束此操作") : p.confirmed ? t("收起") : t("取消")}
           </button>
           {!p.completed && !p.rejected && (
             <button
@@ -126,27 +128,27 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               disabled={busy}
               onClick={() => void api.guard(() => api.confirm(p.id))}
             >
-              {busy ? "正在执行…" : p.confirmed ? "继续并查询回执" : "确认执行"}
+              {busy ? t("正在执行…") : p.confirmed ? t("继续并查询回执") : t("确认执行")}
             </button>
           )}
           {api.canRepreviewQuests() && (
             <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewQuests(p.id))}>
-              重新预览未完成项
+              {t("重新预览未完成项")}
             </button>
           )}
         </>
       }
     >
       <p className="confirm-target">{p.target}</p>
-      <p>{p.summary}</p>
+      <p>{t(p.summary)}</p>
       {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
-        <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>
+        <p className="muted">{t("已提交后台发放，可关闭页面，进度见发放记录。")}</p>
       )}
       {p.confirmed && !p.completed && !p.rejected && (
-        <p className="muted">收起后可继续其他操作，从顶部“操作回执”查看或重试本次操作。</p>
+        <p className="muted">{t("收起后可继续其他操作，从顶部“操作回执”查看或重试本次操作。")}</p>
       )}
       {p.activityChanges && <ul className="confirmation-recipients">
-        {p.activityChanges.map((v) => <li key={v.id}>{v.name}<span>#{v.id} · {v.before ? "开启" : "关闭"} → {v.enabled ? "开启" : "关闭"}</span></li>)}
+        {p.activityChanges.map((v) => <li key={v.id}>{v.name}<span>#{v.id} · {v.before ? t("开启") : t("关闭")} → {v.enabled ? t("开启") : t("关闭")}</span></li>)}
       </ul>}
       {p.recipients && (
         <ul className="confirmation-recipients">
@@ -154,7 +156,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
             <li key={c.id}>
               {c.name}
               <span>
-                {c.accountId} · 角色 {c.id}
+                {c.accountId} {t("· 角色")} {c.id}
               </span>
             </li>
           ))}
@@ -164,13 +166,13 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
         {p.steps.map((s) => (
           <li key={s.id}>
             {s.done && <CheckCircle2 size={14} />}
-            <strong>{s.label}</strong>
+            <strong>{t(s.label)}</strong>
             {s.result?.equipmentSlots && <span>{questSlotSummary(s.result.equipmentSlots, s.done)}</span>}
-            {s.done && <span>{s.kind === "activities" ? `配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}` : s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
+            {s.done && <span>{s.kind === "activities" ? `${t("配置版本")} ${s.result?.revision} · ${t(s.result?.restartRequired ? "等待游戏服务重启" : "已生效")}` : s.path.endsWith("/redelivery") ? t("补发任务已保存，可在发放详情查看进度") : t("已取得回执")}</span>}
             {s.kind === "task" && s.result && (
               <span>
-                {s.result.schedule === "active" ? "后台发放中 · " : ""}
-                已发 {s.result.sent} / {s.result.total} · 失败{" "}
+                {s.result.schedule === "active" ? t("后台发放中 · ") : ""}
+                {t("已发")} {s.result.sent} / {s.result.total} {t("· 失败")}{" "}
                 {s.result.failed || 0}
               </span>
             )}
@@ -179,31 +181,31 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
       </ol>
       {p.error && (
         <p className="inline-error" role="alert">
-          {p.error}
+          {t(p.error)}
         </p>
       )}
-      {p.confirmed && <p className="muted">请求编号：{p.id}</p>}
+      {p.confirmed && <p className="muted">{t("请求编号：")}{p.id}</p>}
     </Modal>
   );
 }
 export function OperationHistory({ onClose }: { onClose: () => void }) {
   const api = useLive()!;
   const receipts = api.operationReceipts();
-  return <Modal title="操作回执" wide onClose={onClose}>
-    <p className="muted">当前标签页的操作记录，刷新后继续保留。重试沿用原请求编号。</p>
+  return <Modal title={t("操作回执")} wide onClose={onClose}>
+    <p className="muted">{t("当前标签页的操作记录，刷新后继续保留。重试沿用原请求编号。")}</p>
     <ul className="operation-history">
       {receipts.map(p => <li key={p.id}>
         <div>
-          <strong>{p.target} · {p.title}</strong>
-          <p>{p.summary}</p>
-          <small>{p.createdAt ? new Date(p.createdAt).toLocaleString("zh-CN") + " · " : ""}
-            {p.completed ? "已取得回执" : p.rejected ? "未通过" : api.meta.busy && api.meta.pending?.id === p.id ? "执行中" : "待确认结果"}
-            {` · ${p.steps.filter(s => s.done).length}/${p.steps.length} 步`}
+          <strong>{p.target} · {t(p.title)}</strong>
+          <p>{t(p.summary)}</p>
+          <small>{p.createdAt ? new Date(p.createdAt).toLocaleString(getLocale(), { timeZone: "Asia/Shanghai" }) + " · " : ""}
+            {p.completed ? t("已取得回执") : p.rejected ? t("未通过") : api.meta.busy && api.meta.pending?.id === p.id ? t("执行中") : t("待确认结果")}
+            {` · ${p.steps.filter(s => s.done).length}/${p.steps.length} ${t("步")}`}
           </small>
-          {p.error && <p className="inline-error">{p.error}</p>}
+          {p.error && <p className="inline-error">{t(p.error)}</p>}
         </div>
         <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
-          onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
+          onClick={() => { api.openPending(p.id); onClose(); }}>{t("查看")}</button>
       </li>)}
     </ul>
   </Modal>;
@@ -304,7 +306,7 @@ export function TaskDetail({
   }
   return (
     <Modal
-      title={task?.reward?.title || "发放详情"}
+      title={task?.reward?.title || t("发放详情")}
       wide
       onClose={onClose}
       footer={
@@ -314,12 +316,12 @@ export function TaskDetail({
             disabled={busy}
             onClick={() => void read()}
           >
-            刷新进度
+            {t("刷新进度")}
           </button>
           {campaignId && <button className="primary"
             disabled={busy || redelivery?.status === "active" || !api.meta.features.backgroundBenefits || !api.state.benefits.find(b => b.id === campaignId)?.enabled}
             onClick={() => { onClose(); request({ kind: "benefit-redeliver", id: campaignId }); }}>
-            {redelivery?.status === "active" ? "补发处理中…" : "补发未收到"}
+            {redelivery?.status === "active" ? t("补发处理中…") : t("补发未收到")}
           </button>}
           {task?.schedule === "active" && (
             <button
@@ -327,7 +329,7 @@ export function TaskDetail({
               disabled={busy}
               onClick={() => act("pause")}
             >
-              暂停发放
+              {t("暂停发放")}
             </button>
           )}
           {task?.pending > 0 && task?.schedule !== "active" && (
@@ -336,7 +338,7 @@ export function TaskDetail({
               disabled={busy}
               onClick={() => act("resume")}
             >
-              继续发放
+              {t("继续发放")}
             </button>
           )}
           {task?.failed > 0 && task?.schedule !== "active" && (
@@ -345,7 +347,7 @@ export function TaskDetail({
               disabled={busy}
               onClick={() => act("retry")}
             >
-              重试失败名单
+              {t("重试失败名单")}
             </button>
           )}
         </>
@@ -353,30 +355,30 @@ export function TaskDetail({
     >
       {task && (
         <p>
-          已发 {task.sent} / {task.total} · 待发 {task.pending} · 失败{" "}
+          {t("已发")} {task.sent} / {task.total} {t("· 待发")} {task.pending} {t("· 失败")}{" "}
           {task.failed}
         </p>
       )}
       {campaignId && <BenefitRecipients rows={rows} busy={busy} complete={complete} />}
       {redelivery && <div className="benefit-redelivery-status" role="status">
         <strong>{({active: "正在后台补发", completed: "本轮补发完成", failed: "本轮补发结束，存在失败记录", conflict: "补发已停止"} as Record<string, string>)[redelivery.status]}</strong>
-        <p>已检查 {redelivery.checked} · 确认已收到 {redelivery.received} · 跳过 {redelivery.skipped} · 失败 {redelivery.failed}</p>
-        <small>确认已收到包含此前已发放的对象；失败后可再次补发，已收到的会自动跳过。</small>
-        {redelivery.error && <p role="alert">{redelivery.error}</p>}
-        {redelivery.failures?.length > 0 && <ul>{redelivery.failures.map((f: DTO) => <li key={`${f.accountId}/${f.characterId}`}>账号 {f.accountId} · 角色 {f.characterId}：{f.message}</li>)}</ul>}
-        {redelivery.failed > (redelivery.failures?.length || 0) && <small>仅显示前 10 个失败对象。</small>}
+        <p>{t("已检查")} {redelivery.checked} {t("· 确认已收到")} {redelivery.received} {t("· 跳过")} {redelivery.skipped} {t("· 失败")} {redelivery.failed}</p>
+        <small>{t("确认已收到包含此前已发放的对象；失败后可再次补发，已收到的会自动跳过。")}</small>
+        {redelivery.error && <p role="alert">{t(redelivery.error)}</p>}
+        {redelivery.failures?.length > 0 && <ul>{redelivery.failures.map((f: DTO) => <li key={`${f.accountId}/${f.characterId}`}>{t("账号")} {f.accountId} {t("· 角色")} {f.characterId}：{f.message}</li>)}</ul>}
+        {redelivery.failed > (redelivery.failures?.length || 0) && <small>{t("仅显示前 10 个失败对象。")}</small>}
       </div>}
-      {redeliveryError && <p role="alert" className="inline-error">补发进度：{redeliveryError}</p>}
-      {!campaignId && busy && <p role="status">正在读取发放记录…</p>}
-      {!campaignId && !busy && !error && !rows.length && <p>暂无收件角色</p>}
+      {redeliveryError && <p role="alert" className="inline-error">{t("补发进度：")}{redeliveryError}</p>}
+      {!campaignId && busy && <p role="status">{t("正在读取发放记录…")}</p>}
+      {!campaignId && !busy && !error && !rows.length && <p>{t("暂无收件角色")}</p>}
       {!campaignId && <div className="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>收件角色</th>
-              <th>账号</th>
-              <th>状态</th>
-              <th>结果</th>
+              <th>{t("收件角色")}</th>
+              <th>{t("账号")}</th>
+              <th>{t("状态")}</th>
+              <th>{t("结果")}</th>
             </tr>
           </thead>
           <tbody>
@@ -388,15 +390,15 @@ export function TaskDetail({
                 <td>{r.accountId}</td>
                 <td>
                   {r.state === "sent"
-                    ? "已发送"
+                    ? t("已发送")
                     : r.state === "failed"
-                      ? "失败"
-                      : r.state === "ineligible" ? "不在发放范围"
-                      : "待发送"}
+                      ? t("失败")
+                      : r.state === "ineligible" ? t("不在发放范围")
+                      : t("待发送")}
                 </td>
                 <td>
                   {r.failure?.message || (r.delivery?.reward?.cera
-                    ? `点券 +${Number(r.delivery.reward.cera).toLocaleString()} · 余额 ${r.delivery.before} → ${r.delivery.after}`
+                    ? `点券 +${Number(r.delivery.reward.cera).toLocaleString(getLocale())} · 余额 ${r.delivery.before} → ${r.delivery.after}`
                     : r.mailId ? `邮件 ${r.mailId}` : "—")}
                 </td>
               </tr>
@@ -405,7 +407,7 @@ export function TaskDetail({
         </table>
       </div>}
       {!campaignId && <LoadMore show={!!next && !busy} onClick={() => void read(true)} />}
-      {campaignId && error && !busy && <button className="secondary" onClick={() => void read(!!next)}>继续查询</button>}
+      {campaignId && error && !busy && <button className="secondary" onClick={() => void read(!!next)}>{t("继续查询")}</button>}
       {error && (
         <p role="alert" className="inline-error">
           {error}
@@ -426,7 +428,7 @@ export function LoadMore({
     <div className="load-more">
       <button className="secondary" onClick={onClick}>
         <RefreshCw size={14} />
-        加载更多
+        {t("加载更多")}
       </button>
     </div>
   );
@@ -442,8 +444,8 @@ export function HubLogin() {
         void api.hub(token).then(() => setToken(""));
       }}
     >
-      <h2>公告与下载源管理</h2>
-      <Field label="运营管理 Token">
+      <h2>{t("公告与下载源管理")}</h2>
+      <Field label={t("运营管理 Token")}>
         <input
           type="password"
           value={token}
@@ -453,7 +455,7 @@ export function HubLogin() {
         />
       </Field>
       {api.meta.hubError && <p className="inline-error">{api.meta.hubError}</p>}
-      <button className="primary">登录配置管理</button>
+      <button className="primary">{t("登录配置管理")}</button>
     </form>
   );
 }

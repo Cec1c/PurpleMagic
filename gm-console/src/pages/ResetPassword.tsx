@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useState } from "react";
 import { Copy, KeyRound } from "lucide-react";
 import { useLive } from "../api/context";
@@ -27,22 +28,22 @@ export function ResetPassword({ account, onClose }: {
     try { await navigator.clipboard.writeText(password); setCopied(true); setError(""); }
     catch { setError("复制失败，请选中新密码手动复制"); }
   }
-  return <Modal title={password ? "密码已重置" : "重置账号密码"}
+  return <Modal title={password ? t("密码已重置") : t("重置账号密码")}
     onClose={() => { if (!busy) onClose(); }} dismissOnBackdrop={false}
     footer={<>
-      <button className="secondary" disabled={busy} onClick={onClose}>{password ? "关闭" : "取消"}</button>
+      <button className="secondary" disabled={busy} onClick={onClose}>{password ? t("关闭") : t("取消")}</button>
       {password
-        ? <button className="primary" onClick={() => void copy()}><Copy size={16} />{copied ? "已复制" : "复制新密码"}</button>
-        : <button className="primary" disabled={busy || !live} onClick={() => void confirm()}><KeyRound size={16} />{busy ? "正在重置…" : error ? "重试本次重置" : "确认重置"}</button>}
+        ? <button className="primary" onClick={() => void copy()}><Copy size={16} />{copied ? t("已复制") : t("复制新密码")}</button>
+        : <button className="primary" disabled={busy || !live} onClick={() => void confirm()}><KeyRound size={16} />{busy ? t("正在重置…") : error ? t("重试本次重置") : t("确认重置")}</button>}
     </>}>
-    <p>账号 <strong>{account.name}</strong> <span className="muted">（{account.id}）</span></p>
+    <p>{t("账号")} <strong>{account.name}</strong> <span className="muted">（{account.id}）</span></p>
     {password ? <>
-      <Field label="新密码" hint="请复制并交给账号本人。关闭窗口后不再显示。">
+      <Field label={t("新密码")} hint="请复制并交给账号本人。关闭窗口后不再显示。">
         <input readOnly value={password} autoComplete="off" spellCheck={false}
-          aria-label="新密码" onFocus={e => e.currentTarget.select()} />
+          aria-label={t("新密码")} onFocus={e => e.currentTarget.select()} />
       </Field>
-      <p className="muted">旧密码与登录凭据已失效，请使用新密码登录。</p>
-    </> : <p>生成 20 位随机密码。重置后该账号退出登录，旧密码和绑定码立即失效。</p>}
+      <p className="muted">{t("旧密码与登录凭据已失效，请使用新密码登录。")}</p>
+    </> : <p>{t("生成 20 位随机密码。重置后该账号退出登录，旧密码和绑定码立即失效。")}</p>}
     {error && <p role="alert">{error}</p>}
   </Modal>;
 }

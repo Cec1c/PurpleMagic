@@ -1,3 +1,4 @@
+import { t as tr } from "../i18n";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import { BookOpen, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
@@ -54,7 +55,7 @@ export function QuestPage({ state, character, request, selection, setSelection }
     <>
       <div className="section-tabs">
         <Tabs
-          label="任务状态"
+          label={tr("任务状态")}
           items={[
             { id: "active", label: "进行中" },
             { id: "all", label: "全部任务" },
@@ -70,12 +71,12 @@ export function QuestPage({ state, character, request, selection, setSelection }
         />
       </div>
       {status === "catalog" && <div className="toolbar">
-        <button className="secondary" onClick={() => setPicker(true)}>选择操作角色（{targets.length}）</button>
+        <button className="secondary" onClick={() => setPicker(true)}>{tr("选择操作角色（")}{targets.length}）</button>
       </div>}
-      {picker && <Modal title="选择任务操作角色" wide onClose={() => setPicker(false)}><PlayerPicker state={state} selection={selection} setSelection={setSelection} /></Modal>}
+      {picker && <Modal title={tr("选择任务操作角色")} wide onClose={() => setPicker(false)}><PlayerPicker state={state} selection={selection} setSelection={setSelection} /></Modal>}
       <div ref={motion} className="quest-layout">
         <aside className="glass chapter-list">
-          <h3>任务章节</h3>
+          <h3>{tr("任务章节")}</h3>
           {chapters.map((c) => (
             <button
               key={c}
@@ -94,11 +95,11 @@ export function QuestPage({ state, character, request, selection, setSelection }
         <section>
           <div className="toolbar">
             <SearchField
-              placeholder="搜索任务名称或 ID"
+              placeholder={tr("搜索任务名称或 ID")}
               value={q}
               onChange={setQ}
             />
-            <span className="muted">{rows.length} 个任务</span>
+            <span className="muted">{rows.length}{tr("个任务")}</span>
           </div>
           <div className="table-panel glass">
             <div className="table-scroll">
@@ -107,7 +108,7 @@ export function QuestPage({ state, character, request, selection, setSelection }
                   <tr>
                     <th className="check-cell">
                       <CheckBox
-                        label="全选任务"
+                        label={tr("全选任务")}
                         checked={
                           rows.length > 0 &&
                           rows.every((t) => selected.includes(t.id))
@@ -121,9 +122,9 @@ export function QuestPage({ state, character, request, selection, setSelection }
                         }
                       />
                     </th>
-                    <th>任务名称</th>
-                    <th>等级</th>
-                    <th>状态</th>
+                    <th>{tr("任务名称")}</th>
+                    <th>{tr("等级")}</th>
+                    <th>{tr("状态")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,12 +164,12 @@ export function QuestPage({ state, character, request, selection, setSelection }
                           }
                         >
                           {states[t.id] === "completed"
-                            ? "已完成"
+                            ? tr("已完成")
                             : states[t.id] === "active"
-                              ? "进行中"
+                              ? tr("进行中")
                               : live && status === "catalog" && !states[t.id]
-                                ? "未查询"
-                                : "未开始"}
+                                ? tr("未查询")
+                                : tr("未开始")}
                         </Pill>
                       </td>
                     </tr>
@@ -176,9 +177,9 @@ export function QuestPage({ state, character, request, selection, setSelection }
                 </tbody>
               </table>
             </div>
-            {!rows.length && <Empty title="没有符合条件的任务" />}
+            {!rows.length && <Empty title={tr("没有符合条件的任务")} />}
             <div className="table-footer">
-              <span>已选 {selectedVisible.length} 项</span>
+              <span>{tr("已选")} {selectedVisible.length} {tr("项")}</span>
               <div className="button-row">
                 <button
                   className="secondary"
@@ -194,7 +195,7 @@ export function QuestPage({ state, character, request, selection, setSelection }
                   }
                 >
                   <RotateCcw size={14} />
-                  重置选中
+                  {tr("重置选中")}
                 </button>
                 <button
                   className="primary"
@@ -210,30 +211,30 @@ export function QuestPage({ state, character, request, selection, setSelection }
                   }
                 >
                   <CheckCircle2 size={15} />
-                  完成选中
+                  {tr("完成选中")}
                 </button>
               </div>
             </div>
           </div>
-          <p className="muted">完成开槽任务会同步开启对应装备槽；已完成但未开槽的任务也可重新选中完成。金币、经验和道具奖励不发放。</p>
+          <p className="muted">{tr("完成开槽任务会同步开启对应装备槽；已完成但未开槽的任务也可重新选中完成。金币、经验和道具奖励不发放。")}</p>
           {detail && (
             <div className="glass quest-detail">
               <BookOpen size={21} />
               <div>
                 <h3>{detail.name}</h3>
                 <p>
-                  {detail.chapter} / {detail.kind} · 任务 ID {detail.id} · Lv.
+                  {detail.chapter} / {detail.kind} {tr("· 任务 ID")} {detail.id} · Lv.
                   {detail.level}
                 </p>
               </div>
               <Pill>
                 {states[detail.id] === "completed"
-                  ? "已完成"
+                  ? tr("已完成")
                   : states[detail.id] === "active"
-                    ? "进行中"
+                    ? tr("进行中")
                     : live && status === "catalog" && !states[detail.id]
-                      ? "未查询"
-                      : "未开始"}
+                      ? tr("未查询")
+                      : tr("未开始")}
               </Pill>
             </div>
           )}

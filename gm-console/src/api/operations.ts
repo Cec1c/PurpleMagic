@@ -1,3 +1,4 @@
+import { getLocale, t } from "../i18n.ts";
 import { prepareMail, scheduleMail } from "./mail";
 import { activityChanges, type ActivitySnapshot } from "../activities";
 import { executeActivitySave, publishActivities } from "./activities";
@@ -13,7 +14,7 @@ function changed(a: unknown, b: unknown) {
 }
 function integer(n: number, min = 0, max = 2147483647) {
   if (!Number.isSafeInteger(n) || n < min || n > max)
-    throw new Error(`请输入 ${min}–${max} 之间的整数`);
+    throw new Error(`${t("请输入")} ${min.toLocaleString(getLocale())}–${max.toLocaleString(getLocale())} ${t("之间的整数")}`);
 }
 export async function prepareOperation(
   api: ConsoleAPI,
@@ -92,7 +93,7 @@ export async function prepareOperation(
       checksum = v.pvfChecksum;
       scopes.add(o.ownerScope);
       if (command.kind === "delete-items" && !o.canDelete)
-        throw new Error(`${item.name} 暂不支持删除`);
+        throw new Error(`${item.name} ${t("暂不支持删除")}`);
       selected.push({
         container: item.remote.container,
         slot: item.slot,
@@ -105,7 +106,7 @@ export async function prepareOperation(
         if (!/^[1-9][0-9]*$/.test(command.itemId)) throw new Error("请输入有效的物品 ID");
         integer(Number(command.itemId), 1, 4294967295);
         options.itemId = command.itemId;
-        p.summary = `${labels[0]}：ID ${item.id} → ${command.itemId}；保留数量、绑定、期限和实例属性`;
+        p.summary = `${labels[0]}：ID ${item.id} → ${command.itemId}；${t("保留数量、绑定、期限和实例属性")}`;
       }
       if (command.kind === "item") {
         if (command.version !== item.version)
@@ -147,19 +148,19 @@ export async function prepareOperation(
         }
         const changes = [
           options.count !== undefined
-            ? `数量 ${item.count} → ${options.count}`
+            ? `${t("数量")} ${item.count} → ${options.count}`
             : "",
           options.upgradeLevel !== undefined
-            ? `强化 ${item.enhance} → ${options.upgradeLevel}`
+            ? `${t("强化")} ${item.enhance} → ${options.upgradeLevel}`
             : "",
           options.amplifyType !== undefined
-            ? `增幅属性 → ${e.amplifyTypes.find((x: DTO) => x.value === options.amplifyType)?.label}`
+            ? `${t("增幅属性")} → ${e.amplifyTypes.find((x: DTO) => x.value === options.amplifyType)?.label}`
             : "",
           options.forgingLevel !== undefined
-            ? `锻造 ${item.forge} → ${options.forgingLevel}`
+            ? `${t("锻造")} ${item.forge} → ${options.forgingLevel}`
             : "",
           options.expirationDays !== undefined
-            ? `有效期重设为 ${options.expirationDays} 天`
+            ? `${t("有效期重设为")} ${options.expirationDays} ${t("天")}`
             : "",
         ].filter(Boolean);
         p.summary = `${labels[0]}：${changes.join("；")}`;
@@ -168,7 +169,7 @@ export async function prepareOperation(
     }
     if (scopes.size !== 1) throw new Error("请分别处理角色物品和账号共享资产");
     if (command.kind === "delete-items")
-      p.summary = `删除 ${labels.length} 件物品：${labels.join("、")}`;
+      p.summary = `${t("删除")} ${labels.length}${t("件物品")}：${labels.join("、")}`;
     await preview(p.summary, base + "/inventory-operations", {
       accountId: c.accountId,
       action: command.kind === "delete-items" ? "delete" : "configure",
@@ -182,7 +183,7 @@ export async function prepareOperation(
     await prepareMail(api, command, selection, p);
   } else if (command.kind === "delete-mail") {
     if (!c) throw new Error("请先选择角色");
-    p.summary = `删除 ${command.ids.length} 封邮件及其中未领取的附件和金币：${command.ids.map((id) => api.state.mails.find((m) => m.id === id)?.title || id).join("、")}`;
+    p.summary = `${t("删除")} ${command.ids.length}${t("封邮件及其中未领取的附件和金币")}：${command.ids.map((id) => api.state.mails.find((m) => m.id === id)?.title || id).join("、")}`;
     await preview(p.summary, base + "/mailbox-operations", {
       accountId: c.accountId,
       items: command.ids.map((mailId) => ({ mailId, revision: "" })),
@@ -196,13 +197,13 @@ export async function prepareOperation(
     if (!recipients.length || recipients.length > 100) throw new Error("请选择 1–100 个角色");
     if (!command.ids.length || command.ids.length > 100) throw new Error("请选择 1–100 个任务");
     p.recipients = recipients.map(({id, name, accountId}) => ({id, name, accountId}));
-    p.target = `${recipients.length} 个角色`;
+    p.target = `${recipients.length}${t("个角色")}`;
 
     const action = command.status === "completed" ? "complete" : "reset";
     p.summary =
       action === "complete"
-        ? "完成选中任务并同步开槽（不发金币、经验和道具）"
-        : "恢复选中任务为未完成";
+        ? t("完成选中任务并同步开槽（不发金币、经验和道具）")
+        : t("恢复选中任务为未完成");
     p.summary += `：${command.ids.map((id) => api.meta.quests.find((q) => q.id === id)?.name || id).join("、")}`;
     for (const target of recipients) await preview(`${target.name}：${p.summary}`, `/api/v1/characters/${segment(target.id)}/quest-operations`, {
       accountId: target.accountId,
@@ -215,7 +216,7 @@ export async function prepareOperation(
   } else if (command.kind === "reset-skill-points") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
     const { data } = await api.http.get(base + "/skill-points");
-    p.summary = `按 Lv.${data.level} 恢复 SP / TP 总量为 ${data.definition.sp} / ${data.definition.tp}，清除额外点数，保留已学技能和已用点数`;
+    p.summary = `Lv.${data.level} ${t("恢复 SP / TP 总量为")} ${data.definition.sp} / ${data.definition.tp}，${t("清除额外点数，保留已学技能和已用点数")}`;
     await preview(p.summary, base + "/skill-point-operations", {
       accountId: c.accountId, action: "reset_defaults", target: "both", amount: "0",
       revision: data.revision, definitionRevision: data.definitionRevision, reason,
@@ -292,7 +293,7 @@ export async function prepareOperation(
     if (changed(command.gold, c.gold)) {
       integer(command.gold);
       await preview(
-        `金币 → ${command.gold.toLocaleString()}`,
+        `金币 → ${command.gold.toLocaleString(getLocale())}`,
         base + "/gold-operations",
         {
           accountId: c.accountId,
@@ -317,21 +318,21 @@ export async function prepareOperation(
         BigInt(pointsText) - BigInt(r.currency.balance)
       ).toString();
       add(
-        `点券 → ${BigInt(pointsText).toLocaleString()}`,
+        `${t("点券")} → ${BigInt(pointsText).toLocaleString(getLocale())}`,
         `/api/v1/accounts/${segment(c.accountId)}/currency-adjustments`,
         { currency: "cera", amount, revision: r.currency.revision, reason },
       );
     }
-    p.summary = p.steps.map((s) => s.label).join("；");
+    p.summary = p.steps.map((s) => t(s.label)).join("; ");
   } else if (command.kind === "activity-save") {
     if (!api.meta.features["activities.write"]) throw new Error("当前服务尚未开放活动配置保存");
     const { data } = await api.http.get<ActivitySnapshot>("/api/v1/activities");
     publishActivities(api, data);
     if (data.revision !== command.revision) throw new ApiError("活动配置已更新，请按当前状态重新选择", 409, "revision_conflict");
     const changes = activityChanges(data, command.activities);
-    p.title = "确认活动配置";
-    p.target = "全服游戏活动";
-    p.summary = `保存 ${changes.length} 个活动开关，游戏服务下次重启时生效。`;
+    p.title = t("确认活动配置");
+    p.target = t("全服游戏活动");
+    p.summary = `${t("保存")} ${changes.length}${t("个活动开关")}，${t("游戏服务下次重启时生效")}`;
     p.activityChanges = changes;
     add("保存活动配置", "/api/v1/activities", {
       revision: data.revision,
@@ -343,15 +344,15 @@ export async function prepareOperation(
     if (reward.item) {
       const { data } = await api.http.get(`/api/v1/items/${segment(reward.item.id)}/grant-options`);
       if (data.kind === "equipment" && reward.item.count !== 1)
-        throw new Error("装备每封邮件数量为 1");
-      reward.summary = `${data.name}（${reward.item.id}）× ${reward.item.count.toLocaleString()}`;
+        throw new Error(t("装备每封邮件数量为 1"));
+      reward.summary = `${data.name}（${reward.item.id}）× ${reward.item.count.toLocaleString(getLocale())}`;
       itemFields = { itemId: reward.item.id, count: reward.item.count, pvfChecksum: data.pvfChecksum,
         options: { reinforce: 0, amplifyType: 0, forgingLevel: 0, expireDays: 0, equipmentQuality: "default" } };
     }
     p.target =
-      "全部现有角色" + (command.scope === "future" ? "及未来角色" : "") +
-      (reward.grantScope === "account" ? "，同账号仅发一次" : "");
-    p.summary = `${command.name} · ${reward.grantScope === "account" ? "每账号一次" : "每角色一次"} · ${reward.summary}${reward.cera ? " · 直接存入账号" : ""}${command.enabled ? " · 创建后立即启用" : ""}`;
+      t("全部现有角色") + (command.scope === "future" ? t("及未来角色") : "") +
+      (reward.grantScope === "account" ? t("，同账号仅发一次") : "");
+    p.summary = `${command.name} · ${t(reward.grantScope === "account" ? "每账号一次" : "每角色一次")} · ${reward.summary}${reward.cera ? ` · ${t("直接存入账号")}` : ""}${command.enabled ? ` · ${t("创建后立即启用")}` : ""}`;
     add("创建福利规则", "/api/v1/benefits", {
       title: command.name,
       body: command.name,
@@ -373,23 +374,23 @@ export async function prepareOperation(
     const path = `/api/v1/benefits/${segment(command.id)}`;
     const { data: rule } = await api.http.get(path);
     if (!rule.enabled) throw new Error("请先启用福利规则再补发");
-    p.title = "确认补发未收到的福利";
+    p.title = t("确认补发未收到的福利");
     p.target = rule.reward.title;
-    p.summary = `按原规则检查本次开始前已创建的${rule.scope === "account" ? "账号及其收件角色" : "角色"}，补发符合条件且尚未收到的奖励。已领取记录保持，${rule.scope === "account" ? "每账号" : "每角色"}仅发一次。任务在后台继续，进度可在发放详情查看。`;
+    p.summary = `${t("按原规则检查本次开始前已创建的")} ${t(rule.scope === "account" ? "账号及其收件角色" : "角色")}，${t("补发符合条件且尚未收到的奖励。")} ${t("已领取记录保持，")}${t(rule.scope === "account" ? "每账号" : "每角色")} ${t("仅发一次。")} ${t("任务在后台继续，进度可在发放详情查看。")}`;
     add("开始后台补发", path + "/redelivery", { revision: rule.revision, confirm: true });
   } else if (command.kind === "benefit-delete") {
     if (!api.meta.features["benefits.delete"]) throw new Error("删除功能尚未就绪，请刷新后重试");
     const path = `/api/v1/benefits/${segment(command.id)}`;
     const {data: rule} = await api.http.get(path);
-    p.title = "删除福利规则";
+    p.title = t("删除福利规则");
     p.target = rule.reward.title;
-    p.summary = "删除后停止后续发放，并从规则列表移除。已发放的奖励和领取记录保留。";
+    p.summary = t("删除后停止后续发放，并从规则列表移除。已发放的奖励和领取记录保留。");
     add("删除福利规则", path + "/delete", {revision: rule.revision, confirm: true});
   } else if (command.kind === "benefit-toggle") {
     const b = api.state.benefits.find((b) => b.id === command.id);
     if (!b) throw new Error("规则不存在");
     p.target = b.name;
-    p.summary = b.enabled ? "暂停自动发放" : "启用后自动发放";
+    p.summary = t(b.enabled ? "暂停自动发放" : "启用后自动发放");
     add(p.summary, `/api/v1/benefits/${segment(b.id)}/state`, {
       revision: b.revision,
       enabled: !b.enabled,
@@ -403,8 +404,8 @@ export async function prepareOperation(
       command.action === "pause"
         ? "暂停后续批次"
         : command.action === "retry"
-          ? `重试 ${task.failed} 个失败收件人`
-          : `继续发放 ${task.pending} 个收件人`;
+        ? t(`重试 ${task.failed} 个失败收件人`)
+        : t(`继续发放 ${task.pending} 个收件人`);
     if (command.action === "pause") {
       if (!api.meta.features.backgroundMail)
         throw new Error("当前服务按本次操作连续发放");

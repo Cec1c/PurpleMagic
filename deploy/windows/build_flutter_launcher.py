@@ -68,7 +68,7 @@ def main():
     for name in ("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"):
         shutil.copy2(crt / name, target / "app" / name)
     (target / "launcher.id").write_text("DNF90-Flutter-bundle-v1\n", encoding="utf-8")
-    (target / "使用说明.txt").write_text("PurpleMagic 登录器 1.0.9\n\n双击 DNF90Launcher.exe。只需保留整个目录；app 内为运行文件，请勿单独移动。\n选择包含 DNF.exe / Script.pvf 的配套客户端目录。账号与密码发送到本服，密码不保存。\n客户端更新和公告需部署配套网关后发布；未部署时会明确提示，登录仍使用内置的本服兼容配置。\n更新前退出游戏。登录器自身更新会整体替换 app，并在启动失败时尝试恢复旧版。\n账号/目录/界面设置保存在当前用户 LocalAppData/DNF90Launcher。\n设置 → 增强诊断日志：默认关闭。开启后按每次游戏启动自动记录，保留最近五次；每份日志旁边点击导出，另存为 .log 文件。\n频道配置过大时可进入设置，确认后备份并重置本机 DNF.cfg；游戏内账号记忆和个人设置可能重置，服务端角色与装备不受影响。\n", encoding="utf-8-sig")
+    (target / "使用说明.txt").write_text("PurpleMagic 런처 1.0.9\n\nDNF90Launcher.exe를 실행하세요. 전체 폴더를 보관해야 합니다. app 폴더 안의 실행 파일을 따로 옮기지 마세요.\nDNF.exe와 Script.pvf가 들어 있는 호환 클라이언트 폴더를 선택하세요. 계정과 비밀번호는 이 서버로 전송되며 비밀번호는 저장하지 않습니다.\n클라이언트 업데이트와 공지를 사용하려면 전용 게이트웨이를 배포해야 합니다. 게이트웨이가 없으면 안내가 표시되며, 로그인은 런처에 포함된 이 서버용 설정을 사용합니다.\n업데이트하기 전에 게임을 종료하세요. 런처 업데이트는 app 폴더 전체를 교체하며, 새 버전이 시작되지 않으면 이전 버전 복구를 시도합니다.\n계정, 폴더, 화면 설정은 현재 Windows 사용자 LocalAppData/DNF90Launcher에 저장됩니다.\n설정 → 진단 로그: 기본값은 꺼짐입니다. 켜면 게임을 시작할 때마다 기록하고 최근 5회분을 보관합니다. 각 기록의 내보내기를 눌러 .log 파일로 저장할 수 있습니다.\n채널 설정 용량 문제가 있으면 설정에서 확인한 뒤 로컬 DNF.cfg를 백업하고 초기화할 수 있습니다. 게임에 저장된 계정과 개인 설정은 초기화될 수 있지만 서버 캐릭터와 장비에는 영향이 없습니다.\n", encoding="utf-8-sig")
     if args.anticheat:
         help_path = target / '使用说明.txt'
         help_path.write_text(help_path.read_text(encoding='utf-8-sig').replace('LocalAppData/DNF90Launcher。', 'LocalAppData/DNF90Launcher-anticheat。'), encoding='utf-8-sig')

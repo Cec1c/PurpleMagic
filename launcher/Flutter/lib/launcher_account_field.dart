@@ -1,4 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+
+import 'l10n/app_localizations.dart';
+import 'l10n/localized_text.dart';
 
 class LauncherAccountField extends StatefulWidget {
   const LauncherAccountField({
@@ -51,7 +54,7 @@ class _LauncherAccountFieldState extends State<LauncherAccountField> {
           style: const TextStyle(fontSize: 12, color: Color(0xfff0edf5)),
           cursorColor: const Color(0xffe3cfa9),
           decoration: InputDecoration(
-            hintText: widget.hint,
+            hintText: AppLocalizations.translate(widget.hint),
             hintStyle: const TextStyle(fontSize: 12, color: Color(0xff8f879e)),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
@@ -68,7 +71,9 @@ class _LauncherAccountFieldState extends State<LauncherAccountField> {
             suffixIcon: widget.secret && widget.toggle
                 ? IconButton(
                     key: Key('${widget.fieldKey}-visibility'),
-                    tooltip: obscure ? '显示密码' : '隐藏密码',
+                    tooltip: AppLocalizations.translate(
+                      obscure ? '显示密码' : '隐藏密码',
+                    ),
                     onPressed: () => setState(() => obscure = !obscure),
                     icon: Icon(
                       obscure

@@ -1,3 +1,4 @@
+import { getLocale, t } from "./i18n.ts";
 import { activityChanges, demoActivities, type ActivitySnapshot, type ActivityChange } from "./activities.ts";
 export type Section =
   "query" | "inventory" | "mail" | "quests" | "gm" | "benefits" | "activities" | "anti-cheat" | "accounts" | "settings";
@@ -239,13 +240,13 @@ export function resolveRecipients(
 function integer(n: number, min = 0, max = 2147483647) {
   if (!Number.isSafeInteger(n) || n < min || n > max)
     throw new Error(
-      `请输入 ${min.toLocaleString()}–${max.toLocaleString()} 之间的整数`,
+      `${t("请输入")} ${min.toLocaleString(getLocale())}–${max.toLocaleString(getLocale())} ${t("之间的整数")}`,
     );
 }
 function offline(s: State, id: string) {
   const c = s.characters.find((c) => c.id === id);
   if (!c) throw new Error("角色不存在");
-  if (c.online) throw new Error(`${c.name} 当前在线，请该角色退出后重试`);
+  if (c.online) throw new Error(`${c.name} ${t("当前在线，请该角色退出后重试")}`);
   return c;
 }
 function requireCharacter(s: State, id: string) {
@@ -266,8 +267,8 @@ export function benefitReward(command: Extract<Command, { kind: "benefit-create"
     integer(Number(item.id), 1);
     integer(item.count, 1);
   } else integer(kind === "cera" ? cera : gold, 1);
-  const summary = item ? `${item.name || item.id}（${item.id}）× ${item.count.toLocaleString()}` :
-    cera ? `点券 ${cera.toLocaleString()}` : `金币 ${gold.toLocaleString()}`;
+  const summary = item ? `${item.name || item.id}（${item.id}）× ${item.count.toLocaleString(getLocale())}` :
+    cera ? `点券 ${cera.toLocaleString(getLocale())}` : `金币 ${gold.toLocaleString(getLocale())}`;
   return { gold, cera, item, grantScope, summary };
 }
 
@@ -326,7 +327,7 @@ export function applyCommand(
       snapshot.restartRequired = snapshot.activities.some((v) => v.pendingRestart);
       s.activities = snapshot;
       target = "全服游戏活动";
-      summary = changes.map((v) => `${v.name}（#${v.id}）${v.enabled ? "开启" : "关闭"}`).join("；") + " · 配置已保存，游戏服务下次重启生效";
+      summary = changes.map((v) => `${v.name}（#${v.id}）${t(v.enabled ? "开启" : "关闭")}`).join("；") + ` · ${t("配置已保存，游戏服务下次重启生效")}`;
       break;
     }
     case "item": {
@@ -359,7 +360,7 @@ export function applyCommand(
         } else offline(s, i.characterId);
       }
       s.items = s.items.filter((i) => !command.keys.includes(i.key));
-      target = `${items.length} 件物品`;
+      target = `${items.length}${t("件物品")}`;
       summary = "已删除选中物品";
       break;
     }
@@ -371,14 +372,14 @@ export function applyCommand(
         command.gold,
         command.items,
       );
-      target = `${new Set(command.recipients).size} 个角色`;
+      target = `${new Set(command.recipients).size}${t("个角色")}`;
       summary = `已发送「${command.title}」`;
       break;
     }
     case "delete-mail": {
       if (!command.ids.length) throw new Error("请选择邮件");
       s.mails = s.mails.filter((m) => !command.ids.includes(m.id));
-      target = `${command.ids.length} 封邮件`;
+      target = `${command.ids.length}${t("封邮件")}`;
       summary = "已删除选中邮件";
       break;
     }
@@ -388,7 +389,7 @@ export function applyCommand(
       s.questStates[c.id] ??= {};
       for (const id of command.ids) s.questStates[c.id][id] = command.status;
       target = c.name;
-      summary = `${command.status === "completed" ? "完成" : "重置"} ${command.ids.length} 个任务`;
+      summary = `${t(command.status === "completed" ? "完成" : "重置")} ${command.ids.length}${t("个任务")}`;
       break;
     }
     case "growth": {
@@ -539,7 +540,7 @@ export function applyCommand(
         deliver(
           pending.map((c) => c.id),
           b.name,
-          b.cera ? `点券 ${b.cera} 已存入账号。` : "福利奖励已送达。",
+          b.cera ? `${t("点券")} ${b.cera} ${t("已存入账号。")}` : t("福利奖励已送达。"),
           b.gold,
           b.item ? [b.item] : [],
           `${requestId}-${b.id}`,

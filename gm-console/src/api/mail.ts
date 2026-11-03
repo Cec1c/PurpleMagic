@@ -1,3 +1,4 @@
+import { getLocale, t } from "../i18n.ts";
 import type { ConsoleAPI } from "./console";
 import type { Command, Selection } from "../domain";
 import type { DTO, Pending, Step } from "./model";
@@ -30,7 +31,7 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
   if (!recipients.length) throw new Error("请先选择收件人");
   const targets = recipients.map(c => ({ accountId: c.accountId, characterId: c.id }));
   const owners = new Map(recipients.map(c => [c.id, c.accountId]));
-  p.target = `${recipients.length} 个收件角色`;
+  p.target = `${recipients.length}${t("个收件角色")}`;
   // All previews validate the item and its options on the server. One fresh
   // generation is sufficient for the whole batch; no per-item options lookup.
   const options: DTO = command.items.length
@@ -51,13 +52,13 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
       const timestamp = actual.expiresAt ? Date.parse(actual.expiresAt) / 1000 : 0;
       if (Number.isFinite(timestamp)) expiry = { known: true, absoluteExpireTime: timestamp, usablePeriodDays: 0 };
     } else if (i === 0 && options.expiration) expiry = { known: true, absoluteExpireTime: options.expiration.defaultExpireTime || 0, usablePeriodDays: options.expiration.usablePeriodDays || 0 };
-    const step: Step = { id: `${p.id}-${i}`, label: `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count} · ${itemExpirationLabel(expiry)}` : ""}`,
+    const step: Step = { id: `${p.id}-${i}`, label: `${t("邮件")} ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count} · ${itemExpirationLabel(expiry)}` : ""}`,
       path: `/api/v1/tasks/${job.id}/run`, body: { revision: job.revision, confirm: true, retry: false }, kind: "task", result: job };
     return { step, names };
   });
   p.steps.push(...prepared.map(v => v.step));
   p.recipients = prepared[0].names;
-  p.summary = `${command.title}；每人金币 ${command.gold.toLocaleString()}；${attachments.length} 封邮件${attachments.length > 1 ? "（每种附件一封，金币仅随第一封）" : ""}`;
+  p.summary = `${command.title} · ${t("每人金币")} ${command.gold.toLocaleString(getLocale())} · ${attachments.length}${t("封邮件")}${attachments.length > 1 ? `（${t("每种附件一封，金币仅随第一封")}）` : ""}`;
 }
 
 export async function scheduleMail(api: ConsoleAPI, step: Step) {
