@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { NewsManager } from "../news/NewsManager";
 import { useEnterMotion } from "../motion";
 import { useEffect, useState } from "react";
@@ -70,16 +71,16 @@ function HubSettings({
           >
             <h2>
               <Download size={20} />
-              下载源
+              {t("下载源")}
             </h2>
             {live && (
               <>
-                <Field label="下载源列表">
+                <Field label={t("下载源列表")}>
                   <select
                     value={source?.id || ""}
                     onChange={(e) => chooseSource(e.target.value)}
                   >
-                    <option value="">新增下载源</option>
+                    <option value="">{t("新增下载源")}</option>
                     {sources.map((s: any) => (
                       <option value={s.id} key={s.id}>
                         {s.name}
@@ -88,7 +89,7 @@ function HubSettings({
                   </select>
                 </Field>
                 <div className="field-grid">
-                  <Field label="来源标识">
+                  <Field label={t("来源标识")}>
                     <input
                       value={sourceId}
                       disabled={!!source}
@@ -97,17 +98,17 @@ function HubSettings({
                       placeholder="primary"
                     />
                   </Field>
-                  <Field label="来源名称">
+                  <Field label={t("来源名称")}>
                     <input
                       value={sourceName}
                       onChange={(e) => setSourceName(e.target.value)}
-                      placeholder="主下载源"
+                      placeholder={t("主下载源")}
                     />
                   </Field>
                 </div>
               </>
             )}
-            <Field label="更新资源地址">
+            <Field label={t("更新资源地址")}>
               <input
                 required={!live}
                 type="url"
@@ -118,8 +119,8 @@ function HubSettings({
             </Field>
             {live && (
               <details className="source-trust">
-                <summary>签名与证书配置</summary>
-                <Field label="下载源签名公钥">
+                <summary>{t("签名与证书配置")}</summary>
+                <Field label={t("下载源签名公钥")}>
                   <textarea
                     rows={5}
                     value={publicKey}
@@ -127,7 +128,7 @@ function HubSettings({
                     placeholder="-----BEGIN PUBLIC KEY-----"
                   />
                 </Field>
-                <Field label="证书 SHA256（可选）">
+                <Field label={t("证书 SHA256（可选）")}>
                   <input
                     value={certificate}
                     onChange={(e) => setCertificate(e.target.value)}
@@ -139,17 +140,17 @@ function HubSettings({
                     checked={sourceEnabled}
                     onChange={(e) => setSourceEnabled(e.target.checked)}
                   />
-                  启用此来源
+                  {t("启用此来源")}
                 </label>
               </details>
             )}
             <div className="form-divider" />
             <h2>
               <Server size={20} />
-              游戏连接
+              {t("游戏连接")}
             </h2>
             <div className="field-grid">
-              <Field label="游戏地址">
+              <Field label={t("游戏地址")}>
                 <input
                   required
                   value={gameHost}
@@ -157,7 +158,7 @@ function HubSettings({
                   placeholder="game.example.com"
                 />
               </Field>
-              <Field label="端口">
+              <Field label={t("端口")}>
                 <input
                   type="number"
                   min="1"
@@ -168,25 +169,25 @@ function HubSettings({
               </Field>
             </div>
             <div className="form-footer">
-              <span>保存来源；游戏连接发布到登录器配置</span>
+              <span>{t("保存来源；游戏连接发布到登录器配置")}</span>
               <button className="primary">
                 <Save size={15} />
-                保存配置
+                {t("保存配置")}
               </button>
             </div>
           </form>
           <aside className="glass content-panel">
             <h3>
               <Globe size={18} />
-              当前配置
+              {t("当前配置")}
             </h3>
             <dl className="detail-list stacked">
               <div>
-                <dt>下载源</dt>
+                <dt>{t("下载源")}</dt>
                 <dd>{state.sources.download}</dd>
               </div>
               <div>
-                <dt>游戏地址</dt>
+                <dt>{t("游戏地址")}</dt>
                 <dd>
                   {state.sources.gameHost}:{state.sources.gamePort}
                 </dd>
@@ -211,7 +212,7 @@ export function Settings(props: PageProps) {
     <>
       <div className="section-tabs">
         <Tabs
-          label="公告与连接设置"
+          label={t("公告与连接设置")}
           items={[
             { id: "news", label: "公告管理" },
             { id: "source", label: "下载源与游戏连接" },
@@ -259,15 +260,13 @@ function PVFSettings({ state }: PageProps) {
   };
   return (
     <section className="glass content-panel">
-      <h3>PVF 数据模式</h3>
+      <h3>{t("PVF 数据模式")}</h3>
       <p>
-        磁盘索引使用较少内存。直接加载 PVF
-        将完整文件与目录放入内存，加快物品、任务等定义的读取。
+        {t("磁盘索引使用较少内存。直接加载 PVF\r\n        将完整文件与目录放入内存，加快物品、任务等定义的读取。")}
       </p>
       <p>
-        直接加载很快，但内存开销较高：完整文件约{" "}
-        {Math.ceil((mode?.archiveBytes || 0) / 1048576)} MiB，另需目录和最多 96
-        MiB 的解码缓存。
+        {t("直接加载很快，但内存开销较高：完整文件约")}{" "}
+        {Math.ceil((mode?.archiveBytes || 0) / 1048576)} {t("MiB，另需目录和最多 96\r\n        MiB 的解码缓存。")}
       </p>
       <div className="button-row">
         <button
@@ -275,26 +274,26 @@ function PVFSettings({ state }: PageProps) {
           disabled={saving || !mode}
           onClick={() => change("disk")}
         >
-          磁盘索引
+          {t("磁盘索引")}
         </button>
         <button
           className={mode?.desired === "memory" ? "primary" : "secondary"}
           disabled={saving || !mode || !!mode.loading}
           onClick={() => change("memory")}
         >
-          直接加载 PVF
+          {t("直接加载 PVF")}
         </button>
         <button
           className="secondary"
           onClick={() => void live.guard(() => live.pvfMode())}
         >
-          刷新状态
+          {t("刷新状态")}
         </button>
       </div>
       {mode && (
         <p role="status">
-          当前使用：{mode.mode === "memory" ? "内存 PVF" : "磁盘索引"}
-          {mode.loading ? " · 正在后台加载 PVF" : ""}
+          {t("当前使用：")}{mode.mode === "memory" ? t("内存 PVF") : t("磁盘索引")}
+          {mode.loading ? t(" · 正在后台加载 PVF") : ""}
         </p>
       )}
       {mode?.error && (
@@ -303,7 +302,7 @@ function PVFSettings({ state }: PageProps) {
         </p>
       )}
       <p className="muted">
-        设置自动保存。加载期间继续使用磁盘索引，切回后释放内存归档。
+        {t("设置自动保存。加载期间继续使用磁盘索引，切回后释放内存归档。")}
       </p>
       {mode && (
         <small className="muted" style={{ overflowWrap: "anywhere" }}>

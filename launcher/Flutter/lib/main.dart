@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
@@ -10,6 +11,8 @@ import 'news_body.dart';
 import 'diagnostics_panel.dart';
 import 'account_security_panel.dart';
 import 'launcher_account_field.dart';
+import 'l10n/app_localizations.dart';
+import 'l10n/localized_text.dart';
 export 'launcher_controller.dart';
 
 List<String> launchArguments = const [];
@@ -27,31 +30,41 @@ class LauncherPreview extends StatelessWidget {
   const LauncherPreview({super.key, this.controller});
   final LauncherController? controller;
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'PurpleMagic',
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      brightness: Brightness.dark,
-      useMaterial3: true,
-      fontFamily: 'Microsoft YaHei UI',
-      fontFamilyFallback: const ['Microsoft YaHei', 'Segoe UI'],
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: violet,
+  Widget build(BuildContext context) => ValueListenableBuilder<Locale>(
+    valueListenable: launcherLocale,
+    builder: (context, locale, _) => MaterialApp(
+      locale: locale,
+      supportedLocales: const [Locale('ko', 'KR'), Locale('zh', 'CN')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      title: 'PurpleMagic',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
         brightness: Brightness.dark,
-      ),
-      scaffoldBackgroundColor: const Color(0xff11111a),
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: ink, fontSize: 13),
-      ),
-      tooltipTheme: TooltipThemeData(
-        decoration: BoxDecoration(
-          color: const Color(0xff2b2838),
-          borderRadius: BorderRadius.circular(7),
+        useMaterial3: true,
+        fontFamily: 'Microsoft YaHei UI',
+        fontFamilyFallback: const [
+          'Malgun Gothic',
+          'Microsoft YaHei',
+          'Segoe UI',
+        ],
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: violet,
+          brightness: Brightness.dark,
         ),
-        textStyle: const TextStyle(color: ink, fontSize: 12),
+        scaffoldBackgroundColor: const Color(0xff11111a),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: ink, fontSize: 13),
+        ),
+        tooltipTheme: TooltipThemeData(
+          decoration: BoxDecoration(
+            color: const Color(0xff2b2838),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          textStyle: const TextStyle(color: ink, fontSize: 12),
+        ),
       ),
+      home: PreviewHome(controller: controller),
     ),
-    home: PreviewHome(controller: controller),
   );
 }
 
@@ -160,6 +173,20 @@ class _PreviewHomeState extends State<PreviewHome> {
     try {
       await model.save(check: enabled);
       if (mounted && enabled) await _automaticUpdate();
+    } catch (failure) {
+      if (mounted) {
+        await _article(
+          '设置未保存',
+          failure.toString().replaceFirst('Bad state: ', ''),
+        );
+      }
+    }
+  }
+
+  Future<void> _setLanguage(String? language) async {
+    if (language == null) return;
+    try {
+      await model.save(language: language);
     } catch (failure) {
       if (mounted) {
         await _article(
@@ -951,7 +978,7 @@ class _PreviewHomeState extends State<PreviewHome> {
         ),
         const SizedBox(height: 5),
         Tooltip(
-          message: model.message,
+          message: AppLocalizations.translate(model.message),
           child: Text(
             model.total > 0 && !model.canLogin
                 ? '${(model.downloaded / 1048576).toStringAsFixed(1)} / ${(model.total / 1048576).toStringAsFixed(1)} MiB · ${model.message}'
@@ -1033,7 +1060,7 @@ class _PreviewHomeState extends State<PreviewHome> {
     height: small ? 28 : 35,
     child: IconButton(
       key: key == null ? null : Key(key),
-      tooltip: tooltip,
+      tooltip: AppLocalizations.translate(tooltip),
       padding: EdgeInsets.zero,
       onPressed: action,
       icon: Icon(icon, size: small ? 16 : 18, color: const Color(0xffd0c8df)),
@@ -1361,6 +1388,29 @@ class _PreviewHomeState extends State<PreviewHome> {
                       ],
                     ),
                     const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Expanded(child: Text('语言')),
+                        DropdownButton<String>(
+                          key: const Key('launcher-language'),
+                          value: model.language,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'ko-KR',
+                              child: Text('한국어'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'zh-CN',
+                              child: Text('简体中文'),
+                            ),
+                          ],
+                          onChanged: model.busy || !model.connected
+                              ? null
+                              : _setLanguage,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         const Expanded(child: Text('更新线路')),

@@ -1,3 +1,5 @@
+import { getLocale } from "./i18n";
+import { t } from "./i18n";
 import { useEffect, useLayoutEffect, useState, useRef, type ReactNode } from "react";
 import { X, Search, Inbox, ChevronDown, Check } from "lucide-react";
 import type { State, Character, Command, Selection, Section } from "./domain";
@@ -14,12 +16,13 @@ export type PageProps = {
 };
 export const number = (value: number | string) =>
   typeof value === "string" && /^-?\d+$/.test(value)
-    ? BigInt(value).toLocaleString("zh-CN")
+    ? BigInt(value).toLocaleString(getLocale())
     : typeof value === "number" && Number.isFinite(value)
-      ? value.toLocaleString("zh-CN")
+      ? value.toLocaleString(getLocale())
       : "—";
 export const timestamp = (value: string) =>
-  new Date(value).toLocaleString("zh-CN", {
+  new Date(value).toLocaleString(getLocale(), {
+    timeZone: "Asia/Shanghai",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -37,8 +40,8 @@ export function IconButton({
   return (
     <button
       className="icon-button"
-      aria-label={label}
-      title={label}
+      aria-label={t(label)}
+      title={t(label)}
       onClick={onClick}
     >
       {children}
@@ -52,7 +55,7 @@ export function Pill({
   children: ReactNode;
   tone?: string;
 }) {
-  return <span className={`pill ${tone}`}>{children}</span>;
+  return <span className={`pill ${tone}`}>{typeof children === "string" ? t(children) : children}</span>;
 }
 export function SearchField({
   value,
@@ -69,13 +72,13 @@ export function SearchField({
     <label className="search-field">
       <Search size={16} />
       <input
-        aria-label={label || placeholder}
-        placeholder={placeholder}
+        aria-label={t(label || placeholder)}
+        placeholder={t(placeholder)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       {value && (
-        <button aria-label="清空搜索" onClick={() => onChange("")}>
+        <button aria-label={t("清空搜索")} onClick={() => onChange("")}>
           <X size={14} />
         </button>
       )}
@@ -109,7 +112,7 @@ export function Tabs<T extends string>({
     return () => observer.disconnect();
   }, [value, labels]);
   return (
-    <div ref={ref} className="tabs" role="tablist" aria-label={label}>
+      <div ref={ref} className="tabs" role="tablist" aria-label={t(label)}>
       <span className="tabs-indicator" aria-hidden="true" style={{ transform: `translateX(${indicator.left}px)`, width: indicator.width, visibility: indicator.width ? "visible" : "hidden" }} />
       {items.map((i) => (
         <button
@@ -120,7 +123,7 @@ export function Tabs<T extends string>({
           key={i.id}
           onClick={() => onChange(i.id)}
         >
-          {i.label}
+          {t(i.label)}
         </button>
       ))}
     </div>
@@ -137,9 +140,9 @@ export function Field({
 }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{t(label)}</span>
       {children}
-      {hint && <small>{hint}</small>}
+      {hint && <small>{t(hint)}</small>}
     </label>
   );
 }
@@ -147,8 +150,8 @@ export function Empty({ title, detail }: { title: string; detail?: string }) {
   return (
     <div className="empty">
       <Inbox size={30} />
-      <strong>{title}</strong>
-      {detail && <p>{detail}</p>}
+      <strong>{t(title)}</strong>
+      {detail && <p>{t(detail)}</p>}
     </div>
   );
 }
@@ -165,7 +168,7 @@ export function CheckBox({
 }) {
   return (
     <input
-      aria-label={label}
+      aria-label={t(label)}
       className="checkbox"
       type="checkbox"
       checked={checked}
@@ -206,7 +209,7 @@ export function Modal({
     <dialog
       ref={ref}
       className={`modal ${wide ? "wide" : ""}`}
-      aria-label={title}
+      aria-label={t(title)}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -216,8 +219,8 @@ export function Modal({
       }}
     >
       <header>
-        <h2>{title}</h2>
-        <IconButton label="关闭" onClick={onClose}>
+        <h2>{t(title)}</h2>
+        <IconButton label={t("关闭")} onClick={onClose}>
           <X size={19} />
         </IconButton>
       </header>
@@ -245,7 +248,7 @@ export function Identity({
         <div>
           <strong>{character.name}</strong>
           <span>
-            Lv.{character.level} · {character.job}
+            Lv.{character.level} · {t(character.job)}
           </span>
         </div>
         <ChevronDown size={16} />
@@ -253,27 +256,27 @@ export function Identity({
       <span className={`status ${character.online ? "online" : ""}`}>
         <i />
         {character.online === null
-          ? "状态未知"
+          ? t("状态未知")
           : character.online
-            ? "在线"
-            : "离线"}
+            ? t("在线")
+            : t("离线")}
       </span>
       <div className="identity-data">
         <span>
-          账号 <b>{a.name}</b>
+          {t("账号")} <b>{a.name}</b>
         </span>
         <span>
-          角色 ID <b>{character.id}</b>
+          {t("角色 ID")} <b>{character.id}</b>
         </span>
         <span>
-          金币 <b>{number(character.gold)}</b>
+          {t("金币")} <b>{number(character.gold)}</b>
         </span>
         <span>
-          点券 <b>{number(a.rawPoints ?? a.points)}</b>
+          {t("点券")} <b>{number(a.rawPoints ?? a.points)}</b>
         </span>
       </div>
       <button className="subtle" onClick={onChoose}>
-        切换角色
+        {t("切换角色")}
       </button>
     </div>
   );

@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'l10n/app_localizations.dart';
+
 enum UpdatePhase {
   ready,
   checking,
@@ -204,6 +206,7 @@ class LauncherController extends ChangeNotifier {
 
   String clientDirectory = '', account = '';
   bool rememberAccount = true;
+  String language = preferredLauncherLanguage();
   bool diagnosticsEnabled = false, diagnosticBusy = false;
   int diagnosticConsentVersion = 0;
   String diagnosticType = 'auto';
@@ -266,6 +269,11 @@ class LauncherController extends ChangeNotifier {
     antiCheatEnabled = state['antiCheatEnabled'] == true;
     news = (state['news'] as List? ?? []).cast<Map<String, dynamic>>();
     final prefs = state['preferences'] as Map<String, dynamic>? ?? {};
+    final savedLanguage = prefs['language'] as String? ?? 'auto';
+    language = savedLanguage == 'auto'
+        ? preferredLauncherLanguage()
+        : savedLanguage;
+    setLauncherLanguage(language);
     antiCheatConsentVersion = prefs['antiCheatConsentVersion'] as int? ?? 0;
     clientDirectory = prefs['clientDirectory'] as String? ?? '';
     account = prefs['account'] as String? ?? '';
@@ -353,6 +361,7 @@ class LauncherController extends ChangeNotifier {
     int? diagnosticConsent,
     int? antiCheatConsent,
     String? problemType,
+    String? language,
   }) async {
     await client.call('preferences', {
       'clientDirectory': directory ?? clientDirectory,
@@ -360,6 +369,7 @@ class LauncherController extends ChangeNotifier {
       'rememberAccount': remember ?? rememberAccount,
       'autoCheck': check ?? autoUpdate,
       'reducedEffects': effects ?? reducedEffects,
+      'language': language ?? this.language,
       'antiCheatConsentVersion': antiCheatConsent ?? antiCheatConsentVersion,
       'diagnostics': {
         'enabled': diagnosticEnabled ?? diagnosticsEnabled,

@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
+import 'l10n/app_localizations.dart';
+import 'l10n/localized_text.dart';
 
 class DiagnosticsPanel extends StatefulWidget {
   const DiagnosticsPanel({super.key, required this.model});
@@ -136,7 +138,7 @@ class _DiagnosticsPanelState extends State<DiagnosticsPanel> {
                     child: Text('增强诊断日志', style: TextStyle(fontSize: 20)),
                   ),
                   IconButton(
-                    tooltip: '关闭诊断面板',
+                    tooltip: AppLocalizations.translate('关闭诊断面板'),
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded),
                   ),

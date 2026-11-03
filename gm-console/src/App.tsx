@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard,
@@ -52,6 +53,7 @@ import { emptyState } from "./api/model";
 import { LiveContext } from "./api/context";
 import { LoginPanel, LiveConfirmation, OperationHistory } from "./api/controls";
 import { Empty } from "./ui";
+import { getLocale, setLocale } from "./i18n";
 const demo =
   import.meta.env.VITE_CONSOLE_MODE === "demo" ||
   new URLSearchParams(location.search).get("demo") === "1";
@@ -146,6 +148,7 @@ export function App() {
       characters: demo ? ["1"] : [],
     }),
     [preferences, setPreferences] = useState(readPreferences),
+    [locale, setLocaleState] = useState(getLocale),
     [appearance, setAppearance] = useState(false),
     [pickCharacter, setPickCharacter] = useState(false),
     [mobileNav, setMobileNav] = useState(false),
@@ -162,6 +165,11 @@ export function App() {
       target: string;
     } | null>(null);
   const live = useMemo(() => (demo ? null : new ConsoleAPI(setState)), []);
+  const chooseLocale = (value: string) => {
+    if (value !== "ko-KR" && value !== "zh-CN") return;
+    setLocale(value);
+    setLocaleState(value);
+  };
   const character = state.characters.find((c) => c.id === characterId) ||
       (demo ? state.characters[0] : undefined) || {
         id: "",
@@ -176,11 +184,12 @@ export function App() {
       },
     nav = navigation.find((n) => n.id === section)!;
   useEffect(() => {
-    document.title = "PurpleMagic · GM 工作台";
+    document.documentElement.lang = locale;
+    document.title = t("PurpleMagic · GM 工作台");
     const onHash = () => { live?.navigate(readSection()); setSection(readSection()); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [locale]);
   useEffect(() => {
     if (demo) persistState(state);
   }, [state]);
@@ -290,12 +299,16 @@ export function App() {
     return <LiveContext.Provider value={live}>
       <div className="app-shell auth-shell">
       <main className="auth-screen">
-        <div className="auth-appearance"><IconButton label={preferences.theme === "dark" ? "切换浅色主题" : "切换深色主题"} onClick={() => setPreferences({ ...preferences, theme: preferences.theme === "dark" ? "light" : "dark" })}>
+        <div className="auth-appearance">
+          <select aria-label={t("语言")} value={locale} onChange={(event) => chooseLocale(event.target.value)}>
+            <option value="ko-KR">한국어</option><option value="zh-CN">简体中文</option>
+          </select>
+          <IconButton label={preferences.theme === "dark" ? t("切换浅色主题") : t("切换深色主题")} onClick={() => setPreferences({ ...preferences, theme: preferences.theme === "dark" ? "light" : "dark" })}>
           {preferences.theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
         </IconButton></div>
-        {state.api?.authReady ? <LoginPanel /> : <div className="auth-restoring" role="status"><LoaderCircle size={23} className="is-spinning" /><span>正在连接工作台</span></div>}
-        {state.api?.error && <p className="auth-service-error inline-error" role="alert">{state.api.error}</p>}
-        <small className="auth-caption">让每一次管理更从容</small>
+        {state.api?.authReady ? <LoginPanel /> : <div className="auth-restoring" role="status"><LoaderCircle size={23} className="is-spinning" /><span>{t("正在连接工作台")}</span></div>}
+        {state.api?.error && <p className="auth-service-error inline-error" role="alert">{t(state.api.error)}</p>}
+        <small className="auth-caption">{t("让每一次管理更从容")}</small>
       </main>
       </div>
     </LiveContext.Provider>;
@@ -306,7 +319,7 @@ export function App() {
         {mobileNav && (
           <button
             className="nav-backdrop"
-            aria-label="关闭导航"
+            aria-label={t("关闭导航")}
             onClick={() => setMobileNav(false)}
           />
         )}
@@ -321,11 +334,11 @@ export function App() {
               <strong>
                 Purple<span>Magic</span>
               </strong>
-              <small>阿拉德 · GM 工作台</small>
+              <small>{t("阿拉德 · GM 工作台")}</small>
             </div>
           </a>
-          <div className="sidebar-label">玩家管理</div>
-          <nav aria-label="主要功能">
+          <div className="sidebar-label">{t("玩家管理")}</div>
+          <nav aria-label={t("主要功能")}>
             {navigation.filter((n) => n.id !== "settings").map((n) => (
               <a
                 href={`#${n.id}`}
@@ -335,22 +348,22 @@ export function App() {
                 onClick={() => go(n.id)}
               >
                 <n.icon size={18} />
-                {n.label}
+                {t(n.label)}
                 {section === n.id && (
                   <ChevronRight size={14} className="nav-indicator" />
                 )}
               </a>
             ))}
           </nav>
-          <div className="sidebar-label">运营配置</div>
-          <nav aria-label="运营配置">
+          <div className="sidebar-label">{t("运营配置")}</div>
+          <nav aria-label={t("运营配置")}>
             <a
               href="#settings"
               className={section === "settings" ? "active" : ""}
               onClick={() => go("settings")}
             >
               <Megaphone size={18} />
-              公告与下载源
+              {t("公告与下载源")}
             </a>
           </nav>
           <div className="sidebar-bottom">
@@ -358,10 +371,10 @@ export function App() {
               <span className="status online">
                 <i />
                 {demo
-                  ? "本地预览 · 演示数据"
+                  ? t("本地预览 · 演示数据")
                   : state.api?.authenticated
-                    ? "管理服务已连接"
-                    : "等待登录"}
+                    ? t("管理服务已连接")
+                    : t("等待登录")}
               </span>
             </div>
             <button
@@ -369,48 +382,51 @@ export function App() {
               onClick={() => setAppearance(true)}
             >
               <Palette size={17} />
-              <span>外观设置</span>
+              <span>{t("外观设置")}</span>
               <Settings2 size={15} />
             </button>
             {live && state.api?.authenticated && (
               <button
                 className="token-entry"
-                aria-label="管理访问 Token"
+                aria-label={t("管理访问 Token")}
                 onClick={() => setTokenPanel(true)}
               >
                 <KeyRound size={18} />
-                <span><strong>Token 已连接</strong><small>访问凭证</small></span>
+                <span><strong>{t("Token 已连接")}</strong><small>{t("访问凭证")}</small></span>
                 <ArrowRightLeft size={15} />
               </button>
             )}
-            <small className="sidebar-copyright">让每一次管理更从容</small>
+            <small className="sidebar-copyright">{t("让每一次管理更从容")}</small>
           </div>
         </aside>
         <div className="app-right">
           <header className="topbar">
             <div className="topbar-left">
               <IconButton
-                label="打开导航"
+                label={t("打开导航")}
                 onClick={() => setMobileNav(!mobileNav)}
               >
                 <PanelLeft size={18} />
               </IconButton>
-              <span className="topbar-root">GM 工作台</span>
+              <span className="topbar-root">{t("GM 工作台")}</span>
               <ChevronRight size={13} />
-              <strong>{nav.label}</strong>
+              <strong>{t(nav.label)}</strong>
             </div>
             <div className="topbar-actions">
+              <select aria-label={t("语言")} value={locale} onChange={(event) => chooseLocale(event.target.value)}>
+                <option value="ko-KR">한국어</option><option value="zh-CN">简体中文</option>
+              </select>
               {live && live.operationReceipts().length > 0 && (
                 <button className="secondary" onClick={() => setReceiptPanel(true)}>
-                  操作回执 · {live.operationReceipts().length}
+                  {t("操作回执 ·")} {live.operationReceipts().length}
                 </button>
               )}
               <span className="topbar-selected">
-                {resolveRecipients(state, selection).length} 个已选角色
+                {resolveRecipients(state, selection).length} {t("个已选角色")}
               </span>
               <IconButton
                 label={
-                  preferences.theme === "dark" ? "切换浅色主题" : "切换深色主题"
+                  preferences.theme === "dark" ? t("切换浅色主题") : t("切换深色主题")
                 }
                 onClick={() =>
                   setPreferences({
@@ -425,12 +441,12 @@ export function App() {
                   <Moon size={18} />
                 )}
               </IconButton>
-              <IconButton label="外观设置" onClick={() => setAppearance(true)}>
+              <IconButton label={t("外观设置")} onClick={() => setAppearance(true)}>
                 <Settings2 size={18} />
               </IconButton>
               <button className="primary" onClick={() => go("mail")}>
                 <Mail size={15} />
-                发邮件
+                {t("发邮件")}
               </button>
             </div>
           </header>
@@ -439,18 +455,18 @@ export function App() {
               <div>
                 <p className="eyebrow">PURPLEMAGIC / {section === "query" ? "DASHBOARD" : section.toUpperCase()}</p>
                 <div className="page-title-row">
-                  <h1>{nav.title}</h1>
+                  <h1>{t(nav.title)}</h1>
                   <span
                     className="page-loading"
                     data-loading={!!(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading)}
                     role="status"
-                    aria-label={(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading) ? "正在读取" : undefined}
+                    aria-label={(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading) ? t("正在读取") : undefined}
                     aria-hidden={!(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading)}
                   >
                     <LoaderCircle size={20} className={(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading) ? "is-spinning" : undefined} aria-hidden="true" />
                   </span>
                 </div>
-                <p>{nav.sub}</p>
+                <p>{t(nav.sub)}</p>
               </div>
               {!["query", "benefits", "activities", "anti-cheat"].includes(section) && <button
                 className="secondary current-target"
@@ -472,7 +488,7 @@ export function App() {
               )}
             {state.api?.error && (
               <div className="glass live-status" role="alert">
-                <span className="inline-error">{state.api.error}</span>
+                <span className="inline-error">{t(state.api.error)}</span>
                 <button
                   className="secondary"
                   onClick={() =>
@@ -481,7 +497,7 @@ export function App() {
                     })
                   }
                 >
-                  重试
+                  {t("重试")}
                 </button>
               </div>
             )}
@@ -492,9 +508,9 @@ export function App() {
                 !live.current &&
                 !["query", "accounts", "settings", "quests", "benefits", "activities", "anti-cheat"].includes(section) ? (
                 <div className="glass content-panel">
-                  <Empty title="选择一位角色开始管理" />
+                  <Empty title={t("选择一位角色开始管理")} />
                   <button className="primary" onClick={() => go("accounts")}>
-                    查询账号与角色
+                    {t("查询账号与角色")}
                   </button>
                 </div>
               ) : (
@@ -525,7 +541,7 @@ export function App() {
             </div>
             <footer className="page-footer">
               <span>PurpleMagic</span>
-              <span>外部 GM · 玩家管理工作台</span>
+              <span>{t("外部 GM · 玩家管理工作台")}</span>
             </footer>
           </main>
         </div>
@@ -539,15 +555,15 @@ export function App() {
             ) : (
               <CheckCircle2 size={18} />
             )}
-            <span>{toast.text}</span>
-            <button aria-label="关闭提示" onClick={() => setToast(null)}>
+            <span>{t(toast.text)}</span>
+            <button aria-label={t("关闭提示")} onClick={() => setToast(null)}>
               <X size={15} />
             </button>
           </div>
         )}
         {pickCharacter && (
           <Modal
-            title="切换当前角色"
+            title={t("切换当前角色")}
             wide
             onClose={() => setPickCharacter(false)}
           >
@@ -562,25 +578,25 @@ export function App() {
         )}
         {state.api?.pending && !state.api.pending.hidden && <LiveConfirmation pending={state.api.pending} />}
         {receiptPanel && live && <OperationHistory onClose={() => setReceiptPanel(false)} />}
-        {tokenPanel && live && <Modal title="访问 Token" onClose={() => setTokenPanel(false)} footer={<>
-          <button className="secondary" onClick={() => setTokenPanel(false)}>保持连接</button>
+        {tokenPanel && live && <Modal title={t("访问 Token")} onClose={() => setTokenPanel(false)} footer={<>
+          <button className="secondary" onClick={() => setTokenPanel(false)}>{t("保持连接")}</button>
           <button className="primary" onClick={() => void live.guard(async () => {
             await live.logout(); setTokenPanel(false); setCharacterId(""); setSelection({ accounts: [], characters: [] });
-          })}><ArrowRightLeft size={15} />更换 Token</button>
-        </>}><p>清除本机的连接记忆，然后输入新的 Token。</p></Modal>}
+          })}><ArrowRightLeft size={15} />{t("更换 Token")}</button>
+        </>}><p>{t("清除本机的连接记忆，然后输入新的 Token。")}</p></Modal>}
         {pending && (
           <Modal
             title={
-              pending.command.kind === "mail" ? "确认发送邮件" : "确认本次修改"
+              pending.command.kind === "mail" ? t("确认发送邮件") : t("确认本次修改")
             }
             onClose={() => setPending(null)}
             footer={
               <>
                 <button className="secondary" onClick={() => setPending(null)}>
-                  取消
+                  {t("取消")}
                 </button>
                 <button className="primary" onClick={confirm}>
-                  {pending.command.kind === "mail" ? "确认发送" : "确认执行"}
+                  {pending.command.kind === "mail" ? t("确认发送") : t("确认执行")}
                 </button>
               </>
             }
@@ -607,7 +623,7 @@ export function App() {
                         }[k]
                       }
                     </dt>
-                    <dd>{typeof v === "boolean" ? (v ? "是" : "否") : v}</dd>
+                    <dd>{typeof v === "boolean" ? (v ? t("是") : t("否")) : v}</dd>
                   </div>
                 ))}
               </dl>
@@ -616,11 +632,11 @@ export function App() {
               <>
                 <dl className="detail-list">
                   <div>
-                    <dt>标题</dt>
+                    <dt>{t("标题")}</dt>
                     <dd>{pending.command.title}</dd>
                   </div>
                   <div>
-                    <dt>每角色金币</dt>
+                    <dt>{t("每角色金币")}</dt>
                     <dd>{number(pending.command.gold)}</dd>
                   </div>
                   {pending.command.items.map((i) => (
@@ -630,7 +646,7 @@ export function App() {
                     </div>
                   ))}
                 </dl>
-                <h3>最终收件名单 · {currentRecipients.length} 人</h3>
+                <h3>{t("最终收件名单 ·")} {currentRecipients.length} {t("人")}</h3>
                 <ul className="confirmation-recipients">
                   {currentRecipients.map((c) => (
                     <li key={c.id}>
@@ -646,22 +662,22 @@ export function App() {
             )}
             {pending.command.kind === "growth" && (
               <p className="confirm-values">
-                Lv.{pending.command.level} · {pending.command.job} · SP{" "}
+                Lv.{pending.command.level} · {t(pending.command.job)} · SP{" "}
                 {pending.command.sp} · TP {pending.command.tp}
               </p>
             )}
             {pending.command.kind === "currency" && (
               <dl className="detail-list">
                 <div>
-                  <dt>金币</dt>
+                  <dt>{t("金币")}</dt>
                   <dd>{number(pending.command.gold)}</dd>
                 </div>
                 <div>
-                  <dt>点券</dt>
+                  <dt>{t("点券")}</dt>
                   <dd>{number(pending.command.points)}</dd>
                 </div>
                 <div>
-                  <dt>代币券</dt>
+                  <dt>{t("代币券")}</dt>
                   <dd>{number(pending.command.tokens)}</dd>
                 </div>
               </dl>
@@ -686,11 +702,11 @@ export function App() {
         )}
         {appearance && (
           <Modal
-            title="外观设置"
+            title={t("外观设置")}
             onClose={() => setAppearance(false)}
             footer={
               <button className="primary" onClick={() => setAppearance(false)}>
-                完成
+                {t("完成")}
               </button>
             }
           >
@@ -702,8 +718,8 @@ export function App() {
                 }
               >
                 <Moon size={22} />
-                <strong>兰紫夜幕</strong>
-                <span>深色 · 粉紫微光</span>
+                <strong>{t("兰紫夜幕")}</strong>
+                <span>{t("深色 · 粉紫微光")}</span>
               </button>
               <button
                 className={preferences.theme === "light" ? "active" : ""}
@@ -712,13 +728,13 @@ export function App() {
                 }
               >
                 <Sun size={22} />
-                <strong>兰紫晨光</strong>
-                <span>浅色 · 淡紫通透</span>
+                <strong>{t("兰紫晨光")}</strong>
+                <span>{t("浅色 · 淡紫通透")}</span>
               </button>
             </div>
-            <Field label={`面板不透明度 · ${preferences.opacity}%`}>
+            <Field label={`${t("面板不透明度")} · ${preferences.opacity}%`}>
               <input
-                aria-label="面板不透明度"
+                aria-label={t("面板不透明度")}
                 type="range"
                 min="50"
                 max="95"
@@ -731,9 +747,9 @@ export function App() {
                 }
               />
             </Field>
-            <Field label={`毛玻璃模糊 · ${preferences.blur}px`}>
+            <Field label={`${t("毛玻璃模糊")} · ${preferences.blur}px`}>
               <input
-                aria-label="毛玻璃模糊"
+                aria-label={t("毛玻璃模糊")}
                 type="range"
                 min="0"
                 max="32"
@@ -748,7 +764,7 @@ export function App() {
             </Field>
             <label className="checkline">
               <CheckBox
-                label="显示背景氛围"
+                label={t("显示背景氛围")}
                 checked={preferences.background}
                 onChange={() =>
                   setPreferences({
@@ -757,11 +773,11 @@ export function App() {
                   })
                 }
               />
-              显示背景氛围
+              {t("显示背景氛围")}
             </label>
             <label className="checkline">
               <CheckBox
-                label="紧凑列表"
+                label={t("紧凑列表")}
                 checked={preferences.compact}
                 onChange={() =>
                   setPreferences({
@@ -770,7 +786,7 @@ export function App() {
                   })
                 }
               />
-              紧凑列表
+              {t("紧凑列表")}
             </label>
             <div className="form-divider" />
             {demo && (
@@ -782,19 +798,19 @@ export function App() {
                 }}
               >
                 <RotateCcw size={15} />
-                重置演示数据
+                {t("重置演示数据")}
               </button>
             )}
           </Modal>
         )}
         {reset && (
           <Modal
-            title="重置演示数据"
+            title={t("重置演示数据")}
             onClose={() => setReset(false)}
             footer={
               <>
                 <button className="secondary" onClick={() => setReset(false)}>
-                  取消
+                  {t("取消")}
                 </button>
                 <button
                   className="primary"
@@ -806,12 +822,12 @@ export function App() {
                     setToast({ text: "演示数据已重置", error: false });
                   }}
                 >
-                  重置
+                  {t("重置")}
                 </button>
               </>
             }
           >
-            <p>恢复示例账号、物品与邮件，并清空本地操作记录。</p>
+            <p>{t("恢复示例账号、物品与邮件，并清空本地操作记录。")}</p>
           </Modal>
         )}
       </div>

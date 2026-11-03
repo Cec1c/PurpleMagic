@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
 import 'launcher_controller.dart';
 import 'launcher_account_field.dart';
+import 'l10n/localized_text.dart';
 
 class AccountSecurityPanel extends StatefulWidget {
   const AccountSecurityPanel({

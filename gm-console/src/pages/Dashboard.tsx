@@ -1,3 +1,4 @@
+import { getLocale, t } from "../i18n";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -38,9 +39,9 @@ const icons = {
   clear: Swords,
   speed: Gauge,
 };
-const format = (n: number) => n.toLocaleString("zh-CN");
+const format = (n: number) => n.toLocaleString(getLocale());
 const clock = (date: string) =>
-  new Date(date).toLocaleTimeString("zh-CN", {
+  new Date(date).toLocaleTimeString(getLocale(), {
     timeZone: "Asia/Shanghai",
     hour12: false,
   });
@@ -169,23 +170,23 @@ export function Dashboard(props: PageProps) {
           <div className="dash-kicker">
             <CircleGauge size={17} /> PURPLEMAGIC
           </div>
-          <h2>今天的冒险，一眼掌握</h2>
-          <p>从账号增长到副本表现，关注正在发生的变化。</p>
+          <h2>{t("今天的冒险，一眼掌握")}</h2>
+          <p>{t("从账号增长到副本表现，关注正在发生的变化。")}</p>
           <div className="dash-shortcuts">
             <a href="#accounts">
               <Users size={16} />
-              账号与角色
+              {t("账号与角色")}
               <ArrowUpRight size={14} />
             </a>
             <a href="#anti-cheat">
               <ShieldCheck size={16} />
-              反作弊
+              {t("反作弊")}
               <ArrowUpRight size={14} />
             </a>
             {live && (
               <button onClick={() => setLibrary(true)}>
                 <LibraryBig size={16} />
-                物品库
+                {t("物品库")}
                 <ArrowUpRight size={14} />
               </button>
             )}
@@ -193,16 +194,16 @@ export function Dashboard(props: PageProps) {
         </section>
         <section className="glass dash-operations">
           <div className="dash-section-title">
-            <h2>运营工作区</h2>
-            <span>常用入口</span>
+            <h2>{t("运营工作区")}</h2>
+            <span>{t("常用入口")}</span>
           </div>
           <a href="#benefits">
             <span className="dash-link-icon">
               <Gift size={21} />
             </span>
             <span>
-              <strong>福利规则</strong>
-              <small>自动发放 · 发放详情 · 补发</small>
+              <strong>{t("福利规则")}</strong>
+              <small>{t("自动发放 · 发放详情 · 补发")}</small>
             </span>
             <ArrowUpRight size={17} />
           </a>
@@ -211,8 +212,8 @@ export function Dashboard(props: PageProps) {
               <CalendarDays size={21} />
             </span>
             <span>
-              <strong>游戏活动</strong>
-              <small>活动配置与生效状态</small>
+              <strong>{t("游戏活动")}</strong>
+              <small>{t("活动配置与生效状态")}</small>
             </span>
             <ArrowUpRight size={17} />
           </a>
@@ -220,10 +221,10 @@ export function Dashboard(props: PageProps) {
       </div>
     ),
     metrics: (metrics.length > 0 || loading) && (
-      <section aria-label="核心指标">
+      <section aria-label={t("核心指标")}>
         <div className="dash-section-title">
-          <h2>核心指标</h2>
-          <span>点击卡片进入对应模块</span>
+          <h2>{t("核心指标")}</h2>
+          <span>{t("点击卡片进入对应模块")}</span>
         </div>
         <div className="dash-metrics">
           {metrics.map((m) => {
@@ -231,10 +232,10 @@ export function Dashboard(props: PageProps) {
             const value = snapshot!.metrics[m.id]!;
             const detail =
               m.id === "fastClearsToday" && snapshot?.fastThresholdMs
-                ? `耗时 < ${snapshot.fastThresholdMs / 1000} 秒`
+                ? `${t("耗时 <")} ${snapshot.fastThresholdMs / 1000} ${t("秒")}`
                 : m.id === "fatigueToday" &&
                     snapshot?.fatigueSamples !== undefined
-                  ? `来自 ${format(snapshot.fatigueSamples)} 次有记录通关`
+                  ? `${t("来自")} ${format(snapshot.fatigueSamples)} ${t("次有记录通关")}`
                   : m.detail;
             return (
               <a
@@ -243,15 +244,15 @@ export function Dashboard(props: PageProps) {
                 key={m.id}
               >
                 <div className="dash-metric-label">
-                  <span>{m.label}</span>
+                  <span>{t(m.label)}</span>
                   <Icon size={18} />
                 </div>
                 <div className="dash-metric-value">
                   {format(value)}
-                  <small>{m.unit}</small>
+                  <small>{t(m.unit)}</small>
                 </div>
                 <div className="dash-metric-foot">
-                  <span>{detail}</span>
+                  <span>{t(detail)}</span>
                   <ArrowUpRight size={14} />
                 </div>
               </a>
@@ -281,10 +282,10 @@ export function Dashboard(props: PageProps) {
         <div className="dash-section-title">
           <h2>
             <Megaphone size={18} />
-            最新公告
+            {t("最新公告")}
           </h2>
           <a href="#settings">
-            管理公告
+            {t("管理公告")}
             <ArrowUpRight size={14} />
           </a>
         </div>
@@ -293,7 +294,7 @@ export function Dashboard(props: PageProps) {
             data.news.map((n, i) => (
               <article key={`${i}-${n.title}`}>
                 <div className="dash-news-meta">
-                  <span>{n.category}</span>
+                  <span>{t(n.category)}</span>
                   <time>{n.date}</time>
                 </div>
                 <h3>{n.title}</h3>
@@ -301,7 +302,7 @@ export function Dashboard(props: PageProps) {
               </article>
             ))
           ) : (
-            <p className="muted">暂无已发布公告</p>
+            <p className="muted">{t("暂无已发布公告")}</p>
           )}
         </div>
       </section>
@@ -312,16 +313,16 @@ export function Dashboard(props: PageProps) {
       <div className="glass dash-statusbar">
         <span className="dash-status">
           <i />
-          <strong>运营总览</strong>
-          <span>北京时间 · 周一开始</span>
+          <strong>{t("运营总览")}</strong>
+          <span>{t("北京时间 · 周一开始")}</span>
         </span>
         <span className="dash-refresh">
           <span>
-            {snapshot ? `${clock(snapshot.observedAt)} 更新` : "每分钟自动刷新"}
+            {snapshot ? `${clock(snapshot.observedAt)} ${t("更新")}` : t("每分钟自动刷新")}
           </span>
           <button
             className="icon-button"
-            aria-label="刷新仪表盘"
+            aria-label={t("刷新仪表盘")}
             disabled={loading}
             onClick={() => setRevision((v) => v + 1)}
           >
@@ -331,13 +332,13 @@ export function Dashboard(props: PageProps) {
       </div>
       {data.failures.length > 0 && (
         <div className="dash-read-error" role="status">
-          {data.failures.join("、")}暂未刷新
-          {data.snapshot || data.news ? "，保留上次结果" : ""}。
+          {data.failures.map((failure) => t(failure)).join("、")}{t("暂未刷新")}
+          {data.snapshot || data.news ? t("，保留上次结果") : ""}。
           <button
             className="text-button"
             onClick={() => setRevision((v) => v + 1)}
           >
-            重试
+            {t("重试")}
           </button>
         </div>
       )}
@@ -345,7 +346,7 @@ export function Dashboard(props: PageProps) {
         <Fragment key={id}>{widgets[id]}</Fragment>
       ))}
       {library && (
-        <Modal title="PVF 物品库" wide onClose={() => setLibrary(false)}>
+        <Modal title={t("PVF 物品库")} wide onClose={() => setLibrary(false)}>
           <ItemLibrary {...props} />
         </Modal>
       )}
@@ -367,25 +368,25 @@ function RegistrationHistory({
     <div className="dash-charts">
       <section className="glass dash-trend">
         <div className="dash-section-title">
-          <h2>注册趋势</h2>
-          <span>近 14 天</span>
+          <h2>{t("注册趋势")}</h2>
+          <span>{t("近 14 天")}</span>
         </div>
         <div className="dash-chart-total">
           <strong>{format(recent.reduce((s, d) => s + d.count, 0))}</strong>
-          <span>个新账号</span>
+          <span>{t("个新账号")}</span>
         </div>
         <div
           className="dash-bars"
           role="img"
-          aria-label={`近14天注册${recent.reduce((s, d) => s + d.count, 0)}个账号`}
+          aria-label={`${t("近14天注册")} ${recent.reduce((s, d) => s + d.count, 0)}${t("个账号")}`}
         >
           {recent.map((d) => (
             <div
               className="dash-bar-column"
               key={d.date}
               tabIndex={0}
-              title={`${d.date} · ${d.count} 个账号`}
-              aria-label={`${d.date}，${d.count} 个账号`}
+              title={`${d.date} · ${d.count}${t("个账号")}`}
+              aria-label={`${d.date}，${d.count}${t("个账号")}`}
             >
               <span className="dash-bar-value">{d.count}</span>
               <i
@@ -400,9 +401,9 @@ function RegistrationHistory({
       </section>
       <section className="glass dash-heatmap">
         <div className="dash-section-title">
-          <h2>注册热力图</h2>
+          <h2>{t("注册热力图")}</h2>
           <span>
-            {format(total)} 个账号 · {days.length} 天
+            {format(total)}{t("个账号 ·")} {days.length} {t("天")}
           </span>
         </div>
         <div className="dash-heat-scroll">
@@ -412,7 +413,10 @@ function RegistrationHistory({
           </div>
           <div className="dash-heat-layout">
             <div className="dash-heat-week">
-              {["一", "", "三", "", "五", "", "日"].map((d, i) => (
+              {(getLocale() === "ko-KR"
+                ? ["월", "", "수", "", "금", "", "일"]
+                : ["一", "", "三", "", "五", "", "日"]
+              ).map((d, i) => (
                 <span key={i}>{d}</span>
               ))}
             </div>
@@ -422,8 +426,8 @@ function RegistrationHistory({
                   <button
                     key={d.date}
                     className={`heat-${heatLevel(d.count, maximum)}`}
-                    aria-label={`${d.date} 注册 ${d.count} 个账号`}
-                    title={`${d.date} · ${d.count} 个账号`}
+                    aria-label={`${d.date} ${t("注册")} ${d.count}${t("个账号")}`}
+                    title={`${d.date} · ${d.count}${t("个账号")}`}
                     onFocus={() => setFocused(d)}
                     onMouseEnter={() => setFocused(d)}
                     onClick={() => setFocused(d)}
@@ -437,14 +441,14 @@ function RegistrationHistory({
         </div>
         <div className="dash-heat-footer">
           <span aria-live="polite">
-            {focused.date} · {focused.count} 个新账号
+            {focused.date} · {focused.count} {t("个新账号")}
           </span>
           <span className="dash-heat-legend">
-            少
+            {t("少")}
             {[0, 1, 2, 3, 4].map((n) => (
               <i key={n} className={`heat-${n}`} />
             ))}
-            多
+            {t("多")}
           </span>
         </div>
       </section>

@@ -110,6 +110,17 @@ select {
   max-width: 100%;
   padding-right: 24px;
 }
+.locale-select,
+.topbar-actions > select,
+.auth-appearance > select {
+  min-height: 32px;
+  padding: 5px 25px 5px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--surface-1);
+  font-size: 11px;
+}
 option {
   background: var(--surface-1);
 }

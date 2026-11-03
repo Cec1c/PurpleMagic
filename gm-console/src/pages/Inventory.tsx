@@ -1,3 +1,5 @@
+import { getLocale } from "../i18n";
+import { t } from "../i18n";
 import { numberDraft, draftNumber } from "../numeric";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
@@ -95,8 +97,8 @@ function ItemEditor({
   return (
     <aside className="inspector glass">
       <div className="panel-heading">
-        <span>物品详情</span>
-        <span className="muted">槽位 {item.slot}</span>
+        <span>{t("物品详情")}</span>
+        <span className="muted">{t("槽位")} {item.slot}</span>
       </div>
       <div className="item-overview">
         <span className={`item-icon large ${rarityTone[item.rarity] || ""}`}>
@@ -109,12 +111,12 @@ function ItemEditor({
         <div>
           <h2 className={`rarity-${item.rarity}`}>{item.name}</h2>
           <p>
-            {item.category} · Lv.{item.level}
+            {t(item.category)} · Lv.{item.level}
           </p>
         </div>
       </div>
       <div className="item-meta">
-        <Pill tone={rarityTone[item.rarity]}>{item.rarity}</Pill>
+        <Pill tone={rarityTone[item.rarity]}>{t(item.rarity)}</Pill>
         <span className="mono">ID {item.id}</span>
       </div>
       <form
@@ -134,7 +136,7 @@ function ItemEditor({
         <div className="form-section">
           <h3>
             <SlidersHorizontal size={15} />
-            属性配置
+            {t("属性配置")}
           </h3>
           <div className="field-grid">
             {numeric(
@@ -144,7 +146,7 @@ function ItemEditor({
             )}
             {equipmentFields && numeric("enhance", "强化等级", equipment?.maxUpgradeLevel ?? 31)}
             {equipmentFields && (live ? (
-              <Field label="增幅属性">
+              <Field label={t("增幅属性")}>
                 <select
                   disabled={!equipment?.canAmplify}
                   value={draft.amplify}
@@ -167,52 +169,52 @@ function ItemEditor({
             ))}
             {equipmentFields && numeric("forge", "锻造等级", equipment?.maxForgingLevel ?? 8)}
           </div>
-          {equipment?.canUpgrade && <p className="muted field-hint">强化可保存范围：0–{equipment.maxUpgradeLevel}</p>}
+          {equipment?.canUpgrade && <p className="muted field-hint">{t("强化可保存范围：0–")}{equipment.maxUpgradeLevel}</p>}
           {expiration?.canOverride && (
-            <Field label="重新设置有效期（天）">
+            <Field label={t("重新设置有效期（天）")}>
               <input
                 type="number"
                 min={1}
                 max={expiration.maxDays}
                 value={expirationDays}
-                placeholder={`剩余 ${expiration.currentRemainingDays} 天`}
+                placeholder={`${t("剩余")} ${expiration.currentRemainingDays}${t("天")}`}
                 onChange={(e) => setExpirationDays(e.target.value)}
               />
             </Field>
           )}
           <label className="checkline">
             <CheckBox
-              label="绑定物品"
+              label={t("绑定物品")}
               disabled={!!live}
               checked={draft.bound}
               onChange={() => setDraft({ ...draft, bound: !draft.bound })}
             />
             <LockKeyhole size={14} />
-            绑定角色
+            {t("绑定角色")}
           </label>
         </div>
         <dl className="detail-list">
           <div>
-            <dt>归属范围</dt>
-            <dd>{item.tab === "account" ? "账号共享" : "当前角色"}</dd>
+            <dt>{t("归属范围")}</dt>
+            <dd>{item.tab === "account" ? t("账号共享") : t("当前角色")}</dd>
           </div>
           <div>
-            <dt>有效期</dt>
+            <dt>{t("有效期")}</dt>
             <dd>
               {item.remote?.expiresAt
-                ? new Date(item.remote.expiresAt).toLocaleString("zh-CN")
-                : "无期限"}
+                ? new Date(item.remote.expiresAt).toLocaleString(getLocale(), { timeZone: "Asia/Shanghai" })
+                : t("无期限")}
             </dd>
           </div>
           <div>
-            <dt>物品状态</dt>
+            <dt>{t("物品状态")}</dt>
             <dd>
               <span
                 className={
                   item.remote && !item.remote.known ? "" : "green-text"
                 }
               >
-                {item.remote && !item.remote.known ? "PVF 未收录" : "正常"}
+                {item.remote && !item.remote.known ? t("PVF 未收录") : t("正常")}
               </span>
             </dd>
           </div>
@@ -220,19 +222,19 @@ function ItemEditor({
         {capability?.item?.pet && (
           <dl className="detail-list">
             <div>
-              <dt>宠物名称</dt>
+              <dt>{t("宠物名称")}</dt>
               <dd>{capability.item.pet.name || item.name}</dd>
             </div>
             <div>
-              <dt>宠物等级</dt>
+              <dt>{t("宠物等级")}</dt>
               <dd>{capability.item.pet.level}</dd>
             </div>
             <div>
-              <dt>宠物经验</dt>
+              <dt>{t("宠物经验")}</dt>
               <dd>{number(capability.item.pet.experience)}</dd>
             </div>
             <div>
-              <dt>饱食度</dt>
+              <dt>{t("饱食度")}</dt>
               <dd>{capability.item.pet.satiety}</dd>
             </div>
           </dl>
@@ -246,7 +248,7 @@ function ItemEditor({
         )}
         <div className="inspector-footer">
           <span className="change-note">
-            {changed ? "有未保存的修改" : "选择物品，查看或调整属性"}
+            {changed ? t("有未保存的修改") : t("选择物品，查看或调整属性")}
           </span>
           <div className="button-row">
             <button
@@ -265,22 +267,22 @@ function ItemEditor({
               }}
             >
               <RotateCcw size={15} />
-              重置
+              {t("重置")}
             </button>
             <button className="primary" disabled={!changed}>
               <Save size={15} />
-              保存修改
+              {t("保存修改")}
             </button>
           </div>
         </div>
       </form>
       {capability?.canReplace && <form className="item-replacement" onSubmit={e => {e.preventDefault(); request({kind:"replace-item", key:item.key, version:item.version, itemId:replacementId.trim()});}}>
-        <Field label="替换物品 ID" hint="同类替换，保留数量与实例属性">
-          <input aria-label="替换物品 ID" inputMode="numeric" pattern="[1-9][0-9]*" required value={replacementId} onChange={e => setReplacementId(e.target.value)} />
+        <Field label={t("替换物品 ID")} hint="同类替换，保留数量与实例属性">
+          <input aria-label={t("替换物品 ID")} inputMode="numeric" pattern="[1-9][0-9]*" required value={replacementId} onChange={e => setReplacementId(e.target.value)} />
         </Field>
-        <button className="secondary" disabled={replacementId === item.id}><ArrowRightLeft size={15} />替换物品</button>
+        <button className="secondary" disabled={replacementId === item.id}><ArrowRightLeft size={15} />{t("替换物品")}</button>
       </form>}
-      <button type="button" className="danger-button delete-single" disabled={!!live && !capability?.canDelete} onClick={() => request({kind:"delete-items", keys:[item.key]})}><Trash2 size={15} />删除这件物品</button>
+      <button type="button" className="danger-button delete-single" disabled={!!live && !capability?.canDelete} onClick={() => request({kind:"delete-items", keys:[item.key]})}><Trash2 size={15} />{t("删除这件物品")}</button>
     </aside>
   );
 }
@@ -328,7 +330,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
     <>
       <div className="section-tabs">
         <Tabs
-          label="背包分类"
+          label={t("背包分类")}
           items={bagTabs}
           value={tab}
           onChange={changeTab}
@@ -338,19 +340,19 @@ export function Inventory({ state, character, request, notify }: PageProps) {
         <section className="inventory-main">
           <div className="toolbar">
             <SearchField
-              placeholder="搜索物品名称或 ID"
+              placeholder={t("搜索物品名称或 ID")}
               value={query}
               onChange={setQuery}
             />
-            <button className="danger-button" disabled={!visibleChecked.length || loading} onClick={() => request({kind:"delete-items", keys:visibleChecked})}><Trash2 size={15} />删除选中{visibleChecked.length ? `（${visibleChecked.length}）` : ""}</button>
+            <button className="danger-button" disabled={!visibleChecked.length || loading} onClick={() => request({kind:"delete-items", keys:visibleChecked})}><Trash2 size={15} />{t("删除选中")}{visibleChecked.length ? `（${visibleChecked.length}）` : ""}</button>
             <button className="secondary" onClick={() => setReverse(!reverse)}>
               <ArrowDownUp size={15} />
-              {reverse ? "槽位降序" : "槽位升序"}
+              {reverse ? t("槽位降序") : t("槽位升序")}
             </button>
             <button
               className="icon-button"
-              aria-label="刷新物品"
-              title="刷新物品"
+              aria-label={t("刷新物品")}
+              title={t("刷新物品")}
               onClick={() => {
                 setChecked([]);
                 if (live) void live.guard(() => live.inventory(tab));
@@ -372,11 +374,11 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                       setChecked([]);
                     }}
                   >
-                    {c}
+                    {t(c)}
                   </button>
                 ))}
               </div>
-              <span className="inventory-read-state">{loading ? <><LoaderCircle size={15} className="is-spinning" />正在读取物品</> : `${rows.length} 件物品`}</span>
+              <span className="inventory-read-state">{loading ? <><LoaderCircle size={15} className="is-spinning" />{t("正在读取物品")}</> : `${rows.length}${t("件物品")}`}</span>
             </div>
             <div className="table-scroll">
               <table className="inventory-table">
@@ -384,7 +386,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                   <tr>
                     <th className="check-cell">
                       <CheckBox
-                        label="全选当前物品"
+                        label={t("全选当前物品")}
                         checked={
                           ids.length > 0 &&
                           ids.every((id) => checked.includes(id))
@@ -396,11 +398,11 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                         }
                       />
                     </th>
-                    <th>物品</th>
-                    <th>品质</th>
-                    <th>数量</th>
-                    <th>强化 / 增幅</th>
-                    <th className="end">槽位</th>
+                    <th>{t("物品")}</th>
+                    <th>{t("品质")}</th>
+                    <th>{t("数量")}</th>
+                    <th>{t("强化 / 增幅")}</th>
+                    <th className="end">{t("槽位")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -438,20 +440,20 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                               {i.name}
                             </strong>
                             <small>
-                              {i.id} <span>· {i.category}</span>
+                              {i.id} <span>· {t(i.category)}</span>
                             </small>
                           </span>
                         </button>
                       </td>
                       <td>
-                        <span className={`rarity-${i.rarity}`}>{i.rarity}</span>
+                        <span className={`rarity-${i.rarity}`}>{t(i.rarity)}</span>
                       </td>
                       <td className="numeric">{number(i.count)}</td>
                       <td>
                         {i.enhance ? (
                           <span className="cyan-text">+{i.enhance}</span>
                         ) : i.amplify ? (
-                          <span className="purple-text">增幅 +{i.amplify}</span>
+                          <span className="purple-text">{t("增幅 +")}{i.amplify}</span>
                         ) : (
                           <span className="muted">—</span>
                         )}
@@ -465,16 +467,16 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                 </tbody>
               </table>
             </div>
-            {!rows.length && (loading ? <div className="inventory-loading" role="status"><LoaderCircle size={28} className="is-spinning" /><span>正在读取物品</span></div> : <Empty title="没有找到物品" detail="调整关键词或切换分类" />)}
+            {!rows.length && (loading ? <div className="inventory-loading" role="status"><LoaderCircle size={28} className="is-spinning" /><span>{t("正在读取物品")}</span></div> : <Empty title={t("没有找到物品")} detail="调整关键词或切换分类" />)}
             <div className="table-footer">
               <span>
                 {visibleChecked.length ? (
                   <>
                     <Check size={14} />
-                    已选择 {visibleChecked.length} 件
+                    {t("已选择")} {visibleChecked.length}{t("件")}
                   </>
                 ) : (
-                  `${bagTabs.find((t) => t.id === tab)?.label} · ${rows.length} 件物品`
+                  `${t(bagTabs.find((t) => t.id === tab)?.label || "物品")} · ${rows.length}${t("件物品")}`
                 )}
               </span>
               {visibleChecked.length > 0 ? (
@@ -485,10 +487,10 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                   }
                 >
                   <Trash2 size={14} />
-                  删除选中
+                  {t("删除选中")}
                 </button>
               ) : (
-                <span className="muted">点击物品查看详情</span>
+                <span className="muted">{t("点击物品查看详情")}</span>
               )}
             </div>
           </div>
@@ -501,7 +503,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
           />
         ) : (
           <aside className="inspector glass">
-            <Empty title={loading ? "正在读取物品详情" : "选择一件物品"} />
+            <Empty title={loading ? t("正在读取物品详情") : t("选择一件物品")} />
           </aside>
         )}
       </div>
