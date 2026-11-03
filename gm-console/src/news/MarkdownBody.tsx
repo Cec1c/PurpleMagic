@@ -13,7 +13,7 @@ export function MarkdownBody({body, format}: {body:string; format?:string}) {
   return <div className="news-markdown"><Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={newsURL}
     components={{
       a: ({node:_,...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-      img: ({node:_,...props}) => props.src ? <img {...props} loading="lazy" referrerPolicy="no-referrer" /> : <span>{props.alt}</span>,
+      img: ({node:_,...props}) => props.src?.startsWith("https://") ? <img {...props} loading="lazy" referrerPolicy="no-referrer" /> : <span>{props.alt}</span>,
       table: ({node:_,...props}) => <div className="news-table"><table {...props} /></div>,
     }}>{body}</Markdown></div>;
 }

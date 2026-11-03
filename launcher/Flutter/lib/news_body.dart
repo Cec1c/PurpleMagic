@@ -67,7 +67,7 @@ class NewsBody extends StatelessWidget {
           }
         }
       },
-      imageBuilder: (uri, title, alt) => newsLink(uri.toString()) == null
+      imageBuilder: (uri, title, alt) => newsLink(uri.toString()) == null || uri.scheme != 'https'
           ? Text(alt ?? '', style: text)
           : ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 400),

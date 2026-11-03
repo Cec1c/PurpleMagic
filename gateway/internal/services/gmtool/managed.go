@@ -73,7 +73,7 @@ func (s *Server) ManagementHandler(webRoot string) http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/console/") {
-			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		}
 		mux.ServeHTTP(w, r)
 	})
