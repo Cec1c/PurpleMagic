@@ -9,7 +9,7 @@ import {
   Globe,
 } from "lucide-react";
 import { Tabs, Field, type PageProps } from "../ui";
-import { HubLogin } from "../api/controls";
+import { HubStatus } from "../api/controls";
 import { useLive } from "../api/context";
 function HubSettings({
   state,
@@ -227,7 +227,7 @@ export function Settings(props: PageProps) {
       {tab === "pvf" ? (
         <PVFSettings {...props} />
       ) : live && !props.state.api?.hub ? (
-        <HubLogin />
+        <HubStatus />
       ) : (
         <HubSettings {...props} tab={tab} />
       )}

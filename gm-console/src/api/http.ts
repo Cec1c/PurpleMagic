@@ -16,7 +16,6 @@ export class ApiError extends Error {
 }
 export class HttpClient {
   csrf = "";
-  hubCsrf = "";
   readTimeout = 12000;
   writeTimeout = 45000;
   private view = new AbortController();
@@ -66,7 +65,10 @@ export class HttpClient {
     signal?: AbortSignal,
     headers: Record<string, string> = {},
   ): Promise<T> {
-    if (!path.startsWith("/api/") && !path.startsWith("/admin/api/"))
+    // Resume stored announcement operations with their original request IDs.
+    if (["/admin/api/news", "/admin/api/news/entries", "/admin/api/source", "/admin/api/connection"].includes(path))
+      path = path.replace("/admin/api/", "/api/v1/hub/");
+    if (!path.startsWith("/api/"))
       throw new Error("接口路径无效");
     const controller = new AbortController();
     const abort = () => controller.abort(signal?.reason);
@@ -115,9 +117,7 @@ export class HttpClient {
               ...(method !== "GET"
                 ? {
                     "Content-Type": "application/json",
-                    "X-CSRF-Token": path.startsWith("/admin/")
-                      ? this.hubCsrf
-                      : this.csrf,
+                    "X-CSRF-Token": this.csrf,
                   }
                 : {}),
               ...(key ? { "Idempotency-Key": key } : {}),

@@ -431,29 +431,17 @@ export function LoadMore({
     </div>
   );
 }
-export function HubLogin() {
+export function HubStatus() {
   const api = useLive()!;
-  const [token, setToken] = useState("");
   return (
-    <form
-      className="glass content-panel"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void api.hub(token).then(() => setToken(""));
-      }}
-    >
+    <section className="glass content-panel" aria-busy={!api.meta.hubError}>
       <h2>公告与下载源管理</h2>
-      <Field label="运营管理 Token">
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          required
-          autoComplete="off"
-        />
-      </Field>
-      {api.meta.hubError && <p className="inline-error">{api.meta.hubError}</p>}
-      <button className="primary">登录配置管理</button>
-    </form>
+      {api.meta.hubError ? <>
+        <p className="inline-error" role="alert">{api.meta.hubError}</p>
+        <button className="secondary" disabled={api.meta.busy} onClick={() => void api.guard(() => api.hub())}>
+          <RefreshCw size={14} />重新加载
+        </button>
+      </> : <p role="status"><RefreshCw size={16} className="spin" />正在载入</p>}
+    </section>
   );
 }

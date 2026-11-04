@@ -149,6 +149,10 @@ func (h *Hub) logout(w http.ResponseWriter, r *http.Request, id string) {
 	reply(w, 200, map[string]bool{"ok": true})
 }
 func (h *Hub) AdminHandler() http.Handler {
+	return h.adminHandler(h.identity)
+}
+
+func (h *Hub) adminHandler(identity func(*http.Request) (string, session, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -182,7 +186,7 @@ func (h *Hub) AdminHandler() http.Handler {
 			h.login(w, r)
 			return
 		}
-		id, s, ok := h.identity(r)
+		id, s, ok := identity(r)
 		if !ok {
 			if r.URL.Path == "/gm/" {
 				http.Redirect(w, r, "/admin/", 302)

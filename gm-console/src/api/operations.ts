@@ -449,7 +449,7 @@ export async function prepareOperation(
       );
   } else if (command.kind === "news" || command.kind === "news-delete" || command.kind === "news-move") {
     const hub = api.meta.hub;
-    if (!hub) throw new Error("请先登录公告与下载源管理");
+    if (!hub) throw new Error("公告与下载源尚未载入，请重试");
     const selected = api.state.news.find(n => n.id === command.id);
     const draft = selected && !selected.published ? selected : undefined;
     const originId = draft?.originId ?? (command.id.startsWith("draft-") ? "" : command.id);
@@ -470,7 +470,7 @@ export async function prepareOperation(
       if (item && !item.title) throw new Error("请填写公告标题");
       p.summary = command.kind === "news-delete" ? "删除这条公告，并从登录器公告中移除" : command.kind === "news-move" ? "调整公告顺序" : "发布公告到登录器";
       if (hub.newsManager) {
-        add(p.summary, "/admin/api/news/entries", {
+        add(p.summary, "/api/v1/hub/news/entries", {
           action:command.kind === "news-delete" ? "delete" : command.kind === "news-move" ? "move" : "save",
           id:originId, ...(item ? {news:item}:{}), ...(command.kind === "news-move" ? {direction:command.direction}:{}),
         }, {headers:{"If-Match":`"${revision}"`}});
@@ -487,13 +487,13 @@ export async function prepareOperation(
           const {format:_,...plain}=item!;
           if (i>=0) news[i]=plain; else news.unshift(plain);
         }
-        add(p.summary,"/admin/api/news",news,{method:"PUT",headers:{"If-Match":`"${revision}"`}});
+        add(p.summary,"/api/v1/hub/news",news,{method:"PUT",headers:{"If-Match":`"${revision}"`}});
       }
       if (draft) p.draftId=draft.id;
     }
   } else if (command.kind === "sources") {
     const hub = api.meta.hub;
-    if (!hub) throw new Error("请先登录公告与下载源管理");
+    if (!hub) throw new Error("公告与下载源尚未载入，请重试");
     const source = command.source || hub.sources?.[0];
     if (source) {
       const u = new URL(command.download);
@@ -509,7 +509,7 @@ export async function prepareOperation(
       const next = { ...source, endpoint: u.origin };
       const old = hub.sources?.find((s: DTO) => s.id === next.id);
       if (JSON.stringify(old) !== JSON.stringify(next))
-        add("保存下载源", "/admin/api/source", next, { method: "PUT" });
+        add("保存下载源", "/api/v1/hub/source", next, { method: "PUT" });
     }
     if (
       command.gameHost !== api.state.sources.gameHost ||
@@ -517,7 +517,7 @@ export async function prepareOperation(
     )
       add(
         "发布游戏连接",
-        "/admin/api/connection",
+        "/api/v1/hub/connection",
         { gameHost: command.gameHost, bootstrapPort: command.gamePort },
         {
           method: "PUT",

@@ -175,3 +175,8 @@ func (m *Module) Close() error {
 	})
 	return result
 }
+
+// HubSessionGuard shares the integrated management session with Hub settings.
+func (m *Module) HubSessionGuard(next http.Handler) http.Handler {
+	return m.server.HubHandler(next)
+}

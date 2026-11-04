@@ -1,3 +1,5 @@
+2026-11-04：GM 登录后可直接管理公告，无需额外运营管理 Token；见 [统一会话](GM_SESSION.md)。
+
 # 登录器公告
 
 ## 现行 GM 公告管理
@@ -35,7 +37,7 @@
 | `PUT /admin/api/news` | 私有 Hub 发布完整公告数组，保留现有接口格式 |
 | `GET /launcher/v2/bootstrap.json` | 玩家读取 RSA-PSS 签名元数据，其中包含 `news` |
 
-管理页面使用 Hub 会话及 `X-CSRF-Token`。发布时同时发送 `If-Match: "<newsRevision>"`，修订值由公告内容和顺序计算，与客户端版本发布的序号独立。
+GM 页面使用 GM 会话及 `X-CSRF-Token`，访问 `/api/v1/hub/`；下表 `/admin/api/` 为旧 Hub 管理器及自动化入口。发布时同时发送 `If-Match: "<newsRevision>"`，修订值由公告内容和顺序计算，与客户端版本发布的序号独立。
 
 请求体示例：
 

@@ -76,7 +76,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body []byte, heade
 	if e != nil {
 		return nil, e
 	}
-	for _, k := range []string{"Content-Type", "Idempotency-Key"} {
+	for _, k := range []string{"Content-Type", "Idempotency-Key", "If-Match"} {
 		if v := headers.Get(k); v != "" {
 			r.Header.Set(k, v)
 		}

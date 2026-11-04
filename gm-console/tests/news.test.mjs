@@ -20,7 +20,7 @@ test('draft deletion is local and never deletes the published original',async()=
 test('edit preserves metadata and sends just one Markdown entry even with 30 published announcements',async()=>{
  const a=api();a.meta.hub.published.news=Array.from({length:30},()=>row);
  await a.prepare({kind:'news',id:row.id,title:'改标题',body:'## 章节\n\n**重点**',format:'markdown',published:true,sourceRevision:'r1'},selection);
- const step=a.meta.pending.steps[0];assert.equal(step.path,'/admin/api/news/entries');assert.equal(step.body.news.category,'指南');assert.equal(step.body.news.date,'10 / 15');assert.equal(step.body.news.format,'markdown');assert.equal(step.body.id,row.id);
+ const step=a.meta.pending.steps[0];assert.equal(step.path,'/api/v1/hub/news/entries');assert.equal(step.body.news.category,'指南');assert.equal(step.body.news.date,'10 / 15');assert.equal(step.body.news.format,'markdown');assert.equal(step.body.id,row.id);
 });
 test('a stale editor cannot delete or overwrite another announcement after a refresh',async()=>{
  const a=api();a.meta.hub.newsRevision='r2';await assert.rejects(a.prepare({kind:'news-delete',id:row.id,sourceRevision:'r1'},selection),/已更新/);
@@ -39,4 +39,27 @@ test('Markdown preview renders tables and emphasis; no raw HTML or executable UR
  assert.match(html,/<h2>标题<\/h2>/);assert.match(html,/<strong>重点<\/strong>/);assert.match(html,/<table>/);assert.doesNotMatch(html,/<script|javascript:|file:\/\//);
  assert.equal(newsURL('https://example.test/help'),'https://example.test/help');assert.equal(newsURL('https://user:pass@example.test'),'');
  assert.match(render('**原文**\n第二行','text'),/\*\*原文\*\*/);
+});
+
+
+test('GM settings load and publish with the GM session CSRF, without a second login', async()=>{
+ const a=api(),calls=[];a.meta.hub=undefined;a.http.csrf='gm-session-csrf';
+ a.http.fetcher=async(path,init)=>{
+  calls.push({path,method:init.method,headers:init.headers});
+  if(path==='/api/v1/hub/state')return new Response(JSON.stringify({newsManager:true,newsRevision:'r1',sources:[],published:{}}));
+  if(path.startsWith('/api/v1/hub/news?'))return new Response(JSON.stringify({rows:[row],total:1,offset:0,next:-1,revision:'r1'}));
+  assert.equal(path,'/api/v1/hub/news/entries');assert.equal(init.headers['X-CSRF-Token'],'gm-session-csrf');assert.equal(init.headers['If-Match'],'"r1"');
+  return new Response(JSON.stringify({ok:true,newsRevision:'r2'}));
+ };
+ await a.hub();assert.ok(a.meta.hub);assert.equal(calls.length,2);assert.ok(calls.every(c=>c.method==='GET'));
+ await a.prepare({kind:'news',id:row.id,title:'一次登录',body:'正文',published:true,sourceRevision:'r1'},selection);
+ await a.confirm();assert.equal(calls.length,3);assert.ok(calls[2].headers['Idempotency-Key']);
+});
+test('stored legacy announcement requests keep their ID and revision on the GM route', async()=>{
+ const a=api();a.http.csrf='gm-csrf';
+ a.http.fetcher=async(path,init)=>{
+  assert.equal(path,'/api/v1/hub/news/entries');assert.equal(init.headers['Idempotency-Key'],'original-request');assert.equal(init.headers['If-Match'],'"r1"');assert.equal(init.headers['X-CSRF-Token'],'gm-csrf');return new Response('{"ok":true}');
+ };
+ await a.http.raw('/admin/api/news/entries','POST',{action:'delete',id:row.id},'original-request',undefined,{'If-Match':'"r1"'});
+ await assert.rejects(a.http.raw('/admin/api/login','POST',{}),/接口路径无效/);
 });

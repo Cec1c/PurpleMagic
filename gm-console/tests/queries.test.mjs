@@ -16,10 +16,10 @@ test('cancelled character selection never starts a late presence read in the new
 
 test('successful connection publication refreshes the signed Hub state shown in settings',async()=>{
  const api=new ConsoleAPI(()=>{});api.meta.authenticated=true;api.sectionId='settings';let published=false;
- api.meta.pending={id:'connection-request',title:'连接',target:'设置',summary:'修改游戏地址',confirmed:false,steps:[{id:'connection-step',path:'/admin/api/connection',method:'PUT',body:{gameHost:'new.example',bootstrapPort:1234},label:'发布'}]};
+ api.meta.pending={id:'connection-request',title:'连接',target:'设置',summary:'修改游戏地址',confirmed:false,steps:[{id:'connection-step',path:'/api/v1/hub/connection',method:'PUT',body:{gameHost:'new.example',bootstrapPort:1234},label:'发布'}]};
  api.http.fetcher=async(path,init)=>{
   if(init.method==='PUT'){published=true;return response({});}
-  assert.equal(path,'/admin/api/state');assert.equal(published,true);
+  assert.equal(path,'/api/v1/hub/state');assert.equal(published,true);
   return new Response(JSON.stringify({csrf:'next',sources:[],published:{profile:{GameHost:'new.example',BootstrapPort:1234}}}));
  };
  await api.confirm();assert.equal(api.meta.pending.completed,true);assert.equal(api.state.sources.gameHost,'new.example');assert.equal(api.state.sources.gamePort,1234);

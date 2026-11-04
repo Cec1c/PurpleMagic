@@ -1116,21 +1116,15 @@ export class ConsoleAPI {
       ).sort((a, b) => b.at.localeCompare(a.at)),
     });
   }
-  async hub(token?: string) {
+  async hub() {
     try {
-      if (token)
-        await this.http.raw("/admin/api/login", "POST", {
-          token,
-          remember: false,
-        });
       const data = await this.http.raw<DTO>(
-        "/admin/api/state",
+        "/api/v1/hub/state",
         "GET",
         undefined,
         undefined,
         this.signal("hub"),
       );
-      this.http.hubCsrf = data.csrf;
       this.meta.hub = data;
       this.meta.hubError = "";
       const sources = data.sources || [];
@@ -1155,7 +1149,7 @@ export class ConsoleAPI {
     const signal = this.signal("hub-news");
     let page: DTO;
     if (hub.newsManager) {
-      page = await this.http.raw<DTO>(`/admin/api/news?${new URLSearchParams({offset:String(offset),limit:"20",q})}`, "GET", undefined, undefined, signal);
+      page = await this.http.raw<DTO>(`/api/v1/hub/news?${new URLSearchParams({offset:String(offset),limit:"20",q})}`, "GET", undefined, undefined, signal);
       if (page.rows.length === 0 && offset > 0) return this.hubNews(Math.max(0,offset-20),q);
     } else {
       const rows = (hub.published?.news || []).map((n: DTO,i:number)=>({...n,id:String(i)}));

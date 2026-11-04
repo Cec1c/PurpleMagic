@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"dnf90.local/gateway/internal/diagnostics"
+	"dnf90.local/gateway/internal/hubapi"
 	"dnf90.local/gateway/internal/servicehttp"
 )
 
@@ -127,6 +128,10 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		}
 		if r.Header.Get("Sec-Fetch-Site") == "cross-site" || !managementOriginAllowed(r) {
 			v1Fail(w, r, 403, "origin_required", "来源验证失败", false)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, hubapi.BrowserPrefix) {
+			s.externalHub(w, r, peer)
 			return
 		}
 		if localGMRoute(r.URL.Path) {

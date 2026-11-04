@@ -17,7 +17,7 @@ export function NewsManager({state,request}: PageProps) {
   useEffect(()=> {
     const pending=state.api?.pending;
     if (!pending?.completed) return;
-    const op=pending.steps.find(s=>s.path==="/admin/api/news/entries" || s.path==="local-news-delete");
+    const op=pending.steps.find(s=>(s.path==="/api/v1/hub/news/entries" || s.path==="/admin/api/news/entries") || s.path==="local-news-delete");
     if (op?.body.action==="delete" || op?.path==="local-news-delete") {
       if (op.body.id===draft.id) setDraft(fresh());
     } else if (op?.body.action==="save" && op.body.news.title===draft.title && op.body.news.body===draft.body) {

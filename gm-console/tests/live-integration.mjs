@@ -108,7 +108,7 @@ try {
  await commit({kind:'benefit-toggle',id:rule.id});await api.mailbox();
  assert.equal(api.state.mails.filter(m=>m.title==='兰紫自动福利验收').length,1);
  pass('automatic-benefit-delivery-and-no-repeat');
- await api.hub(JSON.parse(await fs.readFile(path.join(dir,'hub-token.json'),'utf8')).token);
+ await api.hub();
  assert.ok(api.meta.hub);
  const original=structuredClone(api.meta.hub.published.profile);
  await commit({kind:'news',id:'',title:'兰紫接口验收公告',body:'公告正文',published:true});await api.hub();assert.equal(api.state.news[0].title,'兰紫接口验收公告');

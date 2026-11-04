@@ -89,3 +89,29 @@ func TestPortableDistributionReadOnlyBoundary(t *testing.T) {
 		t.Fatal("public distribution allows writes")
 	}
 }
+
+func TestGMHubPrivateRouting(t *testing.T) {
+	stamp := func(code int) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(code) })
+	}
+	h := privateHandler(stamp(201), stamp(202), stamp(203))
+	for path, want := range map[string]int{"/api/internal/hub/state": 203, "/api/v1/hub/state": 203, "/api/v1/accounts": 202, "/admin/api/state": 201} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != want {
+			t.Fatal(path, w.Code)
+		}
+	}
+	for _, path := range []string{"/api/internal/hub/state", "/api/v1/hub/state"} {
+		w := httptest.NewRecorder()
+		privateHandler(stamp(201), stamp(202)).ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 404 {
+			t.Fatal("absent hub did not fail closed", path)
+		}
+		w = httptest.NewRecorder()
+		handler(config{Upstream: "http://127.0.0.1:1", ProxySecret: "fixture", ReleaseDir: t.TempDir()}).ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 404 {
+			t.Fatal("public player listener exposed hub", path)
+		}
+	}
+}

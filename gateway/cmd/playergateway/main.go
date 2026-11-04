@@ -175,8 +175,16 @@ func main() {
 	}
 }
 
-func privateHandler(hub http.Handler, module http.Handler) http.Handler {
+func privateHandler(hub http.Handler, module http.Handler, gmHub ...http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/internal/hub/") || strings.HasPrefix(r.URL.Path, "/api/v1/hub/") {
+			if len(gmHub) > 0 && gmHub[0] != nil {
+				gmHub[0].ServeHTTP(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
+			return
+		}
 		if module != nil && (r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/console/") || strings.HasPrefix(r.URL.Path, "/api/")) {
 			module.ServeHTTP(w, r)
 			return
@@ -252,6 +260,12 @@ func runGateway(ctx context.Context, c config) error {
 		}
 		servers = append(servers, &http.Server{Addr: c.QQBotListen, Handler: withQQBot(http.NotFoundHandler(), client, c.QQBotToken), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, MaxHeaderBytes: 4096})
 	}
+	var gmHub http.Handler
+	if hub != nil && c.Management != nil && c.Management.Catalog != nil {
+		gmHub = hub.GMHandler(c.Management.ServiceToken, c.Management.PVFSHA256)
+	} else if hub != nil && module != nil {
+		gmHub = hub.ConsoleHandler(module.HubSessionGuard)
+	}
 	var admin http.Handler
 	var api http.Handler
 	var listen string
@@ -274,7 +288,7 @@ func runGateway(ctx context.Context, c config) error {
 		listen = c.Management.Listen
 	}
 	if listen != "" {
-		servers = append(servers, &http.Server{Addr: listen, Handler: privateHandler(admin, api), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, TLSConfig: tlsConfig})
+		servers = append(servers, &http.Server{Addr: listen, Handler: privateHandler(admin, api, gmHub), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, TLSConfig: tlsConfig})
 	}
 	errorsCh := make(chan error, len(servers))
 	defer func() {
