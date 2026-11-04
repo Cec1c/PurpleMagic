@@ -17,7 +17,7 @@ func EnsureManagementSchema(ctx context.Context, db *sql.DB, options MySQLGroupO
 		return err
 	}
 	for _, database := range r.writeDBs {
-		for _, receiptTable := range []string{managementOperationsTable, accountInventoryManagementTable, accountVaultOperationsTable} {
+		for _, receiptTable := range []string{managementOperationsTable, accountInventoryManagementTable, accountVaultOperationsTable, adventureRenameOperationsTable} {
 			table := mysqlTable(database, r.tablePrefix, receiptTable)
 			_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS "+table+" (sequence_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, account_id VARBINARY(128) NOT NULL, request_id VARBINARY(128) NOT NULL, payload MEDIUMBLOB NOT NULL, created_at DATETIME(6) NOT NULL, UNIQUE KEY account_request(account_id,request_id), KEY account_sequence(account_id,sequence_id)) ENGINE=InnoDB")
 			if err != nil {
@@ -44,7 +44,7 @@ func CheckManagementSchema(ctx context.Context, db *sql.DB, options MySQLGroupOp
 		return err
 	}
 	for _, database := range r.writeDBs {
-		for _, receiptTable := range []string{managementOperationsTable, accountInventoryManagementTable, accountVaultOperationsTable} {
+		for _, receiptTable := range []string{managementOperationsTable, accountInventoryManagementTable, accountVaultOperationsTable, adventureRenameOperationsTable} {
 			rows, err := db.QueryContext(ctx, "SELECT sequence_id,account_id,request_id,payload,created_at FROM "+mysqlTable(database, r.tablePrefix, receiptTable)+" LIMIT 0")
 			if err != nil {
 				return err

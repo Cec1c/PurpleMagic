@@ -223,6 +223,19 @@ export async function prepareOperation(
     await preview(p.summary, base + "/rename-operations", {
       accountId: c.accountId, expectedName: command.expectedName, newName, reason,
     });
+  } else if (command.kind === "rename-adventure") {
+    if (!c || command.accountId !== c.accountId) throw new Error("账号已切换，请重新填写冒险团名");
+    if (!api.meta.features["adventure.rename"]) throw new Error("当前服务未启用冒险团改名");
+    const current = api.meta.resources.adventureName;
+    if (!current || current.accountId !== command.accountId || current.name !== command.expectedName) throw new Error("冒险团名已变化，请刷新后重试");
+    const newName = command.newName.trim();
+    if (!newName || newName === current.name) throw new Error("请输入与当前名字不同的新冒险团名");
+    p.title = "确认冒险团改名";
+    p.target = api.state.accounts.find(a => a.id === c.accountId)?.name || c.accountId;
+    p.summary = `账号 ${c.accountId} 的冒险团：${current.name} → ${newName}`;
+    await preview(p.summary, `/api/v1/accounts/${segment(c.accountId)}/adventure-rename-operations`, {
+      expectedName: command.expectedName, newName, reason,
+    });
   } else if (command.kind === "reset-skill-points") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
     const { data } = await api.http.get(base + "/skill-points");
@@ -626,6 +639,13 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
     if (step.result?.kind === "rename-operation") {
       const renamed = step.result;
       api.patch({ characters: api.state.characters.map(c => c.id === renamed.characterId && c.accountId === renamed.accountId ? { ...c, name: renamed.after } : c) });
+    }
+    if (step.result?.kind === "adventure-rename-operation") {
+      const renamed = step.result;
+      if (api.meta.resources.adventureName?.accountId === renamed.accountId) {
+        api.meta.resources.adventureName = { accountId: renamed.accountId, name: renamed.after };
+      }
+      api.patch({ accounts: api.state.accounts.map(a => a.id === renamed.accountId ? { ...a, adventureName: renamed.after } : a) });
     }
     step.done = true;
     api.persistPending();

@@ -26,6 +26,7 @@ export type Character = {
 export type Account = {
   id: string;
   name: string;
+  adventureName?: string;
   points: number;
   tokens: number;
   status: "正常" | "限制登录";
@@ -152,6 +153,7 @@ export type Command =
   | { kind: "replace-item"; key: string; version: number; itemId: string }
   | { kind: "reset-skill-points"; characterId: string }
   | { kind: "rename-character"; characterId: string; expectedName: string; newName: string }
+  | { kind: "rename-adventure"; accountId: string; expectedName: string; newName: string }
   | {
       kind: "mail";
       recipients: string[];
@@ -401,6 +403,21 @@ export function applyCommand(
       target = c.name;
       summary = `${c.name} → ${name}`;
       c.name = name;
+      break;
+    }
+    case "rename-adventure": {
+      const a = s.accounts.find(a => a.id === command.accountId);
+      if (!a) throw new Error("账号不存在");
+      if (s.characters.some(c => c.accountId === a.id && c.online !== false)) throw new Error("请先退出该账号的游戏连接");
+      const current = a.adventureName || "";
+      const name = command.newName.trim();
+      if (!current) throw new Error("请先在游戏内创建冒险团");
+      if (current !== command.expectedName) throw new Error("冒险团名已变化，请刷新后重试");
+      if (!name || name.length > 16 || /[\s\p{Cc}]/u.test(name)) throw new Error("请输入有效的冒险团名");
+      if (s.accounts.some(v => v.id !== a.id && v.adventureName?.toLowerCase() === name.toLowerCase())) throw new Error("冒险团名已被使用");
+      target = a.name;
+      summary = `冒险团：${current} → ${name}`;
+      a.adventureName = name;
       break;
     }
     case "growth": {

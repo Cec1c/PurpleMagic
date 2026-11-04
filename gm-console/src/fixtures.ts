@@ -427,18 +427,20 @@ export function initialState(): State {
   return {
     schema: 1,
     accounts: [
-      { id: "a1", name: "10038", points: 7515065, tokens: 0, status: "正常" },
+      { id: "a1", name: "10038", adventureName: "紫色魔法团", points: 7515065, tokens: 0, status: "正常" },
       {
         id: "a2",
         name: "adventure",
+        adventureName: "月光冒险团",
         points: 52000,
         tokens: 1600,
         status: "正常",
       },
-      { id: "a3", name: "seria", points: 1200, tokens: 0, status: "正常" },
+      { id: "a3", name: "seria", adventureName: "赛丽亚的朋友", points: 1200, tokens: 0, status: "正常" },
       {
         id: "a4",
         name: "starfall",
+        adventureName: "星落冒险团",
         points: 30800,
         tokens: 500,
         status: "正常",

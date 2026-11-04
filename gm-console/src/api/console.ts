@@ -918,14 +918,15 @@ export class ConsoleAPI {
         ["level", "level"],
         ["skillPoints", "skill-points"],
         ["profession", "profession"],
+        ["adventure", "adventure-name"],
       ].map(([name, path]) => async () => {
         if (!this.meta.features[name + ".read"]) return;
         const { data } = await this.http.get(
-          `/api/v1/characters/${segment(id)}/${path}`,
+          name === "adventure" ? `/api/v1/accounts/${segment(c.accountId)}/${path}` : `/api/v1/characters/${segment(id)}/${path}`,
           signal,
         );
         if (signal.aborted || id !== this.current) return;
-        this.meta.resources[name] = data;
+        this.meta.resources[name === "adventure" ? "adventureName" : name] = data;
         if (name === "skillPoints") {
           c = { ...c, sp: data.balance.bonusSp, tp: data.balance.bonusTp };
           this.patch({
@@ -1068,6 +1069,7 @@ export class ConsoleAPI {
       ["currency.write", `${account}/currency-adjustments`, "点券"],
       ["level.write", `${base}/level-operations`, "等级"],
       ["characters.rename", `${base}/rename-operations`, "角色改名"],
+      ["adventure.read", `${account}/adventure-rename-operations`, "冒险团改名"],
       ["profession.write", `${base}/profession-operations`, "职业"],
       ["skillPoints.write", `${base}/skill-point-operations`, "SP / TP"],
       ["quests.write", `${base}/quest-operations`, "任务"],

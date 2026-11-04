@@ -61,6 +61,10 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/rename-operations", s.v1RenameLog)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations/preview", s.v1RenameOperation)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations", s.v1RenameOperation)
+	mux.HandleFunc("GET /api/v1/accounts/{accountId}/adventure-name", s.v1AdventureName)
+	mux.HandleFunc("GET /api/v1/accounts/{accountId}/adventure-rename-operations", s.v1AdventureRenameLog)
+	writes.HandleFunc("POST /api/v1/accounts/{accountId}/adventure-rename-operations/preview", s.v1AdventureRenameOperation)
+	writes.HandleFunc("POST /api/v1/accounts/{accountId}/adventure-rename-operations", s.v1AdventureRenameOperation)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory/{container}/{slot}/options", s.v1InventoryOptions)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory-operations", s.v1InventoryOperationLog)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}/inventory-operations", s.v1InventoryOperationLog)
@@ -320,6 +324,9 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["level.write"] = available && levelWrite && s.deps.Runtime != nil
 	_, renameWrite := group.Character.(repository.CharacterRenameUnitOfWork)
 	features["characters.rename"] = available && renameWrite && s.deps.Runtime != nil && s.characterRenameEnabled()
+	_, adventureRename := group.Account.(repository.AdventureRenameUnitOfWork)
+	features["adventure.read"] = available && adventureRename
+	features["adventure.rename"] = available && adventureRename && s.deps.Runtime != nil
 	_, professionRead := group.Character.(repository.ProfessionManagementReader)
 	_, professionWrite := group.Character.(repository.ProfessionManagementUnitOfWork)
 	features["profession.read"] = available && professionRead && levelRead

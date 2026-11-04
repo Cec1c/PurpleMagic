@@ -49,6 +49,11 @@ export function GmPage({ state, character, request }: PageProps) {
   const [pointsText, setPointsText] = useState(a.rawPoints || "");
   const [newName, setNewName] = useState("");
   useEffect(() => { setNewName(""); }, [character.id, character.name]);
+  const adventure = live ? state.api?.resources.adventureName : { accountId:a.id, name:"adventureName" in a ? a.adventureName : "" };
+  const adventureName = adventure?.accountId === character.accountId ? adventure.name : undefined;
+  const [newAdventureName, setNewAdventureName] = useState("");
+  useEffect(() => { setNewAdventureName(""); }, [character.accountId, adventureName]);
+  const accountOnline = state.characters.some(c => c.accountId === character.accountId && c.online === true);
   useEffect(() => {
     if (live) {
       setLevel(numberDraft(character.level));
@@ -185,6 +190,17 @@ export function GmPage({ state, character, request }: PageProps) {
               <Field label="新角色名"><input value={newName} onChange={e => setNewName(e.target.value)} maxLength={12} required placeholder="最多 6 个汉字或 12 个英文字母" autoComplete="off" /></Field>
             </div>
             <div className="form-footer"><span>{character.online ? "请先退出此角色，再修改名字" : "角色离线时可修改名字"}</span><button className="primary" disabled={!!state.api?.busy || character.online !== false || !newName.trim() || newName.trim() === character.name}><PencilLine size={16} />修改角色名</button></div>
+          </form>}
+          {(!live || state.api?.features["adventure.rename"]) && <form className="glass content-panel" onSubmit={e => {
+            e.preventDefault();
+            if (adventureName) request({kind:"rename-adventure", accountId:character.accountId, expectedName:adventureName, newName:newAdventureName.trim()});
+          }}>
+            <div className="panel-heading"><h2><PencilLine size={20} />冒险团改名</h2><Pill>账号 {a.name}</Pill></div>
+            <div className="field-grid">
+              <Field label="当前冒险团名"><input value={adventureName || ""} readOnly placeholder={adventureName === undefined ? "" : "尚未创建冒险团"} /></Field>
+              <Field label="新冒险团名"><input value={newAdventureName} onChange={e => setNewAdventureName(e.target.value)} maxLength={16} required placeholder="最多 8 个常用汉字或 16 个英文字母" autoComplete="off" /></Field>
+            </div>
+            <div className="form-footer"><span>该账号退出游戏后可修改，所有角色共用此名称</span><button className="primary" disabled={!!state.api?.busy || accountOnline || !adventureName || !newAdventureName.trim() || newAdventureName.trim() === adventureName}><PencilLine size={16} />修改冒险团名</button></div>
           </form>}
           </div>
           <aside className="glass content-panel">
