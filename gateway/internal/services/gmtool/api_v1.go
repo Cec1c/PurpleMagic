@@ -163,7 +163,13 @@ func (s *Server) v1Routes() http.Handler {
 				if !s.v1CheckWrite(w, r) {
 					return
 				}
-				ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+				timeout := 8 * time.Second
+				// Inventory commits may first drain a live session for up to 12s.
+				// Finish before the external GM peer's 30s and browser's 45s budgets.
+				if pattern == "POST /api/v1/characters/{characterId}/inventory-operations" {
+					timeout = 25 * time.Second
+				}
+				ctx, cancel := context.WithTimeout(r.Context(), timeout)
 				defer cancel()
 				writes.ServeHTTP(w, r.WithContext(ctx))
 				return

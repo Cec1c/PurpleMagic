@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"dnf90.local/gateway/internal/diagnostics"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -253,7 +254,9 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 	}
 	command := adminops.InventoryCommand{Force: body.Force, AccountID: c.AccountID, CharacterID: c.CharacterID, Action: body.Action, Items: body.Items, Options: body.Options, Reason: body.Reason, PVFChecksum: body.PVFChecksum, Actor: actor, PlanToken: body.PlanToken, Key: key}
 	if commit {
+		done := diagnostics.Start(r.Context(), "inventory.receipt_lookup")
 		old, found, e := adminops.LookupInventoryOperation(r.Context(), u, command)
+		done(e)
 		if found || e != nil {
 			s.v1InventoryOperationResult(w, r, old, e)
 			return
@@ -310,7 +313,9 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 	if commit {
 		if command.Force {
 			var release func()
+			done := diagnostics.Start(r.Context(), "inventory.drain")
 			check, release, e = s.acquireInventoryEdit(r.Context(), command.AccountID)
+			done(e)
 			if e != nil {
 				s.v1InventoryOperationResult(w, r, adminops.InventoryReceipt{}, e)
 				return
@@ -324,7 +329,9 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	done := diagnostics.Start(r.Context(), "inventory.transaction")
 	result, e := adminops.RunInventoryOperation(r.Context(), u, command, commit, s.v1InventoryMutator(at, nonce), s.v1InventoryProject, check)
+	done(e)
 	if e == nil && !commit {
 		v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"receipt": result, "planToken": command.PlanToken, "forceAvailable": forceAvailable}})
 		return

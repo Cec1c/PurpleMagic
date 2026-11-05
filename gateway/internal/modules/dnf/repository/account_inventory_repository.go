@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,22 @@ const (
 // only their durable owner changes from character to account.
 type AccountInventoryRepository interface {
 	db.Store[AccountInventoryRecord]
+}
+
+// AccountInventorySlotWriter saves only the selected keys from a record loaded
+// in the same transaction. Missing selected keys remove those items.
+type AccountInventorySlotWriter interface {
+	SaveAccountInventorySlots(context.Context, AccountInventoryRecord, []string) error
+}
+
+func SaveAccountInventorySlots(ctx context.Context, store AccountInventoryRepository, record AccountInventoryRecord, keys []string) error {
+	if len(keys) == 0 {
+		return fmt.Errorf("account inventory selection is empty")
+	}
+	if writer, ok := store.(AccountInventorySlotWriter); ok {
+		return writer.SaveAccountInventorySlots(ctx, record, keys)
+	}
+	return store.Save(ctx, record)
 }
 
 type AccountInventoryRecord struct {

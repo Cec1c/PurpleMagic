@@ -17,8 +17,15 @@ import (
 )
 
 func TestV1InventoryForceMySQL(t *testing.T) {
-	for _, loseLease := range []bool{false, true} {
-		t.Run(map[bool]string{false: "commit-and-replay", true: "lease-lost-rollback"}[loseLease], func(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		loseLease bool
+		drain     time.Duration
+	}{
+		{"commit-and-replay", false, 0}, {"lease-lost-rollback", true, 0}, {"slow-save-over-eight-seconds", false, 8500 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			loseLease := tc.loseLease
 			s, _, open := currencyFixture(t, 1)
 			ctx := context.Background()
 			g := open()
@@ -37,6 +44,7 @@ func TestV1InventoryForceMySQL(t *testing.T) {
 			s.items = newItemIndex("", s, func(string, ...any) {})
 			s.items.setEntriesLocked(itemcfgTestEntries())
 			var began, released, checks atomic.Int32
+			var beganAt atomic.Int64
 			runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var req adminapi.Request
 				json.NewDecoder(r.Body).Decode(&req)
@@ -49,11 +57,12 @@ func TestV1InventoryForceMySQL(t *testing.T) {
 				case "inventory_edit_begin", "inventory_edit_status", "inventory_edit_release":
 					if req.Action == "inventory_edit_begin" {
 						began.Add(1)
+						beganAt.Store(time.Now().UnixNano())
 					}
 					if req.Action == "inventory_edit_release" {
 						released.Add(1)
 					}
-					ready := req.Action != "inventory_edit_begin"
+					ready := req.Action != "inventory_edit_begin" && time.Since(time.Unix(0, beganAt.Load())) >= tc.drain
 					if req.Action == "inventory_edit_status" && checks.Add(1) >= 4 && loseLease {
 						out.OK = false
 					}
