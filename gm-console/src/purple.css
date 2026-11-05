@@ -108,3 +108,6 @@
 .operation-history p { margin: 6px 0; }
 .operation-history small { color: var(--text-3); }
 .operation-history button { flex-shrink: 0; }
+.operation-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.operation-history-toolbar > span { flex: 1; }
+.operation-history-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }

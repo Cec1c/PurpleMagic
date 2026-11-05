@@ -60,3 +60,62 @@ test('completed and rejected receipts remain available after closing',async()=>{
  await assert.rejects(a.confirm());a.cancel();assert.equal(a.meta.operationHistory[0].rejected,true);
  a.openPending(id);assert.equal(a.meta.pending.rejected,true);assert.equal(a.meta.pending.error,'changed');
 });
+
+function receipt(id, extra={}) {
+ return {id,title:'edit',target:'fixture',summary:'inventory',confirmed:true,steps:[{id:id+'-0',path:'/api/v1/characters/10/inventory-operations',label:'edit',body:{accountId:'fixture',items:[{container:'shared',slot:354,revision:'reviewed'}],options:{count:'5446'},pvfChecksum:'approved',planToken:'expired'},attempted:true}],...extra};
+}
+
+test('deleting current and archived terminal receipts persists locally without business requests',async()=>{
+ storage.clear();const a=api();a.http.fetcher=async()=>{assert.fail('cleanup must not call the server');};
+ a.meta.pending=receipt('rejected',{rejected:true,error:'occupied'});a.meta.error='occupied';
+ a.meta.operationHistory=[receipt('success',{completed:true}),receipt('older',{rejected:true})];
+ a.deleteReceipt('rejected');assert.equal(a.meta.pending,undefined);assert.equal(a.meta.error,'');
+ a.deleteReceipt('success');a.deleteReceipt('missing');
+ const restored=api();restored.restore();assert.deepEqual(restored.operationReceipts().map(p=>p.id),['older']);
+ restored.clearReceipts();const empty=api();empty.restore();assert.deepEqual(empty.operationReceipts(),[]);
+ await a.prepare(command('next'),selection);assert.equal(a.meta.pending.confirmed,false);
+});
+
+test('bulk cleanup keeps successful receipts on failed-only cleanup and retains unknown/in-flight requests',async()=>{
+ storage.clear();const a=api();let release;
+ await a.prepare(command('running'),selection);const running=a.meta.pending;
+ a.meta.operationHistory=[receipt('failed',{rejected:true}),receipt('success',{completed:true}),receipt('unknown',{error:'lost response'})];
+ a.http.fetcher=()=>new Promise(r=>release=r);const execution=a.confirm();
+ a.deleteReceipt(running.id);a.clearReceipts(true);
+ assert.equal(a.meta.pending,running);assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['success','unknown']);
+ a.clearReceipts();assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['unknown']);
+ a.deleteReceipt('unknown');assert.equal(a.meta.operationHistory[0].steps[0].id,'unknown-0');
+ release(response({id:'ok'}));await execution;a.clearReceipts();
+ const restored=api();restored.restore();assert.deepEqual(restored.operationReceipts().map(p=>p.id),['unknown']);
+});
+
+test('clearing an old rejection makes its generic retry harmless to the next operation',async()=>{
+ storage.clear();const a=api();let writes=0;
+ a.http.fetcher=async()=>{writes++;return new Response(JSON.stringify({error:{code:'character_online',message:'occupied'}}),{status:409});};
+ await a.prepare(command('first'),selection);const id=a.meta.pending.id;
+ await a.guard(()=>a.confirm(id));a.clearReceipts(true);await a.prepare(command('next'),selection);
+ await a.retry();assert.equal(writes,1);assert.equal(a.meta.pending.confirmed,false);
+});
+
+test('repreview rejected inventory preserves reviewed values and creates a new identity for confirmation',async()=>{
+ storage.clear();const a=api();a.meta.pending=receipt('old',{rejected:true,error:'expired',errorCode:'plan_expired'});
+ const posts=[];a.http.fetcher=async(path,init)=>{posts.push({path,body:JSON.parse(init.body),key:init.headers['Idempotency-Key']});return response({planToken:'fresh',receipt:{changes:[]},forceAvailable:true});};
+ assert.equal(a.canRepreviewInventory(),true);await a.repreviewInventory('old');
+ const p=a.meta.pending;assert.notEqual(p.id,'old');assert.notEqual(p.steps[0].id,'old-0');
+ assert.equal(p.confirmed,false);assert.equal(p.rejected,false);assert.equal(p.steps[0].attempted,false);assert.equal(p.inventoryForceAvailable,true);
+ assert.equal(posts.length,1);assert.ok(posts[0].path.endsWith('/preview'));assert.equal(posts[0].key,undefined);
+ const {planToken,...reviewed}=receipt('old').steps[0].body;assert.deepEqual(posts[0].body,reviewed);
+ assert.deepEqual(p.steps[0].body,{...reviewed,planToken:'fresh'});
+ await a.confirm('old');assert.equal(posts.length,1);
+ const restored=api();restored.restore();assert.equal(restored.meta.pending.id,p.id);assert.equal(restored.meta.pending.steps[0].body.planToken,'fresh');
+});
+
+test('failed repreview preserves the old request; unknown outcomes and changed items cannot be re-signed',async()=>{
+ storage.clear();const a=api();a.meta.pending=receipt('old',{rejected:true,error:'occupied',errorCode:'character_online'});
+ const original=JSON.stringify(a.meta.pending);a.http.fetcher=async()=>new Response(JSON.stringify({error:{code:'revision_conflict',message:'changed'}}),{status:409});
+ await assert.rejects(a.repreviewInventory('old'));assert.equal(JSON.stringify(a.meta.pending),original);assert.equal(a.meta.busy,false);
+ a.http.fetcher=async()=>assert.fail('unknown or changed request must not be re-signed');
+ for(const patch of [{rejected:false,errorCode:'timeout'},{rejected:true,errorCode:'revision_conflict'},{rejected:true,errorCode:'pvf_conflict'},{rejected:true,completed:true,errorCode:'plan_expired'}]) {
+  a.meta.pending=receipt('old',patch);assert.equal(a.canRepreviewInventory(),false);await a.repreviewInventory('old');
+ }
+});

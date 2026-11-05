@@ -134,6 +134,11 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               重新预览未完成项
             </button>
           )}
+          {api.canRepreviewInventory() && (
+            <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewInventory(p.id))}>
+              重新预览
+            </button>
+          )}
         </>
       }
     >
@@ -144,6 +149,9 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           onChange={e => void api.guard(() => api.setInventoryForce(e.target.checked))} />
         强制执行：断开此账号连接，等待存档后修改
       </label>}
+      {p.inventoryForceAvailable === false && !p.completed && <p className="muted">
+        当前游戏版本仅支持离线修改；账号共享物品需要退出整个账号。强制执行将在游戏接口更新后开放。
+      </p>}
       {p.steps.some(s => s.body.force) && <p className="muted">执行期间暂时阻止此账号进入游戏，完成后恢复。物品变化时会提示重新核对。</p>}
       {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
         <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>
@@ -195,8 +203,16 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
 export function OperationHistory({ onClose }: { onClose: () => void }) {
   const api = useLive()!;
   const receipts = api.operationReceipts();
+  const ended = receipts.filter(p => api.canDeleteReceipt(p));
+  const failed = ended.filter(p => p.rejected);
   return <Modal title="操作回执" wide onClose={onClose}>
-    <p className="muted">当前标签页的操作记录，刷新后继续保留。重试沿用原请求编号。</p>
+    <p className="muted">当前标签页的操作记录。删除仅清理此列表，业务流水保留。</p>
+    <div className="operation-history-toolbar">
+      <span className="muted">共 {receipts.length} 条 · 失败 {failed.length} 条</span>
+      <button className="secondary" disabled={!failed.length} onClick={() => api.clearReceipts(true)}>清理失败</button>
+      <button className="secondary" disabled={!ended.length} onClick={() => api.clearReceipts()}>清理已结束</button>
+    </div>
+    {!receipts.length && <p className="muted">暂无操作记录</p>}
     <ul className="operation-history">
       {receipts.map(p => <li key={p.id}>
         <div>
@@ -208,8 +224,13 @@ export function OperationHistory({ onClose }: { onClose: () => void }) {
           </small>
           {p.error && <p className="inline-error">{p.error}</p>}
         </div>
-        <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
-          onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
+        <div className="operation-history-actions">
+          <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
+            onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
+          <button className="secondary" disabled={!api.canDeleteReceipt(p)}
+            title={api.canDeleteReceipt(p) ? "删除这条操作记录" : "结果待确认，请先查看并查询回执"}
+            onClick={() => api.deleteReceipt(p.id)}>删除</button>
+        </div>
       </li>)}
     </ul>
   </Modal>;

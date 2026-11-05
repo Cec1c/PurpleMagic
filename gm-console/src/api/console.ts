@@ -305,6 +305,25 @@ export class ConsoleAPI {
     const p = this.meta.pending;
     return p?.confirmed ? [p, ...this.meta.operationHistory] : this.meta.operationHistory;
   }
+  canDeleteReceipt(p: Pending) {
+    return !!(p.completed || p.rejected) && !(this.meta.busy && this.meta.pending?.id === p.id);
+  }
+  deleteReceipt(id: string) {
+    const p = this.operationReceipts().find(p => p.id === id);
+    if (!p || !this.canDeleteReceipt(p)) return;
+    if (this.meta.pending?.id === id) this.meta.pending = undefined;
+    this.meta.operationHistory = this.meta.operationHistory.filter(p => p.id !== id);
+    if (p.error && this.meta.error === p.error) this.meta.error = "";
+    this.persistPending();
+  }
+  clearReceipts(failedOnly = false) {
+    const removable = this.operationReceipts().filter(p => this.canDeleteReceipt(p) && (!failedOnly || p.rejected));
+    const ids = new Set(removable.map(p => p.id));
+    if (this.meta.pending && ids.has(this.meta.pending.id)) this.meta.pending = undefined;
+    this.meta.operationHistory = this.meta.operationHistory.filter(p => !ids.has(p.id));
+    if (removable.some(p => p.error && p.error === this.meta.error)) this.meta.error = "";
+    this.persistPending();
+  }
   private archivePending() {
     const p = this.meta.pending;
     if (p && (p.confirmed || p.steps.some(step => step.done))) {
@@ -1211,6 +1230,35 @@ export class ConsoleAPI {
       ["revision_conflict", "pvf_conflict", "character_online"].includes(p.errorCode || "") &&
       p.steps.some((s) => !s.done) &&
       p.steps.every((s) => /\/quest-operations$/.test(s.path));
+  }
+  canRepreviewInventory() {
+    const p = this.meta.pending;
+    return !!p?.rejected && !p.completed && p.steps.length === 1 && !p.steps[0].done &&
+      p.steps[0].path.endsWith("/inventory-operations") &&
+      ["plan_expired", "plan_conflict", "character_online"].includes(p.errorCode || "");
+  }
+  async repreviewInventory(id = this.meta.pending?.id) {
+    const p = this.meta.pending;
+    if (!p || p.id !== id || this.meta.busy || !this.canRepreviewInventory()) return;
+    this.meta.busy = true;
+    this.publish();
+    try {
+      const step = p.steps[0];
+      const { planToken: _, ...body } = step.body;
+      // Keep the reviewed item revisions and values. A changed item requires a fresh edit.
+      const preview = await this.http.post(step.path + "/preview", body);
+      const nextID = crypto.randomUUID();
+      if (p.error && this.meta.error === p.error) this.meta.error = "";
+      this.meta.pending = { ...p, id: nextID, createdAt: new Date().toISOString(),
+        steps: [{ ...step, id: nextID + "-0", body: { ...body, planToken: preview.planToken },
+          result: preview.receipt, attempted: false, refreshed: false }],
+        inventoryForceAvailable: preview.forceAvailable === true,
+        confirmed: false, rejected: false, hidden: false, error: undefined, errorCode: undefined };
+      this.persistPending();
+    } finally {
+      this.meta.busy = false;
+      this.publish();
+    }
   }
   async setInventoryForce(enabled: boolean) {
     const p = this.meta.pending;
