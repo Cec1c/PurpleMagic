@@ -154,6 +154,7 @@ export type Command =
   | { kind: "replace-item"; key: string; version: number; itemId: string }
   | { kind: "reset-skill-points"; characterId: string }
   | { kind: "rename-character"; characterId: string; expectedName: string; newName: string }
+  | { kind: "premium-grant"; accountId: string; days: number }
   | { kind: "rename-adventure"; accountId: string; expectedName: string; newName: string }
   | {
       kind: "mail";
@@ -393,6 +394,13 @@ export function applyCommand(
       for (const id of command.ids) s.questStates[c.id][id] = command.status;
       target = c.name;
       summary = `${command.status === "completed" ? "完成" : "重置"} ${command.ids.length} 个任务`;
+      break;
+    }
+    case "premium-grant": {
+      const account = s.accounts.find(a => a.id === command.accountId);
+      if (!account) throw new Error("账号不存在");
+      if (!Number.isInteger(command.days) || command.days < 1 || command.days > 3650) throw new Error("请输入 1–3650 天");
+      target = account.name; summary = `黑钻贵族续期 ${command.days} 天`;
       break;
     }
     case "rename-character": {

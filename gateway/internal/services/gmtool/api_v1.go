@@ -80,6 +80,8 @@ func (s *Server) v1Routes() http.Handler {
 	writes.HandleFunc("POST /api/v1/accounts/{accountId}/vault-operations/preview", s.v1VaultOperation)
 	writes.HandleFunc("POST /api/v1/accounts/{accountId}/vault-operations", s.v1VaultOperation)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}/currency", s.v1Currency)
+	mux.HandleFunc("GET /api/v1/accounts/{accountId}/premium", s.v1Premium)
+	writes.HandleFunc("POST /api/v1/accounts/{accountId}/premium-grants", s.v1GrantPremium)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/containers", s.v1Container)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/container-operations", s.v1ContainerLog)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/container-operations/preview", s.v1ContainerOperation)
@@ -324,6 +326,8 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["system.settings"] = available && group.Settings != nil
 	features["currency.read"] = available && group.Account != nil
 	features["currency.write"] = available && currency
+	features["premium.read"] = available && group.Account != nil
+	features["premium.write"] = available && currency && s.deps.PremiumTypes != nil
 	_, containerRead := group.Character.(repository.ContainerManagementReader)
 	_, containerWrite := group.Character.(repository.ContainerManagementUnitOfWork)
 	features["containers.read"] = available && containerRead

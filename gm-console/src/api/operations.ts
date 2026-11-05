@@ -216,6 +216,13 @@ export async function prepareOperation(
       pvfChecksum: api.meta.questPVF,
       reason,
     });
+  } else if (command.kind === "premium-grant") {
+    integer(command.days, 1, 3650);
+    if (!c || c.accountId !== command.accountId) throw new Error("账号已切换，请重新选择");
+    if (!api.meta.features["premium.write"]) throw new Error("当前网关尚未开放黑钻开通");
+    p.target = api.state.accounts.find(a => a.id === command.accountId)?.name || command.accountId;
+    p.summary = `为该账号开通 / 续期黑钻贵族 ${command.days} 天，账号内所有角色共享`;
+    add(p.summary, `/api/v1/accounts/${segment(command.accountId)}/premium-grants`, {days:command.days});
   } else if (command.kind === "rename-character") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换，请重新填写名字");
     if (!api.meta.features["characters.rename"]) throw new Error("当前服务未启用角色改名");
@@ -657,6 +664,11 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
     if (step.path.endsWith("/mailbox-operations")) {
       const deleted = new Set((step.body.items || []).map((v: DTO) => v.mailId));
       api.patch({mails:api.state.mails.filter(m => !deleted.has(m.id) || !step.path.includes(`/characters/${segment(m.characterId)}/`))});
+    }
+    if (step.result?.kind === "premium-grant") {
+      if (api.state.characters.find(c => c.id === api.current)?.accountId === step.result.accountId) {
+        api.meta.resources.premium = step.result;
+      }
     }
     if (step.result?.kind === "rename-operation") {
       const renamed = step.result;

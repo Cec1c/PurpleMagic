@@ -61,6 +61,25 @@ func inventoryOperationStorage(ctx context.Context, g repository.Group, c Invent
 			return v, nil
 		}
 		save = func(v repository.InventoryRecord, fields []repository.InventoryField) error {
+			if writer, ok := g.Inventory.(repository.ItemStackSlotDeltaWriter); ok {
+				keys := map[string][]string{}
+				for _, item := range c.Items {
+					spec, key, err := InventoryTarget(item)
+					if err != nil {
+						return err
+					}
+					keys[spec.Collection] = append(keys[spec.Collection], key)
+				}
+				for _, field := range fields {
+					if len(keys[string(field)]) == 0 {
+						return ErrInventoryInput
+					}
+					if err := writer.SaveItemStackSlotDelta(ctx, v, string(field), keys[string(field)]); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
 			return repository.SaveInventoryFields(ctx, g.Inventory, v, fields...)
 		}
 	}

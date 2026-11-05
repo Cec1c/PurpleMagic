@@ -937,6 +937,15 @@ export class ConsoleAPI {
       : await this.http.post<{carbonMode:boolean}>("/api/v1/settings/system", {carbonMode:enabled});
     if (!signal.aborted) { this.meta.systemSettings = data; this.publish(); }
   }
+  async premium() {
+    const id = this.current, c = this.state.characters.find(c => c.id === id);
+    if (!c || !this.meta.features["premium.read"]) return;
+    const signal = this.signal("premium");
+    const {data} = await this.http.get(`/api/v1/accounts/${segment(c.accountId)}/premium`, signal);
+    if (signal.aborted || this.current !== id) return;
+    this.meta.resources.premium = data;
+    this.publish();
+  }
   async balances(names = ["gold", "currency"]) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
     if (!c) return;

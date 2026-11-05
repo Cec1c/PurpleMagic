@@ -15,3 +15,8 @@ Shared inventory ownership checks no longer acquire a character write lock. Rece
 The console's operation history supports deleting individual records, clearing failed records, and clearing all finished records. Deletion changes only the current tab's persisted history; it does not cancel a submitted request, and permanent business receipts remain on the server. In-flight requests cannot be removed. Unknown outcomes retain their original IDs for recovery until explicitly removed; bulk cleanup leaves them in place. An expired preview or an online-edit rejection can be previewed again before a new confirmation. Repreview preserves the reviewed item revisions and quantities, so an intervening item change still requires a fresh edit.
 
 Account inventory commits save only the selected slot rows and their extra fields inside the existing account transaction. Other account items are neither deleted nor rewritten. Inventory submission has a 25-second request budget, including the up-to-12-second session drain, leaving time to return through the external GM's 30-second peer limit. Other management writes retain their existing budget. Diagnostics record `inventory.receipt_lookup`, `inventory.drain`, and `inventory.transaction` separately.
+
+
+## 角色库存保存粒度
+
+GM 对角色背包、仓库、穿戴采用选中槽位的增量保存。强化或删除一件物品只变更该实例及它的附加属性，不重写整类背包；多选和跨容器操作仍与回执处于同一个事务。账号共享仓库继续采用定点保存。管理事务独立于游戏物品移动的落库粒度开关。

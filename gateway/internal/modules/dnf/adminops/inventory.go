@@ -3,6 +3,7 @@ package adminops
 import (
 	"context"
 	"crypto/sha256"
+	"dnf90.local/gateway/internal/diagnostics"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -389,7 +390,10 @@ func RunInventoryOperation(ctx context.Context, u repository.InventoryManagement
 				changed = append(changed, f)
 			}
 		}
-		if e = persist(next, changed); e != nil {
+		finishPersist := diagnostics.Start(ctx, "inventory.persist")
+		e = persist(next, changed)
+		finishPersist(e)
+		if e != nil {
 			return e
 		}
 		if pets != nil {
@@ -400,7 +404,9 @@ func RunInventoryOperation(ctx context.Context, u repository.InventoryManagement
 		if e = inventoryOperationOffline(ctx, g, c, scope, offline); e != nil {
 			return e
 		}
+		finishReadback := diagnostics.Start(ctx, "inventory.readback")
 		persisted, e := reload()
+		finishReadback(e)
 		if e != nil {
 			return e
 		}

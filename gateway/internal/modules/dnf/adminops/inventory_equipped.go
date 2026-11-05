@@ -119,6 +119,13 @@ func equippedOperationStorage(ctx context.Context, g repository.Group, c Invento
 			}
 		}
 		eq.UpdatedAt = next.UpdatedAt
+		if writer, ok := g.Equipment.(repository.EquipmentEntryDeltaWriter); ok {
+			changed := make([]string, 0, len(worn))
+			for _, item := range worn {
+				changed = append(changed, keys[item.Slot])
+			}
+			return writer.SaveEquipmentEntryDelta(ctx, eq, changed)
+		}
 		return repository.SaveEquipmentFields(ctx, g.Equipment, eq, repository.EquipmentFieldEntries)
 	}
 	reload := func() (repository.InventoryRecord, error) {

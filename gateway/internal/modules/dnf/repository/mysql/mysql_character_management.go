@@ -66,6 +66,10 @@ func (s *mysqlCharStore) withinCharacterManagement(ctx context.Context, accountI
 			Equipment: &characterSettlementScopedEquipmentRepository{characterID: characterID, base: base.Equipment},
 			Pet:       &characterPetScopedPetRepository{characterID: characterID, base: base.Pet},
 		}
+		if receiptTable == "inventory_management_operations" {
+			g.Inventory = &managedInventoryStore{g.Inventory.(*characterSettlementScopedInventoryRepository)}
+			g.Equipment = &managedEquipmentStore{g.Equipment.(*characterSettlementScopedEquipmentRepository)}
+		}
 		if receiptTable == "character_management_operations" {
 			g.Character = &managedEquipmentSlotStore{
 				characterSettlementScopedCharacterRepository: &characterSettlementScopedCharacterRepository{characterID: characterID, base: base.Character},

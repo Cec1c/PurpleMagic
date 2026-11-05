@@ -25,13 +25,14 @@ import {
 export function GmPage({ state, character, request }: PageProps) {
   const live = useLive();
   const [tab, setTab] = useState<
-    "growth" | "currency" | "history"
+    "growth" | "currency" | "premium" | "history"
   >("growth");
   useEffect(() => {
     if (!live) return;
     void live.guard(async () => {
       if (tab === "growth") await live.growth();
       else if (tab === "currency") await live.balances();
+      else if (tab === "premium") await live.premium();
       else await Promise.all([live.history(), live.tasks()]);
     });
     return () => { live.cancelScope(tab); if (tab === "history") live.cancelScope("tasks"); if (tab === "currency") live.cancelScope("balances"); };
@@ -48,6 +49,9 @@ export function GmPage({ state, character, request }: PageProps) {
     [tokens, setTokens] = useState(a.tokens);
   const [pointsText, setPointsText] = useState(a.rawPoints || "");
   const [newName, setNewName] = useState("");
+  const [premiumDays, setPremiumDays] = useState("30");
+  const premium = state.api?.resources.premium;
+  const currentPremium = premium?.accountId === character.accountId ? premium : undefined;
   useEffect(() => { setNewName(""); }, [character.id, character.name]);
   const adventure = live ? state.api?.resources.adventureName : { accountId:a.id, name:"adventureName" in a ? a.adventureName : "" };
   const adventureName = adventure?.accountId === character.accountId ? adventure.name : undefined;
@@ -92,6 +96,7 @@ export function GmPage({ state, character, request }: PageProps) {
           items={[
             { id: "growth", label: "成长与职业" },
             { id: "currency", label: "金币与点券" },
+            { id: "premium", label: "黑钻贵族" },
             { id: "history", label: "操作记录" },
           ]}
           value={tab}
@@ -325,6 +330,21 @@ export function GmPage({ state, character, request }: PageProps) {
               </div>
             </dl>
           </aside>
+        </div>
+      ) : tab === "premium" ? (
+        <div className="form-layout">
+          <form className="glass content-panel" onSubmit={e => {e.preventDefault();request({kind:"premium-grant",accountId:character.accountId,days:Number(premiumDays)});}}>
+            <h2><TrendingUp size={20} />黑钻贵族</h2>
+            <p className="muted">账号内所有角色共享。已开通时，在现有到期时间上续期；已过期时，从现在开始计算。</p>
+            <Field label="目标账号"><input value={`${a.name} · ${character.accountId}`} readOnly /></Field>
+            <Field label="开通 / 续期天数"><input type="number" min="1" max="3650" step="1" required value={premiumDays} onChange={e => setPremiumDays(e.target.value)} /></Field>
+            <div className="button-row">{[7,30,90,365].map(days => <button type="button" key={days} onClick={() => setPremiumDays(String(days))}>{days} 天</button>)}</div>
+            <div className="form-footer"><span>修改对象：账号 {a.name}</span><button type="submit" className="primary" disabled={!!live && !state.api?.features["premium.write"]}><Save size={16} />开通 / 续期</button></div>
+          </form>
+          <aside className="glass content-panel"><h2>当前状态</h2><dl className="detail-list">
+            <div><dt>黑钻贵族</dt><dd>{currentPremium ? currentPremium.active ? "已开通" : "未开通 / 已过期" : "—"}</dd></div>
+            <div><dt>到期时间</dt><dd>{currentPremium?.expireAt ? timestamp(new Date(currentPremium.expireAt * 1000).toISOString()) : "—"}</dd></div>
+          </dl><p className="muted">重新登录游戏后更新黑钻状态。</p></aside>
         </div>
       ) : (
         <div className="glass content-panel">

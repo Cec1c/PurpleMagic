@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
@@ -16,6 +17,13 @@ type accountCurrencyRepository struct {
 }
 
 var _ repository.AccountCurrencyWriter = (*accountCurrencyRepository)(nil)
+
+func (s *accountCurrencyRepository) SaveMetadataEntry(ctx context.Context, id, key, value string, at time.Time) error {
+	if err := repository.TransactionKeyError(ctx, s.accountID, id); err != nil {
+		return err
+	}
+	return s.base.(repository.AccountMetadataEntryWriter).SaveMetadataEntry(ctx, id, key, value, at)
+}
 
 func (s *accountCurrencyRepository) SaveAccountCurrency(ctx context.Context, a repository.AccountRecord) error {
 	if err := repository.TransactionKeyError(ctx, s.accountID, a.AccountID); err != nil {

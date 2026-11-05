@@ -349,6 +349,11 @@ func (s *Server) v1InventoryOperationResult(w http.ResponseWriter, r *http.Reque
 	status, code, message, retry := 422, "inventory_rejected", "物品操作条件不满足", false
 	var databaseError *mysqldriver.MySQLError
 	switch {
+	case errors.Is(e, context.DeadlineExceeded):
+		if s.cfg.Logger != nil {
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-inventory-write-timeout", e)
+		}
+		status, code, message, retry = 503, "inventory_timeout", "物品修改等待超时，可使用本次请求继续查询结果", true
 	case errors.Is(e, errInventoryForceUnavailable):
 		status, code, message = 409, "force_unavailable", "游戏服务尚未支持强制编辑，需更新游戏接口"
 	case errors.Is(e, errInventoryLeaseUnavailable):

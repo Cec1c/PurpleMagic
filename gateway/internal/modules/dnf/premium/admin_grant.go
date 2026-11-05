@@ -20,6 +20,15 @@ type AdminGrantResult struct {
 // GrantAdminContract must run inside the account transaction. A durable request
 // receipt prevents a retried admin operation from extending the contract twice.
 func GrantAdminContract(account *repo.AccountRecord, characterID string, premiumType, days int64, requestID string, now time.Time) (AdminGrantResult, error) {
+	return grantAdminContract(account, characterID, premiumType, days, requestID, now)
+}
+
+// GrantAdminAccountContract grants an account-wide contract without selecting a role.
+func GrantAdminAccountContract(account *repo.AccountRecord, premiumType, days int64, requestID string, now time.Time) (AdminGrantResult, error) {
+	return grantAdminContract(account, "@account", premiumType, days, requestID, now)
+}
+
+func grantAdminContract(account *repo.AccountRecord, characterID string, premiumType, days int64, requestID string, now time.Time) (AdminGrantResult, error) {
 	if account == nil || strings.TrimSpace(account.AccountID) == "" || characterID == "" || now.IsZero() {
 		return AdminGrantResult{}, fmt.Errorf("契约账号、角色或时间无效")
 	}
