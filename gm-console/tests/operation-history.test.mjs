@@ -84,9 +84,16 @@ test('bulk cleanup keeps successful receipts on failed-only cleanup and retains 
  a.deleteReceipt(running.id);a.clearReceipts(true);
  assert.equal(a.meta.pending,running);assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['success','unknown']);
  a.clearReceipts();assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['unknown']);
- a.deleteReceipt('unknown');assert.equal(a.meta.operationHistory[0].steps[0].id,'unknown-0');
+ assert.equal(a.meta.operationHistory[0].steps[0].id,'unknown-0');
  release(response({id:'ok'}));await execution;a.clearReceipts();
  const restored=api();restored.restore();assert.deepEqual(restored.operationReceipts().map(p=>p.id),['unknown']);
+});
+
+test('an interrupted receipt can be explicitly removed without retrying or deleting server data',async()=>{
+ storage.clear();const a=api();a.meta.pending=receipt('unknown',{error:'timeout'});
+ a.http.fetcher=async()=>assert.fail('local removal must not send requests');
+ a.deleteReceipt('unknown');await a.confirm('unknown');assert.equal(a.meta.pending,undefined);
+ const restored=api();restored.restore();assert.deepEqual(restored.operationReceipts(),[]);
 });
 
 test('clearing an old rejection makes its generic retry harmless to the next operation',async()=>{

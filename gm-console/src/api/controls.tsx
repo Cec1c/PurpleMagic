@@ -203,10 +203,10 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
 export function OperationHistory({ onClose }: { onClose: () => void }) {
   const api = useLive()!;
   const receipts = api.operationReceipts();
-  const ended = receipts.filter(p => api.canDeleteReceipt(p));
+  const ended = receipts.filter(p => api.canDeleteReceipt(p) && (p.completed || p.rejected));
   const failed = ended.filter(p => p.rejected);
   return <Modal title="操作回执" wide onClose={onClose}>
-    <p className="muted">当前标签页的操作记录。删除仅清理此列表，业务流水保留。</p>
+    <p className="muted">删除仅清理此列表，不撤销已提交的请求，业务流水保留。</p>
     <div className="operation-history-toolbar">
       <span className="muted">共 {receipts.length} 条 · 失败 {failed.length} 条</span>
       <button className="secondary" disabled={!failed.length} onClick={() => api.clearReceipts(true)}>清理失败</button>
@@ -228,7 +228,7 @@ export function OperationHistory({ onClose }: { onClose: () => void }) {
           <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
             onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
           <button className="secondary" disabled={!api.canDeleteReceipt(p)}
-            title={api.canDeleteReceipt(p) ? "删除这条操作记录" : "结果待确认，请先查看并查询回执"}
+            title={api.canDeleteReceipt(p) ? "删除这条操作记录" : "正在执行，请等待本次请求返回"}
             onClick={() => api.deleteReceipt(p.id)}>删除</button>
         </div>
       </li>)}

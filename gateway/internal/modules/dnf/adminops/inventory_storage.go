@@ -36,7 +36,15 @@ func inventoryOperationStorage(ctx context.Context, g repository.Group, c Invent
 			return repository.InventoryRecord{CharacterID: c.CharacterID, Slots: a.Slots, UpdatedAt: a.UpdatedAt}, nil
 		}
 		save = func(v repository.InventoryRecord, _ []repository.InventoryField) error {
-			return g.AccountInventory.Save(ctx, repository.AccountInventoryRecord{AccountID: c.AccountID, Slots: v.Slots, UpdatedAt: v.UpdatedAt})
+			keys := make([]string, 0, len(c.Items))
+			for _, item := range c.Items {
+				_, key, err := InventoryTarget(item)
+				if err != nil {
+					return err
+				}
+				keys = append(keys, key)
+			}
+			return repository.SaveAccountInventorySlots(ctx, g.AccountInventory, repository.AccountInventoryRecord{AccountID: c.AccountID, Slots: v.Slots, UpdatedAt: v.UpdatedAt}, keys)
 		}
 	} else {
 		if g.Inventory == nil {

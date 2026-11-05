@@ -306,7 +306,7 @@ export class ConsoleAPI {
     return p?.confirmed ? [p, ...this.meta.operationHistory] : this.meta.operationHistory;
   }
   canDeleteReceipt(p: Pending) {
-    return !!(p.completed || p.rejected) && !(this.meta.busy && this.meta.pending?.id === p.id);
+    return !(this.meta.busy && this.meta.pending?.id === p.id);
   }
   deleteReceipt(id: string) {
     const p = this.operationReceipts().find(p => p.id === id);
@@ -317,7 +317,7 @@ export class ConsoleAPI {
     this.persistPending();
   }
   clearReceipts(failedOnly = false) {
-    const removable = this.operationReceipts().filter(p => this.canDeleteReceipt(p) && (!failedOnly || p.rejected));
+    const removable = this.operationReceipts().filter(p => this.canDeleteReceipt(p) && (failedOnly ? p.rejected : p.completed || p.rejected));
     const ids = new Set(removable.map(p => p.id));
     if (this.meta.pending && ids.has(this.meta.pending.id)) this.meta.pending = undefined;
     this.meta.operationHistory = this.meta.operationHistory.filter(p => !ids.has(p.id));

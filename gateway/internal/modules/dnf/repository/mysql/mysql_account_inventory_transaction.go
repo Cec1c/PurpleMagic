@@ -2,8 +2,8 @@ package mysql
 
 import (
 	"context"
-	"errors"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
+	"errors"
 	"strings"
 )
 
@@ -125,6 +125,13 @@ func (r *accountInventoryScopedRepository) Save(ctx context.Context, record repo
 		return err
 	}
 	return r.base.Save(ctx, record)
+}
+
+func (r *accountInventoryScopedRepository) SaveAccountInventorySlots(ctx context.Context, record repository.AccountInventoryRecord, keys []string) error {
+	if err := repository.TransactionKeyError(ctx, r.accountID, record.AccountID); err != nil {
+		return err
+	}
+	return repository.SaveAccountInventorySlots(ctx, r.base, record, keys)
 }
 
 type accountCharacterInventoryScopedRepository struct {

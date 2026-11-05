@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
+	"fmt"
 )
 
 const mysqlAccountInventoryTable = "account_inventories"
@@ -44,6 +45,17 @@ func (s *mysqlAccountInventoryStore) Load(ctx context.Context, accountID string)
 }
 
 func (s *mysqlAccountInventoryStore) Save(ctx context.Context, record repository.AccountInventoryRecord) error {
+	return s.save(ctx, record, nil)
+}
+
+func (s *mysqlAccountInventoryStore) SaveAccountInventorySlots(ctx context.Context, record repository.AccountInventoryRecord, keys []string) error {
+	if len(keys) == 0 {
+		return fmt.Errorf("account inventory selection is empty")
+	}
+	return s.save(ctx, record, keys)
+}
+
+func (s *mysqlAccountInventoryStore) save(ctx context.Context, record repository.AccountInventoryRecord, keys []string) error {
 	accountID, err := requireRecordKey(repository.AccountInventoryKey, record, "account inventory")
 	if err != nil {
 		return err
@@ -66,6 +78,9 @@ func (s *mysqlAccountInventoryStore) Save(ctx context.Context, record repository
 	return withMySQLWriteExecutor(ctx, s.router.db, func(database SQLDB) error {
 		if _, execErr := database.ExecContext(ctx, buildUpsert(table, columns, updates), args...); execErr != nil {
 			return execErr
+		}
+		if len(keys) > 0 {
+			return replaceItemStackKeys(ctx, database, itemsTable, extraTable, "account_id", accountID, "", false, record.Slots, keys)
 		}
 		return replaceItemStackCollection(
 			ctx, database, itemsTable, extraTable, "account_id", accountID, "", false, record.Slots,
