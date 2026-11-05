@@ -45,6 +45,40 @@ internal static class LauncherBundleDownloadChecks
                 "other flavor channel rejected before network access");
         }
 
+        using (var client = Client(r =>
+        {
+            if (IsOrigin(r))
+            {
+                check(r.Headers.GetValues(LauncherBundleDownloader.CloudCapabilityHeader).Single() == LauncherBundleDownloader.CloudCapability, "Tianyi is explicitly negotiated alongside legacy delivery");
+                return Redirect("https://cloudcube.wuxi.cn/immutable?X-Amz-Signature=fixture");
+            }
+            check(!r.Headers.Contains(LauncherBundleDownloader.CloudCapabilityHeader) && !Negotiates(r) && r.Headers.Authorization is null && r.Headers.UserAgent.ToString() == "PurpleMagic", "Tianyi receives no gateway or account headers");
+            return Payload(r);
+        })) check(File.ReadAllBytes(await client.Download(release, Cache(), null, default)).SequenceEqual(bytes), "Tianyi APP is fully hash verified");
+
+        var stalls = 0;
+        using (var client = new LauncherBundleDownloader(root, new Handler(async (r, token) =>
+        {
+            if (++stalls < 3) await Task.Delay(Timeout.Infinite, token);
+            check(!r.Headers.Contains(LauncherBundleDownloader.CloudCapabilityHeader) && !Negotiates(r), "header timeout falls back without transport capabilities");
+            return Payload(r);
+        }), TimeSpan.FromMilliseconds(50)))
+            check(File.ReadAllBytes(await client.Download(release, Cache(), null, default)).SequenceEqual(bytes) && stalls == 3, "stalled headers trigger bounded retries");
+
+        stalls = 0;
+        using (var client = new LauncherBundleDownloader(root, new Handler((r, token) =>
+        {
+            if (++stalls == 1)
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StalledStream(bytes[..5])) };
+                response.Content.Headers.ContentLength = bytes.Length;
+                return Task.FromResult(response);
+            }
+            check(r.Headers.Range?.Ranges.Single().From == 5 && r.Headers.Contains("X-DNF90-Refresh-Link"), "idle body retry resumes durable prefix and refreshes link");
+            return Task.FromResult(Payload(r));
+        }), TimeSpan.FromMilliseconds(50)))
+            check(File.ReadAllBytes(await client.Download(release, Cache(), null, default)).SequenceEqual(bytes) && stalls == 2, "stalled body retries without waiting for whole download deadline");
+
         var cache = Cache(); var calls = 0;
         using (var client = Client(r => { calls++; check(Negotiates(r), "only explicit capable client asks for Baidu mode"); return Payload(r); }))
         {
@@ -221,6 +255,16 @@ internal static class LauncherBundleDownloadChecks
             }
             finally { unblock.SetResult(); }
             await first;
+        }
+    }
+
+    private sealed class StalledStream(byte[] prefix) : MemoryStream(prefix)
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position < Length) return await base.ReadAsync(buffer, cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
         }
     }
 

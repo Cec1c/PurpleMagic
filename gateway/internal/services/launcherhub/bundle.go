@@ -141,7 +141,7 @@ func (h *Hub) serveBundle(w http.ResponseWriter, r *http.Request) bool {
 		http.NotFound(w, r)
 		return true
 	}
-	if h.baidu.Redirect(w, r, match[1], info.Size()) {
+	if h.openlist.Redirect(w, r, match[1], info.Size()) || h.baidu.Redirect(w, r, match[1], info.Size()) {
 		return true
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

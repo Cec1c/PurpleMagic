@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"dnf90.local/gateway/internal/services/baidudelivery"
+	"dnf90.local/gateway/internal/services/openlistdelivery"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -25,14 +26,15 @@ const Product = "DNF90-Flutter"
 const MaxManifest = 8 << 20
 
 type Config struct {
-	Baidu            *baidudelivery.Config `json:"baidu_delivery,omitempty"`
-	AdminListen      string                `json:"admin_listen"`
-	AdminTokenSHA256 string                `json:"admin_token_sha256"`
-	DataDir          string                `json:"data_dir"`
-	SigningKeyFile   string                `json:"signing_key_file"`
-	ProfileFile      string                `json:"profile_file"`
-	GMUpstream       string                `json:"gm_upstream,omitempty"`
-	GMPassword       string                `json:"gm_password,omitempty"`
+	OpenList         *openlistdelivery.Config `json:"openlist_delivery,omitempty"`
+	Baidu            *baidudelivery.Config    `json:"baidu_delivery,omitempty"`
+	AdminListen      string                   `json:"admin_listen"`
+	AdminTokenSHA256 string                   `json:"admin_token_sha256"`
+	DataDir          string                   `json:"data_dir"`
+	SigningKeyFile   string                   `json:"signing_key_file"`
+	ProfileFile      string                   `json:"profile_file"`
+	GMUpstream       string                   `json:"gm_upstream,omitempty"`
+	GMPassword       string                   `json:"gm_password,omitempty"`
 }
 type Profile struct {
 	EnableQQBinding         bool     `json:"EnableQQBinding,omitempty"`

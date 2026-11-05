@@ -13,7 +13,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.9";
+    public const string VersionText = "1.0.10";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -215,7 +215,8 @@ public sealed class LauncherEngine : IDisposable
         var metadataClock = Stopwatch.StartNew();
         Emit("checking", "正在读取本服签名发布信息…");
         using var api = new PlayerApi(root);
-        using var metadataTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        api.Http.Timeout = TimeSpan.FromSeconds(90);
+        using var metadataTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         using var response = await api.Http.GetAsync(root.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json", HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound && bootstrap is null)
         {

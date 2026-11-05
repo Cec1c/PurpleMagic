@@ -10,18 +10,22 @@ public sealed class LauncherBundleDownloader : IDisposable
 {
     public const string CapabilityHeader = "X-DNF90-Bundle-Transport";
     public const string Capability = "baidu-v1";
+    public const string CloudCapabilityHeader = "X-DNF90-Cloud-Transport";
+    public const string CloudCapability = "tianyi-v1";
     private const int MaxRedirects = 4;
     private readonly Uri origin;
     private readonly HttpClient http;
+    private readonly TimeSpan idleTimeout;
 
     public LauncherBundleDownloader(PlayerProfile root) : this(root, CreateHandler(root)) { }
 
     // Tests own an isolated handler; production never reuses an account HttpClient or its headers.
-    internal LauncherBundleDownloader(PlayerProfile root, HttpMessageHandler handler)
+    internal LauncherBundleDownloader(PlayerProfile root, HttpMessageHandler handler, TimeSpan? idleTimeout = null)
     {
         SignedUpdate.RequireHttps(root.ApiUrl);
         origin = new Uri(root.ApiUrl);
         http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        this.idleTimeout = idleTimeout ?? TimeSpan.FromSeconds(20);
     }
 
     internal static HttpClientHandler CreateHandler(PlayerProfile root) => new()
@@ -145,7 +149,7 @@ public sealed class LauncherBundleDownloader : IDisposable
     {
         var host = uri.IdnHost;
         if (!uri.IsAbsoluteUri || uri.Scheme != "https" || uri.Port != 443 || uri.UserInfo != "" || uri.Fragment != "" ||
-            !(host == "pan.baidu.com" || host == "d.pcs.baidu.com" || host == "baidupcs.com" || host.EndsWith(".baidupcs.com", StringComparison.Ordinal)))
+            !(host == "cloudcube.wuxi.cn" || host == "pan.baidu.com" || host == "d.pcs.baidu.com" || host == "baidupcs.com" || host.EndsWith(".baidupcs.com", StringComparison.Ordinal)))
             throw new InvalidDataException("登录器下载跳转地址不允许。");
     }
 
@@ -162,9 +166,14 @@ public sealed class LauncherBundleDownloader : IDisposable
             using var request = new HttpRequestMessage(HttpMethod.Get, current);
             request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
             if (offset > 0) request.Headers.Range = new RangeHeaderValue(offset, null);
-            if (hop == 0 && negotiate) { request.Headers.Add(CapabilityHeader, Capability); if (fresh) request.Headers.Add("X-DNF90-Refresh-Link", "1"); }
-            if (hop != 0) request.Headers.UserAgent.ParseAdd("pan.baidu.com");
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
+            if (hop == 0 && negotiate)
+            {
+                request.Headers.Add(CapabilityHeader, Capability);
+                request.Headers.Add(CloudCapabilityHeader, CloudCapability);
+                if (fresh) request.Headers.Add("X-DNF90-Refresh-Link", "1");
+            }
+            if (hop != 0) request.Headers.UserAgent.ParseAdd(current.IdnHost == "cloudcube.wuxi.cn" ? "PurpleMagic" : "pan.baidu.com");
+            using var response = await Send(request, cancel);
             if (response.StatusCode is HttpStatusCode.MovedPermanently or HttpStatusCode.Redirect or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
             {
                 if (!negotiate || hop >= MaxRedirects || response.Headers.Location is not { } location || !Uri.TryCreate(current, location, out var next))
@@ -191,16 +200,31 @@ public sealed class LauncherBundleDownloader : IDisposable
         }
     }
 
-    private static async Task Save(HttpContent content, string partial, long offset, long size, Action<long>? progress, CancellationToken cancel, bool fresh = false)
+    private async Task<HttpResponseMessage> Send(HttpRequestMessage request, CancellationToken cancel)
+    {
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        idle.CancelAfter(idleTimeout);
+        try { return await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, idle.Token); }
+        catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
+        { throw new IOException("下载源响应超时，正在重试。"); }
+    }
+
+    private async Task Save(HttpContent content, string partial, long offset, long size, Action<long>? progress, CancellationToken cancel)
     {
         SafeFiles.NoLinks(partial);
         await using var input = await content.ReadAsStreamAsync(cancel);
         await using var output = new FileStream(partial, offset == 0 ? FileMode.Create : FileMode.Append, FileAccess.Write, FileShare.None, 65536, true);
         var buffer = new byte[65536]; var total = offset;
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         while (true)
         {
             cancel.ThrowIfCancellationRequested();
-            var read = await input.ReadAsync(buffer, cancel);
+            idle.CancelAfter(idleTimeout);
+            int read;
+            try { read = await input.ReadAsync(buffer, idle.Token); }
+            catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
+            { throw new IOException("下载源长时间没有数据，正在重试。"); }
+            idle.CancelAfter(Timeout.InfiniteTimeSpan);
             if (read == 0) break;
             if (read > size - total) throw new InvalidDataException("登录器更新负载超过签名大小。");
             await output.WriteAsync(buffer.AsMemory(0, read), cancel);
