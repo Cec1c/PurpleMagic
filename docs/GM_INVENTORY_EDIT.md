@@ -2,9 +2,11 @@
 
 Inventory changes use a signed preview and one confirmation. Ordinary edits require the selected character to be offline; shared account assets require the account to be offline. Successful changes and their permanent receipts commit together. Retrying a request recovers its original receipt.
 
-When the game implements `inventory-edit-lease-v1`, the confirmation dialog offers **Force execution**. It disconnects the selected account, revokes its old login tokens, waits for all connections to finish saving, and temporarily prevents that account from entering the game. The gateway then applies the reviewed inventory change and releases the account. Other accounts continue playing. The lease expires after one minute if its owner disappears.
+The console now uses the global **Carbon mode** setting in System settings; see [system settings](GM_SYSTEM_SETTINGS.md). It writes directly while a character is online, without disconnecting them. Game-memory saves may overwrite those changes.
 
-Force execution keeps item identity, revision, PVF, quantity and receipt validation. If the item changed before saving finished, refresh it and review the new values. The game does not create a ban or change QQ bindings for this operation. Older game services keep ordinary inventory editing and do not display the force option.
+The legacy API still accepts `force: true` for clients using `inventory-edit-lease-v1`. It disconnects the selected account, revokes its old login tokens, waits for all connections to finish saving, and temporarily prevents that account from entering the game. The gateway then applies the reviewed inventory change and releases the account. Other accounts continue playing. The lease expires after one minute if its owner disappears.
+
+Force execution keeps item identity, revision, PVF, quantity and receipt validation. If the item changed before saving finished, refresh it and review the new values. The game does not create a ban or change QQ bindings for this operation. Carbon mode does not require this game lease API.
 
 The private runtime API uses four actions with `accountId` and `inventoryEdit.token`: `inventory_edit_begin`, `inventory_edit_status`, `inventory_edit_release`, plus the read-only `inventory_edit_capability` action. A status response includes the protocol, account, token, expiry and `ready`. Readiness means full save/cleanup completion, not merely socket closure. Admission checks and lease creation share the same runtime lock; the existing account database fence protects the final transaction against a new login.
 

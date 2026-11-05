@@ -58,6 +58,8 @@ func (s *Server) v1Routes() http.Handler {
 	mux := http.NewServeMux()
 	writes := http.NewServeMux()
 	s.v1OperationRoutes(mux, writes)
+	mux.HandleFunc("GET /api/v1/settings/system", s.v1SystemSettings)
+	writes.HandleFunc("POST /api/v1/settings/system", s.v1SystemSettings)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/rename-operations", s.v1RenameLog)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations/preview", s.v1RenameOperation)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/rename-operations", s.v1RenameOperation)
@@ -171,13 +173,25 @@ func (s *Server) v1Routes() http.Handler {
 				}
 				ctx, cancel := context.WithTimeout(r.Context(), timeout)
 				defer cancel()
+				if systemPolicyRoute(r.URL.Path) {
+					policy, err := s.loadSystemSettings(ctx)
+					if err != nil {
+						s.v1Unavailable(w, r, err)
+						return
+					}
+					ctx = context.WithValue(ctx, carbonModeKey{}, policy.CarbonMode)
+				}
 				writes.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 			v1Fail(w, r, 405, "method_not_allowed", "此接口不支持该请求方法", false)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		readTimeout := 3 * time.Second
+		if pattern == "GET /api/v1/characters/{characterId}/profession" {
+			readTimeout = 8 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), readTimeout)
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	}))
@@ -307,6 +321,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	writable := s.deps.Benefits != nil && available && transactional
 	features := map[string]bool{"accounts.read": s.db != nil && err == nil, "characters.read": err == nil, "items.read": items, "mail.write": writable, "benefits.write": writable, "tasks.read": s.deps.Benefits != nil, "bans.write": false, "dungeonRuns.read": false}
 	_, currency := group.Account.(repository.AccountManagementUnitOfWork)
+	features["system.settings"] = available && group.Settings != nil
 	features["currency.read"] = available && group.Account != nil
 	features["currency.write"] = available && currency
 	_, containerRead := group.Character.(repository.ContainerManagementReader)

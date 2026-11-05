@@ -27,7 +27,7 @@ export async function prepareOperation(
     id,
     createdAt: new Date().toISOString(),
     title: "确认本次修改",
-    target: c?.name || "运营配置",
+    target: c?.name || "系统配置",
     summary: "",
     steps: [],
     confirmed: false,
@@ -75,15 +75,18 @@ export async function prepareOperation(
     const scopes = new Set<string>();
     let checksum = "";
     let options: DTO = {};
-    for (const key of keys) {
+    const details = await Promise.all(keys.map(async key => {
       const item = api.state.items.find((i) => i.key === key);
       if (!item?.remote) throw new Error("物品列表已变更，请重新选择");
-      labels.push(`${item.name}（${item.remote.container} / ${item.slot}）`);
-      const r = await api.http.get(
+      const o = item.remote.options || (await api.http.get(
         `${base}/inventory/${segment(item.remote.container)}/${item.slot}/options`,
-      );
-      const o = r.data,
-        v = o.item;
+      )).data;
+      return {item, o};
+    }));
+    for (const {item, o} of details) {
+      if (!item.remote) throw new Error("物品列表已变更，请重新选择");
+      labels.push(`${item.name}（${item.remote!.container} / ${item.slot}）`);
+      const v = o.item;
       if (String(v.itemId) !== item.id || Number(v.count) !== item.count || v.bound !== item.bound)
         throw new Error("物品已变更，请刷新详情后重试");
       if (item.remote.revision && item.remote.revision !== v.revision)
@@ -636,6 +639,24 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
           step.result = data;
         } else throw e;
       }
+    }
+    if (step.result?.kind === "inventory-operation") {
+      const receipt = step.result;
+      api.patch({ items: api.state.items.flatMap(item => {
+        const owns = receipt.ownerScope === "account" ? item.accountId === receipt.accountId : item.characterId === receipt.characterId;
+        const change = owns && receipt.changes?.find((v: DTO) => v.container === item.remote?.container && v.slot === item.slot);
+        if (!change) return [item];
+        if (!change.after) return [];
+        const after = change.after, a = after.attributes || {};
+        return [{ ...item, id:after.itemId, name:after.name, count:Number(after.count), bound:after.bound,
+          enhance:a.reinforce ?? item.enhance, amplify:a.amplifyType ?? item.amplify, forge:a.forging ?? item.forge,
+          version:item.version + 1,
+          remote: {...item.remote!, revision:change.revision, attributes:a, expiresAt:after.expiresAt, options:undefined} }];
+      }) });
+    }
+    if (step.path.endsWith("/mailbox-operations")) {
+      const deleted = new Set((step.body.items || []).map((v: DTO) => v.mailId));
+      api.patch({mails:api.state.mails.filter(m => !deleted.has(m.id) || !step.path.includes(`/characters/${segment(m.characterId)}/`))});
     }
     if (step.result?.kind === "rename-operation") {
       const renamed = step.result;

@@ -24,9 +24,13 @@ import (
 // RemoteCatalog carries typed definitions, never archive paths or SQL. Each
 // instance is immutable and pinned to the gateway's approved full PVF hash.
 type RemoteCatalog struct {
-	peer  *servicehttp.Client
-	mu    sync.Mutex
-	items map[uint32]catalogItem
+	peer            *servicehttp.Client
+	mu              sync.Mutex
+	items           map[uint32]catalogItem
+	metadataMu      sync.Mutex
+	manifestHash    string
+	professionMu    sync.Mutex
+	professionCache *professionManagementCache
 }
 type catalogItem struct {
 	Entry              itemEntry
@@ -121,7 +125,10 @@ func (c *RemoteCatalog) item(id uint32) (itemEntry, bool, error) {
 		v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
 		c.mu.Lock()
 		if len(c.items) >= 512 {
-			c.items = make(map[uint32]catalogItem)
+			for key := range c.items {
+				delete(c.items, key)
+				break
+			}
 		}
 		c.items[id] = v
 		c.mu.Unlock()
@@ -160,8 +167,11 @@ func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(c.items)+len(rows) > 512 {
-		c.items = make(map[uint32]catalogItem)
+	for len(c.items)+len(rows) > 512 {
+		for key := range c.items {
+			delete(c.items, key)
+			break
+		}
 	}
 	for _, v := range rows {
 		v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
@@ -170,6 +180,14 @@ func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
 	return nil
 }
 func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDiskIndex, professionJobResources, *quest.Catalog, error) {
+	c.professionMu.Lock()
+	defer c.professionMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, professionJobResources{}, nil, err
+	}
+	if cached := c.professionCache; cached != nil && cached.job == job {
+		return cached.index, cached.resources, cached.quests, nil
+	}
 	var v catalogProfession
 	fail := func(e error) (*professionDiskIndex, professionJobResources, *quest.Catalog, error) {
 		return nil, professionJobResources{}, nil, e
@@ -192,14 +210,38 @@ func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDi
 	if e != nil {
 		return fail(e)
 	}
-	return &professionDiskIndex{Checksum: c.peer.Hash(), ManifestHash: v.ManifestHash, Manifest: v.Manifest}, professionJobResources{Profiles: profiles, Skills: skills}, quests, nil
+	cached := &professionManagementCache{index: &professionDiskIndex{Checksum: c.peer.Hash(), ManifestHash: v.ManifestHash, Manifest: v.Manifest}, resources: professionJobResources{Profiles: profiles, Skills: skills}, quests: quests, job: job, loaded: true}
+	c.professionCache = cached
+	return cached.index, cached.resources, cached.quests, nil
+}
+
+// The catalog client and its authenticated peer are pinned to one full PVF hash.
+// Static metadata is immutable for this generation; failures are never cached.
+func (c *RemoteCatalog) metadata(ctx context.Context) (string, error) {
+	c.metadataMu.Lock()
+	defer c.metadataMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if c.manifestHash != "" {
+		return c.manifestHash, nil
+	}
+	var v struct{ ManifestHash string }
+	if err := c.call(ctx, catalogRequest{Operation: "metadata"}, &v); err != nil {
+		return "", err
+	}
+	if v.ManifestHash == "" {
+		return "", errors.New("empty catalog manifest")
+	}
+	c.manifestHash = v.ManifestHash
+	return c.manifestHash, nil
 }
 func (c *RemoteCatalog) questIndex(ctx context.Context) (*questDiskIndex, error) {
-	var v struct{ ManifestHash string }
-	if e := c.call(ctx, catalogRequest{Operation: "metadata"}, &v); e != nil {
-		return nil, e
+	hash, err := c.metadata(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return &questDiskIndex{Checksum: c.peer.Hash(), ManifestHash: v.ManifestHash, remote: c, remoteRows: make(map[int64]catalogQuest)}, nil
+	return &questDiskIndex{Checksum: c.peer.Hash(), ManifestHash: hash, remote: c, remoteRows: make(map[int64]catalogQuest)}, nil
 }
 func (ix *questDiskIndex) remoteLoad(ctx context.Context, ids []int64) error {
 	if ix.remote == nil {

@@ -78,7 +78,7 @@ func TestV1InventoryForceMySQL(t *testing.T) {
 			body := map[string]any{"accountId": "wallet:1", "action": "delete", "items": []adminops.InventorySelection{{Container: "consumables", Slot: 65, Revision: adminops.InventoryRevision("wallet:1", "10", "consumables", 65, stack)}}, "pvfChecksum": source.checksum, "reason": "fixture"}
 			encode := func() string { raw, _ := json.Marshal(body); return string(raw) }
 			status, out := operationCall(s, token, "characters/10/inventory-operations/preview", encode(), "", nil)
-			if status != 200 || out["data"].(map[string]any)["forceAvailable"] != true {
+			if status != 200 || out["data"].(map[string]any)["forceAvailable"] != false {
 				t.Fatal(status, out)
 			}
 			body["planToken"] = out["data"].(map[string]any)["planToken"]

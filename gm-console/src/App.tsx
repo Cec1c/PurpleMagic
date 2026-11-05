@@ -46,6 +46,7 @@ import { GmPage } from "./pages/Gm";
 import { AntiCheatPage } from "./pages/AntiCheat";
 import { ActivitiesPage } from "./pages/Activities";
 import { BenefitsPage } from "./pages/Benefits";
+import { SystemSettings } from "./pages/SystemSettings";
 import { Settings } from "./pages/Settings";
 import { ConsoleAPI } from "./api/console";
 import { emptyState } from "./api/model";
@@ -109,6 +110,7 @@ const navigation = [
     title: "公告与下载源",
     sub: "维护公告、更新资源地址与游戏连接。",
   },
+  { id: "system", label: "系统设置", icon: Settings2, title: "系统设置", sub: "配置 GM 工作台的全局行为。" },
 ] as const;
 const preferenceKey = "purplemagic-glass-appearance-v1";
 function readPreferences() {
@@ -285,7 +287,7 @@ export function App() {
             pending.command.recipients.includes(c.id),
         )
       : [];
-  const noIdentity = ["query", "accounts", "settings", "quests", "benefits", "activities", "anti-cheat"].includes(section);
+  const noIdentity = ["query", "accounts", "settings", "system", "quests", "benefits", "activities", "anti-cheat"].includes(section);
   if (live && !state.api?.authenticated) {
     return <LiveContext.Provider value={live}>
       <div className="app-shell auth-shell">
@@ -326,7 +328,7 @@ export function App() {
           </a>
           <div className="sidebar-label">玩家管理</div>
           <nav aria-label="主要功能">
-            {navigation.filter((n) => n.id !== "settings").map((n) => (
+            {navigation.filter((n) => n.id !== "settings" && n.id !== "system").map((n) => (
               <a
                 href={`#${n.id}`}
                 aria-current={section === n.id ? "page" : undefined}
@@ -342,8 +344,8 @@ export function App() {
               </a>
             ))}
           </nav>
-          <div className="sidebar-label">运营配置</div>
-          <nav aria-label="运营配置">
+          <div className="sidebar-label">系统配置</div>
+          <nav aria-label="系统配置">
             <a
               href="#settings"
               className={section === "settings" ? "active" : ""}
@@ -351,6 +353,9 @@ export function App() {
             >
               <Megaphone size={18} />
               公告与下载源
+            </a>
+            <a href="#system" className={section === "system" ? "active" : ""} aria-current={section === "system" ? "page" : undefined} onClick={() => go("system")}>
+              <Settings2 size={18} />系统设置
             </a>
           </nav>
           <div className="sidebar-bottom">
@@ -490,7 +495,7 @@ export function App() {
                 <LoginPanel />
               ) : live &&
                 !live.current &&
-                !["query", "accounts", "settings", "quests", "benefits", "activities", "anti-cheat"].includes(section) ? (
+                !["query", "accounts", "settings", "system", "quests", "benefits", "activities", "anti-cheat"].includes(section) ? (
                 <div className="glass content-panel">
                   <Empty title="选择一位角色开始管理" />
                   <button className="primary" onClick={() => go("accounts")}>
@@ -515,6 +520,8 @@ export function App() {
                     <ActivitiesPage {...props} />
                   ) : section === "benefits" ? (
                     <BenefitsPage {...props} />
+                  ) : section === "system" ? (
+                    <SystemSettings {...props} />
                   ) : section === "gm" ? (
                     <GmPage {...props} />
                   ) : (

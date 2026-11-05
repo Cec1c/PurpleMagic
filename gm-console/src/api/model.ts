@@ -4,6 +4,7 @@ export type LiveData = {
   authenticated: boolean;
   authReady: boolean;
   features: Record<string, boolean>;
+  systemSettings?: { carbonMode: boolean };
   busy: boolean;
   reading: number;
   error: string;

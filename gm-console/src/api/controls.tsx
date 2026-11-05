@@ -144,15 +144,9 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
     >
       <p className="confirm-target">{p.target}</p>
       <p>{p.summary}</p>
-      {p.inventoryForceAvailable && !p.confirmed && <label className="checkline">
-        <input className="checkbox" type="checkbox" checked={p.steps[0]?.body.force === true} disabled={busy}
-          onChange={e => void api.guard(() => api.setInventoryForce(e.target.checked))} />
-        强制执行：断开此账号连接，等待存档后修改
-      </label>}
-      {p.inventoryForceAvailable === false && !p.completed && <p className="muted">
-        当前游戏版本仅支持离线修改；账号共享物品需要退出整个账号。强制执行将在游戏接口更新后开放。
-      </p>}
-      {p.steps.some(s => s.body.force) && <p className="muted">执行期间暂时阻止此账号进入游戏，完成后恢复。物品变化时会提示重新核对。</p>}
+      {p.steps.some(s => /\/(inventory|quest|rename|adventure-rename|level|profession|skill-point|gold|mailbox|container|vault|expert-job)-operations$/.test(s.path)) && (
+        <p className="muted">{api.meta.systemSettings?.carbonMode ? "碳铀模式已开启 · 允许在线写入" : <>到<a href="#system" onClick={() => api.dismissPending()}>系统设置</a>里打开“碳铀模式”来强制数据写入。</>}</p>
+      )}
       {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
         <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>
       )}

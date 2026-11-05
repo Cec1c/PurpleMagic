@@ -10,6 +10,7 @@ import type {
 } from "../domain";
 import { HttpClient, ApiError, query, segment, safeNumber } from "./http";
 import { emptyState, type DTO, type Pending } from "./model";
+import { refreshOperation } from "./refresh";
 import { prepareOperation, executeOperation } from "./operations";
 
 export const containers: Record<InventoryTab, string[]> = {
@@ -242,6 +243,7 @@ export class ConsoleAPI {
       this.meta.error = "";
       this.restore();
       this.publish();
+      if (cap.features["system.settings"]) await this.guard(() => this.systemSettings());
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         this.meta.authenticated = false;
@@ -264,6 +266,7 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.restore();
     this.publish();
+    if (cap.features["system.settings"]) await this.guard(() => this.systemSettings());
   }
   async logout() {
     await this.http.raw("/api/auth/logout", "POST", {});
@@ -534,10 +537,10 @@ export class ConsoleAPI {
     this.meta.quests = [];
     this.meta.error = "";
     this.publish();
-    await this.character(id);
+    await this.character(id, false);
     if (!signal.aborted && this.current === id) await this.presence(signal);
   }
-  async character(id = this.current) {
+  async character(id = this.current, withBalances = true) {
     if (!id) return;
     const signal = this.signal("character");
     const { data } = await this.http.get(
@@ -565,6 +568,7 @@ export class ConsoleAPI {
       characters: merge(this.state.characters, [c], (x) => x.id),
       accounts: merge(this.state.accounts, [a], (x) => x.id),
     });
+    if (!withBalances) return;
     const reads: [string, string][] = [
       ["gold", `characters/${segment(id)}/gold`],
       ["currency", `accounts/${segment(c.accountId)}/currency`],
@@ -609,10 +613,8 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.publish();
     if (!this.meta.authenticated) return;
-    if (section === "inventory")
-      await this.inventory(
-        refresh ? (this.meta.inventory.tab as InventoryTab) : "bag",
-      );
+    if (refresh && section === "inventory")
+      await this.inventory(this.meta.inventory.tab as InventoryTab);
     else if (refresh && section === "mail")
       await this.partial([() => this.mailbox(), () => this.tasks()]);
     else if (refresh && section === "quests")
@@ -627,6 +629,7 @@ export class ConsoleAPI {
     else if (refresh && section === "anti-cheat") { this.meta.resources.moderationRefresh = { revision: Number(this.meta.resources.moderationRefresh?.revision || 0) + 1 }; this.publish(); }
     else if (refresh && section === "query") { this.meta.resources.dashboardRefresh = { revision: Number(this.meta.resources.dashboardRefresh?.revision || 0) + 1 }; this.publish(); }
     else if (refresh && section === "settings") await this.hub();
+    else if (refresh && section === "system") await this.systemSettings();
   }
   async inventory(tab: InventoryTab, more = false) {
     if (!this.current) return;
@@ -927,7 +930,28 @@ export class ConsoleAPI {
     this.meta.resources.pvfMode = data;
     this.publish();
   }
-  async growth() {
+  async systemSettings(enabled?: boolean) {
+    const signal = this.signal("systemSettings");
+    const data = enabled === undefined
+      ? (await this.http.get<{carbonMode:boolean}>("/api/v1/settings/system", signal)).data
+      : await this.http.post<{carbonMode:boolean}>("/api/v1/settings/system", {carbonMode:enabled});
+    if (!signal.aborted) { this.meta.systemSettings = data; this.publish(); }
+  }
+  async balances(names = ["gold", "currency"]) {
+    const id = this.current, c = this.state.characters.find(c => c.id === id);
+    if (!c) return;
+    const signal = this.signal("balances");
+    await Promise.all(names.map(async name => {
+      if (!this.meta.features[name + ".read"]) return;
+      const path = name === "gold" ? `characters/${segment(id)}/gold` : `accounts/${segment(c.accountId)}/currency`;
+      const {data} = await this.http.get(`/api/v1/${path}`, signal);
+      if (signal.aborted || this.current !== id) return;
+      this.meta.resources[name] = data;
+      if (name === "gold") this.patch({characters:this.state.characters.map(c => c.id === id ? {...c, gold:safeNumber(data.balance)} : c)});
+      else this.patch({accounts:this.state.accounts.map(a => a.id === c.accountId ? {...a, points:safeNumber(data.balance), rawPoints:data.balance} : a)});
+    }));
+  }
+  async growth(names = ["level", "skillPoints", "profession", "adventure"]) {
     if (!this.current) return;
     const id = this.current,
       signal = this.signal("growth");
@@ -938,7 +962,7 @@ export class ConsoleAPI {
         ["skillPoints", "skill-points"],
         ["profession", "profession"],
         ["adventure", "adventure-name"],
-      ].map(([name, path]) => async () => {
+      ].filter(([name]) => names.includes(name)).map(([name, path]) => async () => {
         if (!this.meta.features[name + ".read"]) return;
         const { data } = await this.http.get(
           name === "adventure" ? `/api/v1/accounts/${segment(c.accountId)}/${path}` : `/api/v1/characters/${segment(id)}/${path}`,
@@ -946,6 +970,9 @@ export class ConsoleAPI {
         );
         if (signal.aborted || id !== this.current) return;
         this.meta.resources[name === "adventure" ? "adventureName" : name] = data;
+        if (name === "level") {
+          c = { ...c, level: data.balance.level };
+        }
         if (name === "skillPoints") {
           c = { ...c, sp: data.balance.bonusSp, tp: data.balance.bonusTp };
           this.patch({
@@ -973,7 +1000,7 @@ export class ConsoleAPI {
           };
         }
       }),
-      () => this.growth(),
+      () => this.growth(names),
     );
     if (!signal.aborted && id === this.current)
       this.patch({
@@ -981,6 +1008,7 @@ export class ConsoleAPI {
           x.id === id
             ? {
                 ...x,
+                level: c.level,
                 sp: c.sp,
                 tp: c.tp,
                 job: c.job,
@@ -1260,27 +1288,6 @@ export class ConsoleAPI {
       this.publish();
     }
   }
-  async setInventoryForce(enabled: boolean) {
-    const p = this.meta.pending;
-    if (!p || this.meta.busy || p.confirmed || p.completed || p.steps.length !== 1 || !p.inventoryForceAvailable) return;
-    const step = p.steps[0];
-    if (!step.path.endsWith("/inventory-operations")) return;
-    this.meta.busy = true;
-    this.publish();
-    try {
-      const { planToken: _, force: __, ...original } = step.body;
-      const body = { ...original, ...(enabled ? { force: true } : {}) };
-      const preview = await this.http.post(step.path + "/preview", body);
-      // A changed mode is a new signed operation, with a fresh request key.
-      step.id = crypto.randomUUID();
-      step.body = { ...body, planToken: preview.planToken };
-      step.result = preview.receipt;
-      this.persistPending();
-    } finally {
-      this.meta.busy = false;
-      this.publish();
-    }
-  }
   async repreviewQuests(id = this.meta.pending?.id) {
     const p = this.meta.pending;
     if (!p || p.id !== id || this.meta.busy || !this.canRepreviewQuests()) return;
@@ -1337,10 +1344,6 @@ export class ConsoleAPI {
       this.meta.busy = false;
       this.publish();
     }
-    if (p.steps.every(step => step.kind === "task")) return;
-    await this.guard(async () => {
-      if (!["benefits", "activities", "anti-cheat"].includes(this.sectionId)) await this.character();
-      await this.enter(this.sectionId, true);
-    });
+    await refreshOperation(this, p);
   }
 }

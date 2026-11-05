@@ -2,9 +2,13 @@ package gmtool
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 
 	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
@@ -61,7 +65,7 @@ func (s *Server) v1RenameOperation(w http.ResponseWriter, r *http.Request) {
 			v1Reply(w, r, 200, v1Envelope{Data: result})
 		}
 	case errors.Is(e, adminops.ErrRenameInput):
-		v1Fail(w, r, 422, "invalid_character_name", "角色名须为 2–12 个 GBK 字节（最多 6 个汉字），不能包含控制字符或表情", false)
+		v1Fail(w, r, 422, "invalid_character_name", characterNameErrorMessage(command.NewName), false)
 	case errors.Is(e, repository.ErrCharacterNameTaken):
 		v1Fail(w, r, 409, "name_taken", "角色名已被使用，请换一个名字", false)
 	case errors.Is(e, adminops.ErrConflict):
@@ -69,6 +73,25 @@ func (s *Server) v1RenameOperation(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.v1SkillPointResult(w, r, adminops.SkillPointReceipt{}, e)
 	}
+}
+
+func characterNameErrorMessage(name string) string {
+	if name == "" {
+		return "请填写新角色名"
+	}
+	for _, c := range name {
+		if unicode.IsControl(c) {
+			return "角色名不能包含换行或控制字符"
+		}
+	}
+	encoded, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(name))
+	if err != nil {
+		return "角色名包含游戏不支持的字符，请使用 GBK 可编码的文字，去掉表情或生僻字"
+	}
+	if len(encoded) < 2 || len(encoded) > 12 {
+		return fmt.Sprintf("角色名长度为 %d 字节，游戏允许 2–12 字节（一个汉字占 2 字节，字母或数字占 1 字节）", len(encoded))
+	}
+	return "改名请求内容无效，请重新提交"
 }
 
 func (s *Server) v1RenameLog(w http.ResponseWriter, r *http.Request) {

@@ -25,6 +25,12 @@ type AccountCurrencyWriter interface {
 	SaveAccountCurrency(context.Context, AccountRecord) error
 }
 
+// AccountCurrencyReader projects the two wallet fields needed by GM balance
+// views, without fetching the account's unrelated metadata and permanent receipts.
+type AccountCurrencyReader interface {
+	LoadAccountCurrency(context.Context, string) (AccountRecord, bool, error)
+}
+
 type CharacterManagementUnitOfWork interface {
 	WithinCharacterManagement(context.Context, string, string, func(Group, ManagementReceiptStore) error) error
 	CharacterManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)

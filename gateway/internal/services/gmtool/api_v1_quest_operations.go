@@ -64,6 +64,9 @@ func (s *Server) questOperationCatalog(ctx context.Context, ix *questDiskIndex, 
 // Used inside the account-row transaction, before mutations and before commit.
 func (s *Server) v1AccountEditCheck(account string) adminops.QuestOfflineCheck {
 	return func(ctx context.Context, _ string) error {
+		if carbonMode(ctx) {
+			return nil
+		}
 		if s.deps.Runtime == nil || account == "" {
 			return adminops.ErrRuntimeUnavailable
 		}
@@ -191,7 +194,7 @@ func (s *Server) v1QuestOperationResult(w http.ResponseWriter, r *http.Request, 
 	case errors.Is(err, adminops.ErrIdempotency):
 		fail(409, "idempotency_conflict", "此请求编号已用于其他操作", false)
 	case errors.Is(err, adminops.ErrCharacterOnline):
-		fail(409, "character_online", "目标角色仍在线或正在退出，请返回角色选择界面后操作", false)
+		fail(409, "character_online", "角色在线；到系统设置里打开“碳铀模式”来强制数据写入", false)
 	case errors.Is(err, adminops.ErrRuntimeUnavailable):
 		fail(503, "runtime_unavailable", "暂时无法取得账号编辑状态", true)
 	case errors.Is(err, adminops.ErrAccount) || errors.Is(err, sql.ErrNoRows):

@@ -179,7 +179,7 @@ func (s *Server) v1SkillPointResult(w http.ResponseWriter, r *http.Request, resu
 	case errors.Is(err, adminops.ErrSkillPointDefinition):
 		v1Fail(w, r, 409, "pvf_conflict", "技能点PVF版本或等级基准已变更，请重新预览", false)
 	case errors.Is(err, adminops.ErrCharacterOnline):
-		v1Fail(w, r, 409, "character_online", "目标角色仍在线或正在退出，请返回角色选择界面后操作", false)
+		v1Fail(w, r, 409, "character_online", "角色在线；到系统设置里打开“碳铀模式”来强制数据写入", false)
 	case errors.Is(err, adminops.ErrRuntimeUnavailable):
 		v1Fail(w, r, 503, "runtime_unavailable", "暂时无法取得账号编辑状态", true)
 	case errors.Is(err, adminops.ErrSkillPointMissing):

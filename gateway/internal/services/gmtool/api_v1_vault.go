@@ -142,7 +142,7 @@ func (s *Server) v1VaultResult(w http.ResponseWriter, r *http.Request, result ad
 	case errors.Is(e, adminops.ErrIdempotency):
 		v1Fail(w, r, 409, "idempotency_conflict", "此请求编号已用于其他操作", false)
 	case errors.Is(e, adminops.ErrCharacterOnline):
-		v1Fail(w, r, 409, "character_online", "账号仍连接游戏，请退出该账号后操作", false)
+		v1Fail(w, r, 409, "character_online", "角色在线；到系统设置里打开“碳铀模式”来强制数据写入", false)
 	case errors.Is(e, adminops.ErrRuntimeUnavailable):
 		v1Fail(w, r, 503, "runtime_unavailable", "暂时无法取得账号编辑状态", true)
 	case errors.Is(e, adminops.ErrVaultDefinitionChanged):

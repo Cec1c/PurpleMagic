@@ -66,8 +66,7 @@ func v1Time(value time.Time) *time.Time {
 
 func (s *Server) v1RequireItemIndex(w http.ResponseWriter, r *http.Request) bool {
 	if s.deps.Catalog != nil {
-		var v struct{ ManifestHash string }
-		e := s.deps.Catalog.call(r.Context(), catalogRequest{Operation: "metadata"}, &v)
+        _, e := s.deps.Catalog.metadata(r.Context())
 		s.items.mu.Lock()
 		s.items.buildEr = e
 		s.items.mu.Unlock()

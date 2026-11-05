@@ -43,7 +43,11 @@ func (s *Server) v1Currency(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a, found, err := g.Account.Load(r.Context(), id)
+	load := g.Account.Load
+	if reader, ok := g.Account.(repository.AccountCurrencyReader); ok {
+		load = reader.LoadAccountCurrency
+	}
+	a, found, err := load(r.Context(), id)
 	if err != nil {
 		s.v1Unavailable(w, r, err)
 		return

@@ -79,9 +79,11 @@ func (s *Server) v1InventoryOptions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if targetErr == nil && e == nil && v1ArtifactDefinitionMatches(v, entry) {
-		capability, err := s.itemcfgBuildCapability(entry, row.Stack, time.Now().UTC())
-		if err == nil && spec.ID != "shared" {
-			data["configuration"] = capability
+		if spec.ID != "shared" {
+			capability, err := s.itemcfgBuildCapability(entry, row.Stack, time.Now().UTC())
+			if err == nil {
+				data["configuration"] = capability
+			}
 		}
 		if spec.ID != "equipped" && entry.Kind == "stackable" && v1InventoryCountLimit(entry, spec.ID) > 0 {
 			minimum := "1"
@@ -303,15 +305,15 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 		check = s.v1AccountEditCheck(command.AccountID)
 	}
 	forceAvailable := false
-	if !commit || command.Force {
+	if command.Force && !carbonMode(r.Context()) {
 		forceAvailable = s.inventoryForceSupported(r.Context())
 	}
-	if command.Force && !forceAvailable {
+	if command.Force && !carbonMode(r.Context()) && !forceAvailable {
 		s.v1InventoryOperationResult(w, r, adminops.InventoryReceipt{}, errInventoryForceUnavailable)
 		return
 	}
 	if commit {
-		if command.Force {
+		if command.Force && !carbonMode(r.Context()) {
 			var release func()
 			done := diagnostics.Start(r.Context(), "inventory.drain")
 			check, release, e = s.acquireInventoryEdit(r.Context(), command.AccountID)
@@ -360,7 +362,7 @@ func (s *Server) v1InventoryOperationResult(w http.ResponseWriter, r *http.Reque
 	case errors.Is(e, adminops.ErrIdempotency):
 		status, code, message = 409, "idempotency_conflict", "此请求编号已用于其他操作"
 	case errors.Is(e, adminops.ErrCharacterOnline):
-		status, code, message = 409, "character_online", "所选资产仍被游戏占用：角色资产需该角色离线，账号共享资产需账号退出"
+		status, code, message = 409, "character_online", "角色在线；到系统设置里打开“碳铀模式”来强制数据写入"
 	case errors.Is(e, adminops.ErrRuntimeUnavailable):
 		status, code, message, retry = 503, "runtime_unavailable", "暂时无法取得账号编辑状态", true
 	case errors.Is(e, adminops.ErrAccount) || errors.Is(e, sql.ErrNoRows):

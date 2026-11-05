@@ -7,7 +7,7 @@ const storage=new Map();
 globalThis.sessionStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
 const response=(data,status=200)=>new Response(JSON.stringify(status===200?{data}:{error:{code:'conflict',message:'revision changed'}}),{status});
 
-test('forced inventory mode is signed before confirmation and cannot rewrite an attempted request',async()=>{
+test('inventory confirmation is prepared once without a per-operation force request',async()=>{
  const api=new ConsoleAPI(()=>{});api.current='10';const c={id:'10',accountId:'a',name:'fixture'};api.state.characters=[c];
  api.state.items=[itemDTO({container:'equipment',slot:9,itemId:'1',count:'1',bound:false,revision:'full',revisionScope:'full'},c,'bag')];
  const posts=[];api.http.fetcher=async(path,opts)=>{
@@ -15,9 +15,9 @@ test('forced inventory mode is signed before confirmation and cannot rewrite an 
   posts.push([path,JSON.parse(opts.body)]);assert.ok(path.endsWith('/preview'));return response({planToken:'signed-'+posts.length,receipt:{},forceAvailable:true});
  };
  await api.prepare({kind:'delete-items',keys:[api.state.items[0].key]},{accounts:[],characters:[]});
- const p=api.meta.pending,key=p.steps[0].id;assert.equal(p.inventoryForceAvailable,true);
- await api.setInventoryForce(true);assert.notEqual(p.steps[0].id,key);assert.equal(p.steps[0].body.force,true);assert.equal(p.steps[0].body.planToken,'signed-2');assert.equal(p.confirmed,false);
- p.confirmed=true;const frozen=JSON.stringify(p.steps[0]);await api.setInventoryForce(false);assert.equal(JSON.stringify(p.steps[0]),frozen);assert.equal(posts.length,2);
+ const p=api.meta.pending;assert.equal(p.steps[0].body.force,undefined);
+ assert.equal(posts.length,1);assert.equal(p.steps[0].body.planToken,'signed-1');
+ assert.equal(api.setInventoryForce,undefined);
 });
 
 test('cera benefit prepares an account-only credit without a PVF lookup or write', async()=>{
@@ -124,7 +124,7 @@ test('quest revision rejection re-previews only unfinished targets before anothe
 });
 test('successful commit survives a subsequent refresh failure',async()=>{
  let writes=0;const api=setup(async()=>{writes++;return response({requestId:'receipt'});});
- api.character=async()=>{throw Error('read unavailable')};
+ api.current='10';api.state.characters=[{id:'10',accountId:'a'}];api.meta.pending.steps[0].path='/api/v1/characters/10/gold-operations';api.balances=async()=>{throw Error('read unavailable')};
  await api.confirm();assert.equal(writes,1);assert.equal(api.meta.pending.completed,true);assert.equal(api.meta.error,'read unavailable');api.cancel();
 });
 test('definite rejection can be closed while completed earlier steps stay committed',async()=>{

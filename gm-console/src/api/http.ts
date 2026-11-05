@@ -103,7 +103,7 @@ export class HttpClient {
     let release: (() => void) | undefined;
     try {
       if (method === "GET") release = await this.acquire(controller.signal);
-      else this.clearCache();
+      else if (path === "/api/auth/logout" || path === "/api/v1/settings/pvf") this.clearCache();
       let response: Response;
       try {
         response = await bounded(() =>

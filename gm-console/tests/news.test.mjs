@@ -53,7 +53,7 @@ test('GM settings load and publish with the GM session CSRF, without a second lo
  };
  await a.hub();assert.ok(a.meta.hub);assert.equal(calls.length,2);assert.ok(calls.every(c=>c.method==='GET'));
  await a.prepare({kind:'news',id:row.id,title:'一次登录',body:'正文',published:true,sourceRevision:'r1'},selection);
- await a.confirm();assert.equal(calls.length,3);assert.ok(calls[2].headers['Idempotency-Key']);
+ await a.confirm();assert.equal(calls.length,4);assert.ok(calls[3].path.startsWith('/api/v1/hub/news?'));assert.ok(calls[2].headers['Idempotency-Key']);
 });
 test('stored legacy announcement requests keep their ID and revision on the GM route', async()=>{
  const a=api();a.http.csrf='gm-csrf';

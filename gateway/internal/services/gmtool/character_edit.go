@@ -12,6 +12,9 @@ import (
 // selection and cleanup, using the same DB fence as this transaction.
 func (s *Server) v1CharacterEditCheck(account string) adminops.QuestOfflineCheck {
 	return func(ctx context.Context, character string) error {
+		if carbonMode(ctx) {
+			return nil
+		}
 		id, err := strconv.ParseUint(character, 10, 16)
 		if err != nil || id == 0 || strconv.FormatUint(id, 10) != character || account == "" || s.deps.Runtime == nil {
 			return adminops.ErrRuntimeUnavailable

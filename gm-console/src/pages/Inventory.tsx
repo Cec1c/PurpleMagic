@@ -312,11 +312,14 @@ export function Inventory({ state, character, request, notify }: PageProps) {
     if (live && item?.remote && !item.remote.options)
       void live.guard(() => live.item(item.key));
   }, [live, item?.key, !!item?.remote?.options]);
+  useEffect(() => {
+    if (live) void live.guard(() => live.inventory(tab));
+    return () => live?.cancelScope("inventory");
+  }, [live, character.id, tab]);
   const ids = rows.map((i) => i.key);
   const visibleChecked = checked.filter((id) => all.some((i) => i.key === id));
   function changeTab(v: InventoryTab) {
     setTab(v);
-    if (live) void live.guard(() => live.inventory(v));
     setCategory("全部");
     setSelected("");
     setChecked([]);
