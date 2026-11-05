@@ -34,7 +34,9 @@ func (s *mysqlCharStore) WithinCharacterManagement(ctx context.Context, accountI
 }
 
 func (s *mysqlCharStore) WithinInventoryManagement(ctx context.Context, accountID, characterID string, apply func(repository.Group, repository.ManagementReceiptStore) error) error {
-	return s.withinCharacterManagement(ctx, accountID, characterID, "inventory_management_operations", apply)
+	return retryInventoryDeadlock(ctx, func() error {
+		return s.withinCharacterManagement(ctx, accountID, characterID, "inventory_management_operations", apply)
+	})
 }
 
 func (s *mysqlCharStore) WithinCharacterGold(ctx context.Context, accountID, characterID string, apply func(repository.CharacterGoldRepository, repository.ManagementReceiptStore) error) error {

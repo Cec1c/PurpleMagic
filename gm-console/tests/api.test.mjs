@@ -7,6 +7,19 @@ const storage=new Map();
 globalThis.sessionStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
 const response=(data,status=200)=>new Response(JSON.stringify(status===200?{data}:{error:{code:'conflict',message:'revision changed'}}),{status});
 
+test('forced inventory mode is signed before confirmation and cannot rewrite an attempted request',async()=>{
+ const api=new ConsoleAPI(()=>{});api.current='10';const c={id:'10',accountId:'a',name:'fixture'};api.state.characters=[c];
+ api.state.items=[itemDTO({container:'equipment',slot:9,itemId:'1',count:'1',bound:false,revision:'full',revisionScope:'full'},c,'bag')];
+ const posts=[];api.http.fetcher=async(path,opts)=>{
+  if(opts.method==='GET')return response({canDelete:true,ownerScope:'character',item:{itemId:'1',count:'1',bound:false,revision:'full',pvfChecksum:'hash'}});
+  posts.push([path,JSON.parse(opts.body)]);assert.ok(path.endsWith('/preview'));return response({planToken:'signed-'+posts.length,receipt:{},forceAvailable:true});
+ };
+ await api.prepare({kind:'delete-items',keys:[api.state.items[0].key]},{accounts:[],characters:[]});
+ const p=api.meta.pending,key=p.steps[0].id;assert.equal(p.inventoryForceAvailable,true);
+ await api.setInventoryForce(true);assert.notEqual(p.steps[0].id,key);assert.equal(p.steps[0].body.force,true);assert.equal(p.steps[0].body.planToken,'signed-2');assert.equal(p.confirmed,false);
+ p.confirmed=true;const frozen=JSON.stringify(p.steps[0]);await api.setInventoryForce(false);assert.equal(JSON.stringify(p.steps[0]),frozen);assert.equal(posts.length,2);
+});
+
 test('cera benefit prepares an account-only credit without a PVF lookup or write', async()=>{
  const api=new ConsoleAPI(()=>{});api.http.fetcher=async()=>{throw Error('unexpected request')};
  await api.prepare({kind:'benefit-create',name:'账号福利',gold:2000,rewardKind:'cera',cera:500,grantScope:'character',enabled:true,scope:'future'},{accounts:[],characters:[]});

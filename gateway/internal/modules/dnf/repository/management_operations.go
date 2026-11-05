@@ -59,6 +59,10 @@ type InventoryManagementUnitOfWork interface {
 	InventoryManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)
 }
 
+type InventoryReceiptReader interface {
+	LookupInventoryReceipt(context.Context, string, string, string) ([]byte, bool, error)
+}
+
 type InventoryManagementAccountCharacters interface {
 	ManagementAccountCharacters(context.Context, string) ([]CharacterSummary, error)
 }

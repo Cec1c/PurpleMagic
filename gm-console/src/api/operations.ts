@@ -49,6 +49,7 @@ export async function prepareOperation(
     refreshRead?: string,
   ) => {
     const data = await api.http.post(path + "/preview", body);
+    if (path.endsWith("/inventory-operations")) p.inventoryForceAvailable = data.forceAvailable === true;
     return add(
       label,
       path,

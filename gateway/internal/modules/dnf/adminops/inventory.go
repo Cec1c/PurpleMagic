@@ -35,6 +35,7 @@ type InventorySelection struct {
 	RelatedRevision string `json:"relatedRevision,omitempty"`
 }
 type InventoryCommand struct {
+	Force       bool                 `json:"force,omitempty"`
 	AccountID   string               `json:"accountId"`
 	CharacterID string               `json:"characterId"`
 	Action      string               `json:"action"`
@@ -65,6 +66,7 @@ type InventoryChange struct {
 	Revision  string          `json:"revision"`
 }
 type InventoryReceipt struct {
+	Forced      bool              `json:"forced,omitempty"`
 	OwnerScope  string            `json:"ownerScope"`
 	RequestID   string            `json:"requestId,omitempty"`
 	Kind        string            `json:"kind"`
@@ -208,8 +210,12 @@ func validInventoryCommand(c InventoryCommand, commit bool) error {
 	return nil
 }
 func loadInventoryReceipt(ctx context.Context, r repository.ManagementReceiptStore, c InventoryCommand) (InventoryReceipt, bool, error) {
-	var old inventoryStored
 	raw, found, e := r.Load(ctx, c.Key)
+	return decodeInventoryReceiptLookup(raw, found, e, c)
+}
+
+func decodeInventoryReceiptLookup(raw []byte, found bool, e error, c InventoryCommand) (InventoryReceipt, bool, error) {
+	var old inventoryStored
 	if e != nil || !found {
 		return old.Receipt, found, e
 	}
@@ -229,6 +235,10 @@ func LookupInventoryOperation(ctx context.Context, u repository.InventoryManagem
 	}
 	if u == nil {
 		return result, false, ErrRuntimeUnavailable
+	}
+	if reader, ok := u.(repository.InventoryReceiptReader); ok {
+		raw, found, err := reader.LookupInventoryReceipt(ctx, c.AccountID, c.CharacterID, c.Key)
+		return decodeInventoryReceiptLookup(raw, found, err, c)
 	}
 	e := u.WithinInventoryManagement(ctx, c.AccountID, c.CharacterID, func(g repository.Group, r repository.ManagementReceiptStore) error {
 		ch, ok, e := g.Character.Load(ctx, c.CharacterID)
@@ -291,7 +301,7 @@ func RunInventoryOperation(ctx context.Context, u repository.InventoryManagement
 				return e
 			}
 		}
-		result = InventoryReceipt{OwnerScope: scope, Kind: "inventory-operation", AccountID: c.AccountID, CharacterID: c.CharacterID, Action: c.Action, PVFChecksum: c.PVFChecksum, Reason: c.Reason, Actor: c.Actor, CreatedAt: time.Now().UTC().Truncate(time.Microsecond), Changes: []InventoryChange{}}
+		result = InventoryReceipt{Forced: c.Force, OwnerScope: scope, Kind: "inventory-operation", AccountID: c.AccountID, CharacterID: c.CharacterID, Action: c.Action, PVFChecksum: c.PVFChecksum, Reason: c.Reason, Actor: c.Actor, CreatedAt: time.Now().UTC().Truncate(time.Microsecond), Changes: []InventoryChange{}}
 		fields := map[repository.InventoryField]bool{}
 		for _, v := range c.Items {
 			if e = ctx.Err(); e != nil {

@@ -36,6 +36,10 @@ func (s accountInventoryManagementCharacters) ManagementAccountCharacters(ctx co
 // Account assets and the selected character can reside on different shards of
 // one MySQL server. Lock the account first so two roles serialize on one owner.
 func (s *mysqlAccountInventoryStore) WithinInventoryManagement(ctx context.Context, account, character string, apply func(repository.Group, repository.ManagementReceiptStore) error) error {
+	return retryInventoryDeadlock(ctx, func() error { return s.withinInventoryManagement(ctx, account, character, apply) })
+}
+
+func (s *mysqlAccountInventoryStore) withinInventoryManagement(ctx context.Context, account, character string, apply func(repository.Group, repository.ManagementReceiptStore) error) error {
 	if account == "" || character == "" || apply == nil {
 		return errors.New("invalid account inventory operation")
 	}
@@ -74,12 +78,18 @@ func (s *mysqlAccountInventoryStore) WithinInventoryManagement(ctx context.Conte
 	if err != nil {
 		return err
 	}
-	if err = tx.QueryRowContext(ctx, "SELECT character_id FROM "+table+" WHERE character_id=? AND BINARY character_id=BINARY ? AND BINARY account_id=BINARY ? FOR UPDATE", character, character, account).Scan(&actual); err != nil {
+	// Ownership is a snapshot read. Account edits never write the selected role;
+	// taking its X lock here reverses gameplay's character -> account order.
+	// The account fence and occupancy checks serialize admission and deletion.
+	if err = tx.QueryRowContext(ctx, "SELECT character_id FROM "+table+" WHERE character_id=? AND BINARY character_id=BINARY ? AND BINARY account_id=BINARY ?", character, character, account).Scan(&actual); err != nil {
 		return err
 	}
 	base := newMySQLGroupFromRouter(r, false)
+	readRouter := r
+	readRouter.lockReads = false
+	roles := newMySQLGroupFromRouter(readRouter, false).Character
 	g := repository.Group{
-		Character:        accountInventoryManagementCharacters{&characterSettlementScopedCharacterRepository{characterID: character, base: base.Character}, account, base.Character.(repository.CharacterSummaryReader)},
+		Character:        accountInventoryManagementCharacters{&characterSettlementScopedCharacterRepository{characterID: character, base: roles}, account, roles.(repository.CharacterSummaryReader)},
 		AccountInventory: &accountInventoryScopedRepository{accountID: account, base: base.AccountInventory},
 	}
 	table, err = r.writeTable(accountInventoryManagementTable, account)

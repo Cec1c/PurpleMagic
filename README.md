@@ -57,6 +57,8 @@ The [integration guide](docs/GM_CONSOLE_INTEGRATION_20261019.md) maps each page 
 
 ### Inventory workspace
 
+Inventory edits support an optional **Force execution** mode when the game provides the edit-lease API: disconnect the account, wait for its save, apply the confirmed change, then restore admission. See [inventory editing](docs/GM_INVENTORY_EDIT.md).
+
 ![Orchid GM console with eight container views, item attributes and batch selection](docs/images/inventory.webp)
 
 Account/character identifiers and local paths in these screenshots have been redacted.

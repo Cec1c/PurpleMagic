@@ -1212,6 +1212,27 @@ export class ConsoleAPI {
       p.steps.some((s) => !s.done) &&
       p.steps.every((s) => /\/quest-operations$/.test(s.path));
   }
+  async setInventoryForce(enabled: boolean) {
+    const p = this.meta.pending;
+    if (!p || this.meta.busy || p.confirmed || p.completed || p.steps.length !== 1 || !p.inventoryForceAvailable) return;
+    const step = p.steps[0];
+    if (!step.path.endsWith("/inventory-operations")) return;
+    this.meta.busy = true;
+    this.publish();
+    try {
+      const { planToken: _, force: __, ...original } = step.body;
+      const body = { ...original, ...(enabled ? { force: true } : {}) };
+      const preview = await this.http.post(step.path + "/preview", body);
+      // A changed mode is a new signed operation, with a fresh request key.
+      step.id = crypto.randomUUID();
+      step.body = { ...body, planToken: preview.planToken };
+      step.result = preview.receipt;
+      this.persistPending();
+    } finally {
+      this.meta.busy = false;
+      this.publish();
+    }
+  }
   async repreviewQuests(id = this.meta.pending?.id) {
     const p = this.meta.pending;
     if (!p || p.id !== id || this.meta.busy || !this.canRepreviewQuests()) return;

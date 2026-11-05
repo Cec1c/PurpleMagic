@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"net/http"
 	"strconv"
 	"strings"
@@ -202,6 +203,7 @@ func (s *Server) v1InventoryMutator(at time.Time, nonce string) adminops.Invento
 
 func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		Force       bool                          `json:"force"`
 		AccountID   string                        `json:"accountId"`
 		Action      string                        `json:"action"`
 		Items       []adminops.InventorySelection `json:"items"`
@@ -249,7 +251,7 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.LoginKeySHA256 != "" {
 		actor = "管理凭据 " + s.cfg.LoginKeySHA256[:12]
 	}
-	command := adminops.InventoryCommand{AccountID: c.AccountID, CharacterID: c.CharacterID, Action: body.Action, Items: body.Items, Options: body.Options, Reason: body.Reason, PVFChecksum: body.PVFChecksum, Actor: actor, PlanToken: body.PlanToken, Key: key}
+	command := adminops.InventoryCommand{Force: body.Force, AccountID: c.AccountID, CharacterID: c.CharacterID, Action: body.Action, Items: body.Items, Options: body.Options, Reason: body.Reason, PVFChecksum: body.PVFChecksum, Actor: actor, PlanToken: body.PlanToken, Key: key}
 	if commit {
 		old, found, e := adminops.LookupInventoryOperation(r.Context(), u, command)
 		if found || e != nil {
@@ -297,9 +299,34 @@ func (s *Server) v1InventoryOperation(w http.ResponseWriter, r *http.Request) {
 	if scope, err := adminops.InventoryScope(command.Items); err == nil && scope == "account" {
 		check = s.v1AccountEditCheck(command.AccountID)
 	}
+	forceAvailable := false
+	if !commit || command.Force {
+		forceAvailable = s.inventoryForceSupported(r.Context())
+	}
+	if command.Force && !forceAvailable {
+		s.v1InventoryOperationResult(w, r, adminops.InventoryReceipt{}, errInventoryForceUnavailable)
+		return
+	}
+	if commit {
+		if command.Force {
+			var release func()
+			check, release, e = s.acquireInventoryEdit(r.Context(), command.AccountID)
+			if e != nil {
+				s.v1InventoryOperationResult(w, r, adminops.InventoryReceipt{}, e)
+				return
+			}
+			defer release()
+		}
+		// Reject an occupied owner before taking SQL asset locks. Checks inside
+		// the transaction remain authoritative against a concurrent login.
+		if e = check(r.Context(), command.CharacterID); e != nil {
+			s.v1InventoryOperationResult(w, r, adminops.InventoryReceipt{}, e)
+			return
+		}
+	}
 	result, e := adminops.RunInventoryOperation(r.Context(), u, command, commit, s.v1InventoryMutator(at, nonce), s.v1InventoryProject, check)
 	if e == nil && !commit {
-		v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"receipt": result, "planToken": command.PlanToken}})
+		v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"receipt": result, "planToken": command.PlanToken, "forceAvailable": forceAvailable}})
 		return
 	}
 	s.v1InventoryOperationResult(w, r, result, e)
@@ -311,7 +338,16 @@ func (s *Server) v1InventoryOperationResult(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	status, code, message, retry := 422, "inventory_rejected", "物品操作条件不满足", false
+	var databaseError *mysqldriver.MySQLError
 	switch {
+	case errors.Is(e, errInventoryForceUnavailable):
+		status, code, message = 409, "force_unavailable", "游戏服务尚未支持强制编辑，需更新游戏接口"
+	case errors.Is(e, errInventoryLeaseUnavailable):
+		status, code, message, retry = 503, "inventory_lease_unavailable", "暂时无法取得强制编辑状态，请稍后继续本次操作", true
+	case errors.Is(e, errInventoryDraining):
+		status, code, message, retry = 503, "inventory_draining", "正在等待原连接完成存档，请稍后继续本次操作", true
+	case errors.As(e, &databaseError) && (databaseError.Number == 1213 || databaseError.Number == 1205):
+		status, code, message, retry = 503, "inventory_busy", "库存正在被其他事务使用，请稍后继续本次操作", true
 	case errors.Is(e, adminops.ErrConflict):
 		status, code, message = 409, "revision_conflict", "物品实例已变更，请重新读取并预览"
 	case errors.Is(e, adminops.ErrIdempotency):

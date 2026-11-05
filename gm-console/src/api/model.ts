@@ -59,6 +59,7 @@ export type Step = {
   refreshed?: boolean;
 };
 export type Pending = {
+	inventoryForceAvailable?: boolean;
   activityChanges?: { id: number; name: string; before: boolean; enabled: boolean }[];
   id: string;
   title: string;
