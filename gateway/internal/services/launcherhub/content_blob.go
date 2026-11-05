@@ -60,7 +60,7 @@ func (h *Hub) serveContentBlob(w http.ResponseWriter, r *http.Request) bool {
 		http.NotFound(w, r)
 		return true
 	}
-	if h.baidu.Redirect(w, r, m[1], size) {
+	if h.openlist.Redirect(w, r, m[1], size) || h.baidu.Redirect(w, r, m[1], size) {
 		return true
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")

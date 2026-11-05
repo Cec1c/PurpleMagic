@@ -34,6 +34,7 @@ public sealed class PlayerApi : IDisposable
         this.responseObserved = responseObserved;
         Http = new HttpClient(new HttpClientHandler {
             UseProxy = false, AllowAutoRedirect = false,
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
             ServerCertificateCustomValidationCallback = (request, cert, chain, errors) =>
                 CertificateAllowed(request.RequestUri!, cert, errors, profile)
         }) { Timeout = TimeSpan.FromSeconds(20) };

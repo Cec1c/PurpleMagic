@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"dnf90.local/gateway/internal/services/baidudelivery"
+	"dnf90.local/gateway/internal/services/openlistdelivery"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -43,6 +44,7 @@ type persisted struct {
 	SourceDigests    map[string]string        `json:"sourceDigests"`
 }
 type Hub struct {
+	openlist  *openlistdelivery.Resolver
 	baidu     *baidudelivery.Resolver
 	cfg       Config
 	key       *rsa.PrivateKey
@@ -146,6 +148,12 @@ func New(c Config) (*Hub, error) {
 	}
 	if c.Baidu != nil {
 		h.baidu, e = baidudelivery.New(*c.Baidu)
+		if e != nil {
+			return nil, e
+		}
+	}
+	if c.OpenList != nil {
+		h.openlist, e = openlistdelivery.New(*c.OpenList)
 		if e != nil {
 			return nil, e
 		}
@@ -320,10 +328,7 @@ func (h *Hub) PublicHandler() http.Handler {
 			http.Error(w, "publication unavailable", 503)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Write(raw)
+		writeBootstrap(w, r, raw)
 	})
 }
 func randomHex() string {
