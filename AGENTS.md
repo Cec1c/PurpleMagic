@@ -10,6 +10,8 @@ Launcher 0.2.19 adds optional local enhanced diagnostics. Read `docs/LAUNCHER_DI
 
 # PurpleMagic repository guidance
 
+- For update/repair announcements, follow `docs/GM_ANNOUNCEMENT_PUBLISHING.md` and `docs/templates/announcement-*.md`. Summarize each player-visible change as 修复 / 调整 / 新增 / 优化, based on the actual release scope. Keep internal evidence separate from public copy. Use `scripts/gm_announcement.py` and the existing GM session API when publication is authorized; prepare-only tasks produce a draft. Preserve the original request file for retries and verify the saved entry by ID. No RPA is needed for announcement publication.
+
 - Read `docs/FEATURE_LEDGER.md`, `docs/FOUNDATIONS.md`, `docs/ARCHITECTURE.md`, `docs/PROVENANCE.md` and `changlog.md` before choosing a baseline. Preserve existing working-tree changes.
 - `gm-console/` is the only active GM frontend. Its accepted orchid glass design is archived in `docs/design/purplemagic-orchid-20261019/`. Preserve the floating sidebar, capsule header, purple/pink light and dark themes, density and functional grouping. Product text states behavior directly.
 - `gm-web/` is **FROZEN_DO_NOT_REFERENCE**: keep it only for historical builds and provenance. Do not copy, import or restyle its layout or components. The 86jp reference supplies function semantics, not the current visual design.
