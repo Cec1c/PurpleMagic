@@ -1,3 +1,14 @@
+/* Keep the glass sidebar scrollable without a native scrollbar or gutter. */
+.sidebar {
+  scrollbar-width: none;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* A closed mobile drawer must also be absent from keyboard navigation. */
 .quest-layout > * {
   min-width: 0;
