@@ -190,14 +190,22 @@ func (s *Server) v1Routes() http.Handler {
 			v1Fail(w, r, 405, "method_not_allowed", "此接口不支持该请求方法", false)
 			return
 		}
-		readTimeout := 3 * time.Second
-		if pattern == "GET /api/v1/characters/{characterId}/profession" {
-			readTimeout = 8 * time.Second
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), readTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), v1ReadTimeout(pattern, r.URL.Path))
 		defer cancel()
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	}))
+}
+
+func v1ReadTimeout(pattern, path string) time.Duration {
+	if pattern == "GET /api/v1/characters/{characterId}/profession" {
+		return 8 * time.Second
+	}
+	// Statistics aggregate history across shards. The outer request must allow
+	// the same budget as the local query; WithTimeout preserves caller limits.
+	if pattern == "GET /api/v1/anti-cheat/{resource}" && (path == "/api/v1/anti-cheat/clears" || path == "/api/v1/anti-cheat/account-stats") {
+		return moderationStatsReadTimeout
+	}
+	return 3 * time.Second
 }
 
 type v1Query struct {

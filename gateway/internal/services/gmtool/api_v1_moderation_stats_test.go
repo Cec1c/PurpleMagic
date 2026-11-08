@@ -6,6 +6,9 @@ import (
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 	"fmt"
 	"math"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 )
@@ -48,13 +51,13 @@ func TestModerationStatsMySQL(t *testing.T) {
 				_, err = s.db.Exec("INSERT INTO web_accounts(id,account_id,account,created_at) VALUES(?,?,?,UTC_TIMESTAMP())", i+1, id, "name-"+id)
 				check(err)
 			}
-			_, err = s.db.Exec("CREATE TABLE web_accounts_bans(kind VARCHAR(16),target VARCHAR(128),revoked BOOL,expires_at DATETIME(6))")
+			_, err = s.db.Exec("CREATE TABLE web_accounts_bans(kind VARCHAR(16),target VARCHAR(128),revoked BOOL,expires_at DATETIME(6),KEY target_lookup(kind,target)) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
 			check(err)
 			_, err = s.db.Exec("CREATE TABLE IF NOT EXISTS web_accounts_player_accounts(account_id VARCHAR(128),disabled BOOL)")
 			check(err)
-			_, err = s.db.Exec("INSERT INTO web_accounts_bans VALUES('account','b',0,NULL),('account','c',0,'2000-01-01'),('account','a',1,NULL),('ip','192.0.2.1',0,NULL)")
+			_, err = s.db.Exec("INSERT INTO web_accounts_bans VALUES('account','b',0,NULL),('account','c',0,'2000-01-01'),('account','a',1,NULL),('account','A',0,NULL),('ip','192.0.2.1',0,NULL)")
 			check(err)
-			_, err = s.db.Exec("INSERT INTO web_accounts_player_accounts(account_id,disabled) VALUES('d',1)")
+			_, err = s.db.Exec("INSERT INTO web_accounts_player_accounts(account_id,disabled) VALUES('d',1),('C',1)")
 			check(err)
 			var db string
 			check(s.db.QueryRow("SELECT DATABASE()").Scan(&db))
@@ -79,6 +82,10 @@ func TestModerationStatsMySQL(t *testing.T) {
 			check(q.NormalizeSort("account-stats"))
 			names, excluded, err := s.moderationStatsAccounts(ctx, true)
 			check(err)
+			slices.Sort(excluded)
+			if !slices.Equal(excluded, []string{"b", "d"}) {
+				t.Fatal("ban identity, expiry or revocation mismatch", excluded)
+			}
 			q.ExcludedAccountIDs = excluded
 			rows, err := reader.QueryAccountClears(ctx, q)
 			check(err)
@@ -125,6 +132,82 @@ func TestModerationStatsMySQL(t *testing.T) {
 			}
 			if status, _ := v1TestCall(t, s, token, "GET", url+"&accountId=a&hideBanned=maybe"); status != 400 {
 				t.Fatal(status)
+			}
+		})
+	}
+}
+
+func TestV1ModerationStatsReadBudgets(t *testing.T) {
+	for _, tc := range []struct {
+		pattern, path string
+		want          time.Duration
+	}{
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/clears", 8 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/account-stats", 8 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/bans", 3 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/accounts", 3 * time.Second},
+		{"GET /api/v1/anti-cheat/qq/settings", "/api/v1/anti-cheat/qq/settings", 3 * time.Second},
+		{"GET /api/v1/accounts", "/api/v1/accounts", 3 * time.Second},
+		{"GET /api/v1/characters/{characterId}/profession", "/api/v1/characters/1/profession", 8 * time.Second},
+	} {
+		if got := v1ReadTimeout(tc.pattern, tc.path); got != tc.want {
+			t.Errorf("%s: got %v want %v", tc.path, got, tc.want)
+		}
+	}
+}
+
+type delayedModerationStatsReader struct {
+	repository.CharacterRepository
+	budget time.Duration
+}
+
+func (r *delayedModerationStatsReader) wait(ctx context.Context) error {
+	deadline, _ := ctx.Deadline()
+	r.budget = time.Until(deadline)
+	timer := time.NewTimer(3100 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (r *delayedModerationStatsReader) QueryClears(ctx context.Context, _ moderation.Query) (moderation.ClearPage, error) {
+	return moderation.ClearPage{Rows: []moderation.ClearStats{}}, r.wait(ctx)
+}
+func (r *delayedModerationStatsReader) QueryAccountClears(ctx context.Context, _ moderation.Query) ([]moderation.AccountClearStats, error) {
+	return []moderation.AccountClearStats{}, r.wait(ctx)
+}
+
+func TestV1ModerationStatsSlowReadAndCancellationMySQL(t *testing.T) {
+	s, _, _ := currencyFixture(t, 1)
+	s.deps.Runtime = nil
+	reader := &delayedModerationStatsReader{}
+	s.deps.Repos = func() (repository.Group, bool) { return repository.Group{Character: reader}, true }
+	token, err := s.startSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, resource := range []string{"clears", "account-stats"} {
+		t.Run(resource, func(t *testing.T) {
+			path := "/api/v1/anti-cheat/" + resource + "?limit=50"
+			if status, out := v1TestCall(t, s, token, "GET", path); status != 200 {
+				t.Fatal("query exceeding three seconds was cancelled", status, out)
+			}
+			if reader.budget < 7*time.Second || reader.budget > 8*time.Second {
+				t.Fatal("outer deadline overrides stats budget", reader.budget)
+			}
+			// A shorter caller deadline still cancels an in-flight stats query.
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			req := httptest.NewRequest("GET", path, nil).WithContext(ctx)
+			req.AddCookie(&http.Cookie{Name: CookieName, Value: token})
+			w := httptest.NewRecorder()
+			start := time.Now()
+			s.routes().ServeHTTP(w, req)
+			if w.Code != 503 || ctx.Err() != context.DeadlineExceeded || time.Since(start) > time.Second {
+				t.Fatal("caller deadline not respected", w.Code, ctx.Err(), time.Since(start))
 			}
 		})
 	}

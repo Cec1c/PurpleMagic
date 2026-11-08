@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const moderationStatsReadTimeout = 8 * time.Second
+
 // Read names and current account bans from the registration database. IP bans
 // are deliberately separate: a shared IP does not make every account banned.
 func (s *Server) moderationStatsAccounts(ctx context.Context, hide bool) (map[string]string, []string, error) {
@@ -22,7 +24,9 @@ func (s *Server) moderationStatsAccounts(ctx context.Context, hide bool) (map[st
 	query := "SELECT account_id,account,0 FROM " + quoteIdentifier(s.cfg.Table)
 	if hide {
 		table := quoteIdentifier(s.cfg.Table)
-		query = "SELECT a.account_id,a.account,(COALESCE(p.disabled,0)<>0 OR EXISTS(SELECT 1 FROM " + quoteIdentifier(s.cfg.Table+"_bans") + " b WHERE b.kind='account' AND BINARY b.target=BINARY a.account_id AND b.revoked=0 AND (b.expires_at IS NULL OR b.expires_at>?))) FROM " + table + " a LEFT JOIN " + quoteIdentifier(s.cfg.Table+"_player_accounts") + " p ON BINARY p.account_id=BINARY a.account_id"
+		// Cast the lookup value, leaving indexed columns available for ref
+		// lookups while retaining case-sensitive IDs across table collations.
+		query = "SELECT a.account_id,a.account,(COALESCE(p.disabled,0)<>0 OR EXISTS(SELECT 1 FROM " + quoteIdentifier(s.cfg.Table+"_bans") + " b WHERE b.kind='account' AND b.target=BINARY a.account_id AND b.revoked=0 AND (b.expires_at IS NULL OR b.expires_at>?))) FROM " + table + " a LEFT JOIN " + quoteIdentifier(s.cfg.Table+"_player_accounts") + " p ON p.account_id=BINARY a.account_id"
 	}
 	var args []any
 	if hide {
@@ -116,7 +120,7 @@ func accountStatsPage(rows []moderation.AccountClearStats, names map[string]stri
 }
 
 func (s *Server) v1LocalModerationStats(w http.ResponseWriter, r *http.Request, q moderation.Query) {
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), moderationStatsReadTimeout)
 	defer cancel()
 	var data any
 	var err error
@@ -124,8 +128,11 @@ func (s *Server) v1LocalModerationStats(w http.ResponseWriter, r *http.Request, 
 		if group, ok := s.deps.Repos(); ok {
 			if reader, ok := group.Character.(repository.ModerationStatsReader); ok {
 				var names map[string]string
+				done := diagnostics.Start(ctx, "stats.registration")
 				names, q.ExcludedAccountIDs, err = s.moderationStatsAccounts(ctx, q.HideBanned)
+				done(err)
 				if err == nil {
+					done = diagnostics.Start(ctx, "stats.aggregate")
 					if r.PathValue("resource") == "account-stats" {
 						var rows []moderation.AccountClearStats
 						rows, err = reader.QueryAccountClears(ctx, q)
@@ -135,6 +142,7 @@ func (s *Server) v1LocalModerationStats(w http.ResponseWriter, r *http.Request, 
 					} else {
 						data, err = reader.QueryClears(ctx, q)
 					}
+					done(err)
 				}
 			}
 		}
