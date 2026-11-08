@@ -187,8 +187,21 @@ func testV1DirectoryMySQL(t *testing.T, shards int) {
 		if status != 200 {
 			t.Fatal(status, out)
 		}
-		if len(out["data"].([]any)) > limit || len(counted.queries) != shards || strings.Contains(counted.queries[0], "_stats") || strings.Contains(counted.queries[0], "_roster") {
-			t.Fatal("summary queries scale with roles", counted.queries)
+		summaries, wallets := 0, 0
+		for _, query := range counted.queries {
+			if strings.Contains(query, "dnf_characters") {
+				summaries++
+			} else if strings.Contains(query, "dnf_account_metadata") && strings.Contains(query, "gm_currency_sequence_v1") && strings.Contains(query, "account_cera") {
+				wallets++
+			} else {
+				t.Fatal("unexpected directory query", query)
+			}
+			if strings.Contains(query, "_stats") || strings.Contains(query, "_roster") {
+				t.Fatal("full character state loaded", query)
+			}
+		}
+		if len(out["data"].([]any)) > limit || summaries != shards || wallets < 1 || wallets > shards {
+			t.Fatal("directory queries must scale with shards, not accounts or roles", counted.queries)
 		}
 	}
 	seen := map[string]bool{}
