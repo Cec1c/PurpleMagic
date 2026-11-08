@@ -1,6 +1,7 @@
 import { numberDraft, draftNumber } from "../numeric";
 import { useEnterMotion } from "../motion";
-import { useState, useEffect } from "react";
+import { refreshDraftValue } from "../draft-refresh";
+import { useState, useEffect, useRef } from "react";
 import { useLive } from "../api/context";
 import { professionGroups, demoProfessionGroups } from "../professions";
 import { LoadMore } from "../api/controls";
@@ -52,36 +53,37 @@ export function GmPage({ state, character, request }: PageProps) {
   const [premiumDays, setPremiumDays] = useState("30");
   const premium = state.api?.resources.premium;
   const currentPremium = premium?.accountId === character.accountId ? premium : undefined;
-  useEffect(() => { setNewName(""); }, [character.id, character.name]);
+  useEffect(() => { setNewName(""); }, [character.id]);
+  useEffect(() => { setNewName(v => v === character.name ? "" : v); }, [character.name]);
   const adventure = live ? state.api?.resources.adventureName : { accountId:a.id, name:"adventureName" in a ? a.adventureName : "" };
   const adventureName = adventure?.accountId === character.accountId ? adventure.name : undefined;
   const [newAdventureName, setNewAdventureName] = useState("");
-  useEffect(() => { setNewAdventureName(""); }, [character.accountId, adventureName]);
+  useEffect(() => { setNewAdventureName(""); }, [character.accountId]);
+  useEffect(() => { setNewAdventureName(v => v === adventureName ? "" : v); }, [adventureName]);
   const carbonMode = !!state.api?.systemSettings?.carbonMode;
+  const previous = useRef({ owner: character.id, level: numberDraft(character.level),
+    job: `${character.jobCode}:${character.growType}`, sp: numberDraft(character.sp),
+    tp: numberDraft(character.tp), gold: character.gold, points: a.points,
+    pointsText: a.rawPoints || "", tokens: a.tokens });
   useEffect(() => {
+    const next = { owner: character.id, level: numberDraft(character.level),
+      job: `${character.jobCode}:${character.growType}`, sp: numberDraft(character.sp),
+      tp: numberDraft(character.tp), gold: character.gold, points: a.points,
+      pointsText: a.rawPoints || "", tokens: a.tokens };
+    const old = previous.current, changed = old.owner !== next.owner;
     if (live) {
-      setLevel(numberDraft(character.level));
-      setJob(`${character.jobCode}:${character.growType}`);
-      setSp(numberDraft(character.sp));
-      setTp(numberDraft(character.tp));
-      setGold(character.gold);
-      setPoints(a.points);
-      setPointsText(a.rawPoints || "");
-      setTokens(a.tokens);
+      setLevel(v => refreshDraftValue(v, old.level, next.level, changed));
+      setJob(v => refreshDraftValue(v, old.job, next.job, changed));
+      setSp(v => refreshDraftValue(v, old.sp, next.sp, changed));
+      setTp(v => refreshDraftValue(v, old.tp, next.tp, changed));
+      setGold(v => refreshDraftValue(v, old.gold, next.gold, changed));
+      setPoints(v => refreshDraftValue(v, old.points, next.points, changed));
+      setPointsText(v => refreshDraftValue(v, old.pointsText, next.pointsText, changed));
+      setTokens(v => refreshDraftValue(v, old.tokens, next.tokens, changed));
     }
-  }, [
-    live,
-    character.level,
-    character.job,
-    character.jobCode,
-    character.growType,
-    character.sp,
-    character.tp,
-    character.gold,
-    a.points,
-    a.rawPoints,
-    a.tokens,
-  ]);
+    previous.current = next;
+  }, [live, character.id, character.level, character.jobCode, character.growType,
+    character.sp, character.tp, character.gold, a.points, a.rawPoints, a.tokens]);
   const skillPoints = state.api?.resources.skillPoints;
   const balance = skillPoints?.balance;
   const groups = live ? professionGroups(state.api?.jobsRaw || []) : demoProfessionGroups;

@@ -54,6 +54,7 @@ export type Item = {
   bound: boolean;
   version: number;
   remote?: {
+    appliedRequestId?: string;
     container: string;
     revision?: string;
     pvf?: string;

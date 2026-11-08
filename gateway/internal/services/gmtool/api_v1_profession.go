@@ -66,12 +66,7 @@ func (s *Server) v1Profession(w http.ResponseWriter, r *http.Request) {
 		s.v1Unavailable(w, r, errRepositoriesUnavailable)
 		return
 	}
-	owner, e := u.LoadProfessionManagement(r.Context(), c.CharacterID, nil)
-	if e != nil {
-		s.v1ProfessionResult(w, r, adminops.ProfessionReceipt{}, e)
-		return
-	}
-	job, e := strconv.Atoi(owner.Growth.Character.Job)
+	job, e := strconv.Atoi(c.Job)
 	if e != nil || job < 0 || job > 255 {
 		s.v1ProfessionResult(w, r, adminops.ProfessionReceipt{}, adminops.ErrLevelState)
 		return
@@ -88,6 +83,10 @@ func (s *Server) v1Profession(w http.ResponseWriter, r *http.Request) {
 	}
 	if v.Growth.Character.AccountID != c.AccountID || v.Growth.Character.Stats["delete_flag"] != 0 {
 		s.v1ProfessionResult(w, r, adminops.ProfessionReceipt{}, adminops.ErrAccount)
+		return
+	}
+	if v.Growth.Character.Job != c.Job {
+		v1Fail(w, r, 409, "revision_conflict", "职业已变更，请刷新", true)
 		return
 	}
 	b, e := adminops.ProfessionValues(v)

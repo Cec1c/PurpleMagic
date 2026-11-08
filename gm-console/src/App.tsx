@@ -1,3 +1,4 @@
+import { DelayedSpinner } from "./Loading";
 import { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard,
@@ -183,6 +184,22 @@ export function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  useEffect(() => {
+    const visible = () => {
+      if (!document.hidden && live?.meta.authenticated) {
+        live.http.invalidate(["players", "directory", "presence"]);
+        void live.guard(async () => {
+          if (live.sectionId === "inventory") await live.inventory(live.meta.inventory.tab as import("./domain").InventoryTab);
+          else if (live.sectionId === "accounts") {
+            const d = live.meta.directory;
+            await live.directory(d.mode, d.q, false, d.accountId || "", d.online);
+          }
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => document.removeEventListener("visibilitychange", visible);
+  }, [live]);
   useEffect(() => {
     if (demo) persistState(state);
   }, [state]);
@@ -452,7 +469,7 @@ export function App() {
                     aria-label={(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading) ? "正在读取" : undefined}
                     aria-hidden={!(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading)}
                   >
-                    <LoaderCircle size={20} className={(state.api?.busy || !!state.api?.reading || !!state.api?.inventory.loading) ? "is-spinning" : undefined} aria-hidden="true" />
+                    <DelayedSpinner size={20} active={!!(state.api?.busy || state.api?.reading || state.api?.inventory.loading)} />
                   </span>
                 </div>
                 <p>{nav.sub}</p>

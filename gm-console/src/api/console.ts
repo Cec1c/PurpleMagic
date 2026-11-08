@@ -348,23 +348,22 @@ export class ConsoleAPI {
       more &&
       old.mode === mode &&
       old.q === q &&
+      old.accountId === accountId &&
       (old.online || "all") === online
         ? old.next
         : "";
     this.meta.error = "";
     this.publish();
     {
-      const r = await this.http.get<DTO[]>(
-        accountId
+      const path = accountId
           ? `/api/v1/accounts/${segment(accountId)}/characters`
           : query(`/api/v1/${mode}`, {
               q,
               limit: 20,
               cursor,
               ...(mode === "characters" && online !== "all" ? { online } : {}),
-            }),
-        signal,
-      );
+            });
+      const accept = (r: import("./http").Envelope<DTO[]>) => {
       let chars: Character[] = [],
         acc: Account[] = [];
       if (mode === "characters") {
@@ -388,12 +387,10 @@ export class ConsoleAPI {
             accountDTO({ accountId: id, name: id }),
         );
       } else {
-        acc = (r.data || []).map((v) =>
-          accountDTO(
-            v,
-            this.state.accounts.find((a) => a.id === v.accountId),
-          ),
-        );
+        acc = (r.data || []).map((v) => ({
+          ...accountDTO(v, this.state.accounts.find(a => a.id === v.accountId)),
+          ...(v.currency ? { points: safeNumber(v.currency.balance), rawPoints: v.currency.balance } : {}),
+        }));
       }
       if (signal.aborted) return;
       const keepChars = this.state.characters.filter(
@@ -410,12 +407,14 @@ export class ConsoleAPI {
             this.state.characters.find((c) => c.id === this.current)
               ?.accountId ||
           this.selected.accounts.includes(a.id) ||
+          (more && old.accountIds.includes(a.id)) ||
           allChars.some((c) => c.accountId === a.id),
       );
       this.meta.directory = {
         mode,
         q,
         online,
+        accountId,
         next: r.page?.nextCursor || "",
         ids: more
           ? [...new Set([...old.ids, ...chars.map((c) => c.id)])]
@@ -428,6 +427,17 @@ export class ConsoleAPI {
         characters: allChars,
         accounts: merge(keepAcc, acc, (a) => a.id),
       });
+        return { acc, chars };
+      };
+      const cached = this.http.peek<DTO[]>(path);
+      if (cached) accept(cached);
+      else if (!more && (old.mode !== mode || old.q !== q || old.accountId !== accountId || (old.online || "all") !== online)) {
+        this.meta.directory = {mode, q, online, accountId, next:"", ids:[], accountIds:[]};
+        this.publish();
+      }
+      const r = await this.http.get<DTO[]>(path, signal);
+      if (signal.aborted) return;
+      const {acc} = accept(r)!;
       await this.partial([
         ...(mode === "characters"
           ? acc
@@ -449,7 +459,7 @@ export class ConsoleAPI {
           : []),
         // Counts come with the directory; only visible wallets need supplements.
         ...(mode === "accounts" && this.meta.features["currency.read"]
-          ? acc.map((a) => async () => {
+          ? acc.filter(a => !r.data.some(v => v.accountId === a.id && v.currency)).map((a) => async () => {
               const { data } = await this.http.get(
                 `/api/v1/accounts/${segment(a.id)}/currency`,
                 signal,
@@ -613,6 +623,7 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.publish();
     if (!this.meta.authenticated) return;
+    if (refresh) this.http.clearCache();
     if (refresh && section === "inventory")
       await this.inventory(this.meta.inventory.tab as InventoryTab);
     else if (refresh && section === "mail")
@@ -633,59 +644,41 @@ export class ConsoleAPI {
   }
   async inventory(tab: InventoryTab, more = false) {
     if (!this.current) return;
-    const id = this.current,
-      c = this.state.characters.find((c) => c.id === id)!;
+    const id = this.current, c = this.state.characters.find(c => c.id === id);
     if (!c) return;
     const signal = this.signal("inventory");
-    const same = this.meta.inventory.tab === tab;
+    const same = this.meta.inventory.tab === tab && this.meta.inventory.owner === id;
     const previous = more && same ? this.state.items : [];
     const cursors = more && same ? this.meta.inventory.next : {};
-    this.meta.inventory = { tab, next: {}, pvf: "", loading: true };
-    if (!more) this.state.items = [];
+    this.meta.inventory = { tab, owner: id, next: same ? this.meta.inventory.next : {},
+      pvf: same ? this.meta.inventory.pvf : "", loading: true };
+    if (!same) this.state.items = [];
     this.publish();
+    const chunks = new Map<string, Item[]>();
+    const next: Record<string, string> = {};
+    let pvf = "";
     try {
-      let items: Item[] = [...previous],
-        next: Record<string, string> = {},
-        pvf = "";
-      await this.partial(
-        containers[tab].map((container) => async () => {
-          if (more && !cursors[container]) return;
-          const { data, page } = await this.http.get(
-            query(`/api/v1/characters/${segment(id)}/inventory`, {
-              container,
-              limit: 100,
-              cursor: cursors[container],
-            }),
-            signal,
-          );
+      await this.partial(containers[tab].map(container => async () => {
+        if (more && !cursors[container]) return;
+        await this.http.observe(query(`/api/v1/characters/${segment(id)}/inventory`, {
+          container, limit: 100, cursor: cursors[container],
+        }), signal, ({data, page}) => {
           if (signal.aborted || id !== this.current) return;
-          if (pvf && pvf !== data.pvfChecksum)
-            throw new Error("PVF 已更新，请刷新背包");
+          if (pvf && pvf !== data.pvfChecksum) throw new Error("PVF 已更新，请刷新背包");
           pvf = data.pvfChecksum;
-          const rows = (data.items || []).filter(
-            (v: DTO) =>
-              tab !== "emblems" ||
-              /emblem/i.test(v.tag || "") ||
-              v.category === "徽章",
-          );
-          items = merge(
-            items,
-            rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)),
-            (i) => i.key,
-          );
-          if (page?.nextCursor) next[container] = page.nextCursor;
-          this.patch({ items: [...items] });
-        }),
-        () => this.inventory(tab),
-      );
+          const rows = (data.items || []).filter((v: DTO) => tab !== "emblems" || /emblem/i.test(v.tag || "") || v.category === "徽章");
+          chunks.set(container, rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)));
+          if (page?.nextCursor) next[container] = page.nextCursor; else delete next[container];
+          // Replace each completed container, including deletions; never mix old pages.
+          const waiting = !more && same ? this.state.items.filter(i => !chunks.has(i.remote?.container || "")) : [];
+          this.patch({ items: merge([...previous, ...waiting], [...chunks.values()].flat(), i => i.key) });
+        });
+      }), () => this.inventory(tab));
       if (signal.aborted || id !== this.current) return;
-      this.meta.inventory = { tab, next, pvf, loading: false };
-      this.patch({ items });
+      this.meta.inventory = { tab, owner: id, next, pvf, loading: false };
+      this.publish();
     } finally {
-      if (!signal.aborted) {
-        this.meta.inventory.loading = false;
-        this.publish();
-      }
+      if (!signal.aborted) { this.meta.inventory.loading = false; this.publish(); }
     }
   }
   async item(key: string) {
@@ -723,13 +716,12 @@ export class ConsoleAPI {
     if (!this.current) return;
     const id = this.current,
       signal = this.signal("mailbox");
-    const { data, page } = await this.http.get<DTO[]>(
+    await this.http.observe<DTO[]>(
       query(`/api/v1/characters/${segment(id)}/mailbox`, {
         limit: 30,
         cursor: more ? this.meta.mailNext : undefined,
       }),
-      signal,
-    );
+      signal, ({data, page}) => {
     if (signal.aborted || id !== this.current) return;
     this.meta.mailNext = page?.nextCursor || "";
     this.patch({
@@ -739,15 +731,16 @@ export class ConsoleAPI {
           id: v.mailId,
           characterId: id,
           title: v.title,
-          body: "",
+          body: this.state.mails.find(m => m.id === v.mailId && m.characterId === id)?.body || "",
           sender: v.sender,
           gold: safeNumber(v.gold),
-          items: [],
+          items: this.state.mails.find(m => m.id === v.mailId && m.characterId === id)?.items || [],
           createdAt: v.createdAt,
           claimed: v.claimed,
         })),
         (m) => m.id,
       ),
+    });
     });
   }
   async mail(id: string) {
@@ -775,6 +768,9 @@ export class ConsoleAPI {
   }
   async quests(status = "active", q = "", more = false) {
     if (!this.current && status !== "catalog") return;
+    if (!more && (this.meta.questFilter.status !== status || (status === "catalog" && this.meta.questFilter.q !== q))) {
+      this.meta.quests = []; this.meta.questNext = ""; this.publish();
+    }
     this.meta.questFilter = { status, q };
     const id = this.current,
       signal = this.signal("quests"),
@@ -782,15 +778,14 @@ export class ConsoleAPI {
         status === "catalog"
           ? "/api/v1/quests"
           : `/api/v1/characters/${segment(id)}/quests`;
-    const { data, page } = await this.http.get(
+    await this.http.observe(
       query(path, {
         state: status === "catalog" ? undefined : status,
         q: status === "catalog" ? q : undefined,
         limit: 100,
         cursor: more ? this.meta.questNext : undefined,
       }),
-      signal,
-    );
+      signal, ({data, page}) => {
     if (signal.aborted || id !== this.current) return;
     const states =
       more || status === "catalog"
@@ -814,6 +809,7 @@ export class ConsoleAPI {
     this.meta.questNext = page?.nextCursor || "";
     this.meta.questPVF = data.pvfChecksum;
     this.patch({ questStates: { [id]: states } });
+    });
   }
   async catalog(q: string, more = false, batchSize = 300) {
     q = q.trim();
@@ -916,10 +912,11 @@ export class ConsoleAPI {
   }
   async activities() {
     const signal = this.signal("activities");
-    const { data } = await this.http.get("/api/v1/activities", signal);
-    if (signal.aborted) return;
-    this.meta.resources.activities = data;
-    this.publish();
+    await this.http.observe("/api/v1/activities", signal, ({data}) => {
+      if (signal.aborted) return;
+      this.meta.resources.activities = data;
+      this.publish();
+    });
   }
   async pvfMode(mode?: "disk" | "memory") {
     const signal = this.signal("pvfMode");
@@ -973,10 +970,9 @@ export class ConsoleAPI {
         ["adventure", "adventure-name"],
       ].filter(([name]) => names.includes(name)).map(([name, path]) => async () => {
         if (!this.meta.features[name + ".read"]) return;
-        const { data } = await this.http.get(
+        await this.http.observe(
           name === "adventure" ? `/api/v1/accounts/${segment(c.accountId)}/${path}` : `/api/v1/characters/${segment(id)}/${path}`,
-          signal,
-        );
+          signal, ({data}) => {
         if (signal.aborted || id !== this.current) return;
         this.meta.resources[name === "adventure" ? "adventureName" : name] = data;
         if (name === "level") {
@@ -1008,6 +1004,8 @@ export class ConsoleAPI {
             growType: data.balance.growType,
           };
         }
+        this.publish();
+        });
       }),
       () => this.growth(names),
     );

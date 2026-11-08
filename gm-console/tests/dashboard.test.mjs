@@ -28,7 +28,7 @@ test('old gateway hides aggregate cards; bounded presence and news still work an
  const client=new DashboardClient(http,async()=>published([{title:'公告',body:'正文'}]));
  const a=await client.load(new AbortController().signal),b=await client.load(new AbortController().signal);
  assert.deepEqual(a.snapshot.metrics,{online:2});assert.equal(a.news.length,1);assert.deepEqual(a.failures,[]);
- assert.equal(paths.filter(p=>p==='/api/v1/dashboard').length,1);assert.equal(paths.length,3);assert.deepEqual(b.snapshot.metrics,{online:2});
+ assert.equal(paths.filter(p=>p==='/api/v1/dashboard').length,1);assert.equal(paths.length,2);assert.deepEqual(b.snapshot.metrics,{online:2});
 });
 test('aggregate metrics and the authoritative presence snapshot merge regardless of request completion order',async()=>{
  const http=new HttpClient(async path=>{if(path.endsWith('dashboard')){await new Promise(r=>setTimeout(r,8));return response(snapshot({accounts:20,online:999,clearsToday:0}));}return response({complete:true,characterIds:[],observedAt:'2026-10-31T01:00:00Z'});});

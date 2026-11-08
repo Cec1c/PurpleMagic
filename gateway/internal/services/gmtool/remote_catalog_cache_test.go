@@ -68,8 +68,18 @@ func TestRemoteCatalogCachesSuccessfulGeneration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, _, _, err = catalog.profession(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err = catalog.profession(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
 	for id := uint32(1); id <= 512; id++ {
 		catalog.items[id] = catalogItem{Entry: itemEntry{ID: id}, Found: true}
+	}
+	// A frequently read definition survives eviction of cold entries.
+	if _, _, err = catalog.item(1); err != nil {
+		t.Fatal(err)
 	}
 	if err = catalog.preload(ctx, []uint32{513, 514}); err != nil {
 		t.Fatal(err)
@@ -77,6 +87,23 @@ func TestRemoteCatalogCachesSuccessfulGeneration(t *testing.T) {
 	if len(catalog.items) != 512 {
 		t.Fatal("cache was flushed", len(catalog.items))
 	}
+	if _, found := catalog.items[1]; !found {
+		t.Fatal("hot item was evicted")
+	}
+	var readers sync.WaitGroup
+	for range 20 {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			if _, _, e := catalog.item(1); e != nil {
+				t.Error(e)
+			}
+			if _, _, _, e := catalog.profession(ctx, 0); e != nil {
+				t.Error(e)
+			}
+		}()
+	}
+	readers.Wait()
 	for _, id := range []uint32{513, 514} {
 		if _, found, err := catalog.item(id); err != nil || !found {
 			t.Fatal(id, found, err)
@@ -84,7 +111,7 @@ func TestRemoteCatalogCachesSuccessfulGeneration(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if calls["metadata"] != 2 || calls["profession"] != 1 || calls["items"] != 1 || calls["item"] != 0 {
+	if calls["metadata"] != 2 || calls["profession"] != 2 || calls["items"] != 1 || calls["item"] != 0 {
 		t.Fatal(calls)
 	}
 }

@@ -34,6 +34,15 @@
 .nav-backdrop { animation: orchid-fade 180ms ease-out; }
 .inspector { animation: orchid-enter 220ms var(--motion-ease); }
 .is-spinning { animation: orchid-spin 1s linear infinite; }
+.query-spinner { display: inline-flex; opacity: 0; transition: opacity 160ms ease; vertical-align: middle; }
+.query-spinner[data-visible="true"] { opacity: 1; }
+.query-surface { transition: opacity 180ms ease; }
+.query-surface[aria-busy="true"] { opacity: .84; }
+.query-skeleton { min-height: 264px; padding: 8px 18px; animation: orchid-fade 180ms ease; }
+.query-skeleton-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 28px; align-items: center; height: 42px; }
+.query-skeleton-row i { height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--text-1) 10%, transparent); animation: query-pulse 1.4s ease-in-out infinite alternate; }
+.query-skeleton-row:nth-child(2n) i:first-child { width: 72%; }
+@keyframes query-pulse { to { opacity: .4; } }
 @keyframes orchid-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes orchid-dialog { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes orchid-fade { from { opacity: 0; } to { opacity: 1; } }

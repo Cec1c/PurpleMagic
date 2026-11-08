@@ -78,7 +78,7 @@ export async function prepareOperation(
     const details = await Promise.all(keys.map(async key => {
       const item = api.state.items.find((i) => i.key === key);
       if (!item?.remote) throw new Error("物品列表已变更，请重新选择");
-      const o = item.remote.options || (await api.http.get(
+      const o = item.remote.options || (await api.http.fresh(
         `${base}/inventory/${segment(item.remote.container)}/${item.slot}/options`,
       )).data;
       return {item, o};
@@ -249,7 +249,7 @@ export async function prepareOperation(
     });
   } else if (command.kind === "reset-skill-points") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
-    const { data } = await api.http.get(base + "/skill-points");
+    const { data } = await api.http.fresh(base + "/skill-points");
     p.summary = `按 Lv.${data.level} 恢复 SP / TP 总量为 ${data.definition.sp} / ${data.definition.tp}，清除额外点数，保留已学技能和已用点数`;
     await preview(p.summary, base + "/skill-point-operations", {
       accountId: c.accountId, action: "reset_defaults", target: "both", amount: "0",
@@ -360,7 +360,7 @@ export async function prepareOperation(
     p.summary = p.steps.map((s) => s.label).join("；");
   } else if (command.kind === "activity-save") {
     if (!api.meta.features["activities.write"]) throw new Error("当前服务尚未开放活动配置保存");
-    const { data } = await api.http.get<ActivitySnapshot>("/api/v1/activities");
+    const { data } = await api.http.fresh<ActivitySnapshot>("/api/v1/activities");
     publishActivities(api, data);
     if (data.revision !== command.revision) throw new ApiError("活动配置已更新，请按当前状态重新选择", 409, "revision_conflict");
     const changes = activityChanges(data, command.activities);
@@ -376,7 +376,7 @@ export async function prepareOperation(
     const reward = benefitReward(command);
     let itemFields: DTO = {};
     if (reward.item) {
-      const { data } = await api.http.get(`/api/v1/items/${segment(reward.item.id)}/grant-options`);
+      const { data } = await api.http.fresh(`/api/v1/items/${segment(reward.item.id)}/grant-options`);
       if (data.kind === "equipment" && reward.item.count !== 1)
         throw new Error("装备每封邮件数量为 1");
       reward.summary = `${data.name}（${reward.item.id}）× ${reward.item.count.toLocaleString()}`;
@@ -406,7 +406,7 @@ export async function prepareOperation(
   } else if (command.kind === "benefit-redeliver") {
     if (!api.meta.features.backgroundBenefits) throw new Error("补发服务尚未就绪，请刷新页面后重试");
     const path = `/api/v1/benefits/${segment(command.id)}`;
-    const { data: rule } = await api.http.get(path);
+    const { data: rule } = await api.http.fresh(path);
     if (!rule.enabled) throw new Error("请先启用福利规则再补发");
     p.title = "确认补发未收到的福利";
     p.target = rule.reward.title;
@@ -415,7 +415,7 @@ export async function prepareOperation(
   } else if (command.kind === "benefit-delete") {
     if (!api.meta.features["benefits.delete"]) throw new Error("删除功能尚未就绪，请刷新后重试");
     const path = `/api/v1/benefits/${segment(command.id)}`;
-    const {data: rule} = await api.http.get(path);
+    const {data: rule} = await api.http.fresh(path);
     p.title = "删除福利规则";
     p.target = rule.reward.title;
     p.summary = "删除后停止后续发放，并从规则列表移除。已发放的奖励和领取记录保留。";
@@ -432,7 +432,7 @@ export async function prepareOperation(
     });
   } else if (command.kind === "task-control") {
     const path = `/api/v1/tasks/${segment(command.id)}`;
-    const { data: task } = await api.http.get(path);
+    const { data: task } = await api.http.fresh(path);
     p.target = task.reward.title;
     p.summary =
       command.action === "pause"
@@ -552,7 +552,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
       step.body.revision = created.revision;
     }
     if (step.refreshRead && !step.refreshed) {
-      const { data } = await api.http.get(step.refreshRead);
+      const { data } = await api.http.fresh(step.refreshRead);
       step.body.revision = data.revision;
       delete step.body.planToken;
       step.body.definitionRevision = data.definitionRevision || "";
@@ -599,7 +599,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
       await scheduleMail(api, step);
     } else if (step.kind === "task") {
       const taskPath = step.path.replace(/\/run$/, "");
-      let task = (await api.http.get(taskPath)).data;
+      let task = (await api.http.fresh(taskPath)).data;
       // Read the permanent task before resubmitting; a lost response must not create a new job.
       while (task.pending > 0 || (step.body.retry && task.failed > 0)) {
         step.body.revision = task.revision;
@@ -609,7 +609,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 409)) throw e;
         }
-        const next = (await api.http.get(taskPath)).data;
+        const next = (await api.http.fresh(taskPath)).data;
         step.body.retry = false;
         if (next.schedule === "active" || next.schedule === "completed") {
           task = next;
@@ -639,7 +639,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
           e.status === 409 &&
           step.path.match(/\/benefits\/[^/]+\/state$/)
         ) {
-          const { data } = await api.http.get(
+          const { data } = await api.http.fresh(
             step.path.replace(/\/state$/, ""),
           );
           if (data.enabled !== step.body.enabled) throw e;
@@ -658,7 +658,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
         return [{ ...item, id:after.itemId, name:after.name, count:Number(after.count), bound:after.bound,
           enhance:a.reinforce ?? item.enhance, amplify:a.amplifyType ?? item.amplify, forge:a.forging ?? item.forge,
           version:item.version + 1,
-          remote: {...item.remote!, revision:change.revision, attributes:a, expiresAt:after.expiresAt, options:undefined} }];
+          remote: {...item.remote!, appliedRequestId:step.id, revision:change.revision, attributes:a, expiresAt:after.expiresAt, options:undefined} }];
       }) });
     }
     if (step.path.endsWith("/mailbox-operations")) {

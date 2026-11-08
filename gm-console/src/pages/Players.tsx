@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../Loading";
 import { useState, useEffect } from "react";
 import { Mail, ArrowUpRight, Users, UserRound, Search } from "lucide-react";
 import { useLive } from "../api/context";
@@ -253,7 +254,7 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           <option value="offline">离线</option>
         </select>
       </div>
-      <div className="table-panel glass">
+      <div className="table-panel glass query-surface" aria-busy={!!state.api?.reading}>
         <div className="table-scroll">
           <table>
             <thead>
@@ -401,7 +402,8 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
             </tbody>
           </table>
         </div>
-        {(mode === "accounts" ? accounts.length : rows.length) === 0 && (
+        {!!state.api?.reading && !listIds.length && <LoadingSkeleton />}
+        {!state.api?.reading && (mode === "accounts" ? accounts.length : rows.length) === 0 && (
           <Empty title="没有匹配结果" detail="尝试其他账号、名称或 ID" />
         )}
         <div className="table-footer">

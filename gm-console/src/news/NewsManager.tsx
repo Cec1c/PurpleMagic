@@ -35,7 +35,7 @@ export function NewsManager({state,request}: PageProps) {
   return <div className="news-layout">
     <aside className="glass content-panel news-list">
       <div className="panel-heading"><h3>公告列表 <small>{remote?.archiveTotal ?? state.news.length}</small></h3><div className="button-row">
-        <button className="icon-button" aria-label="刷新公告列表" onClick={()=>load(offset)}><RefreshCw size={16}/></button>
+        <button className="icon-button" aria-label="刷新公告列表" onClick={()=>{live?.http.invalidate(["news"]);load(offset);}}><RefreshCw size={16}/></button>
         <button className="icon-button" aria-label="新建公告" onClick={()=>{setDraft(fresh());setView("edit");}}><Plus size={18}/></button>
       </div></div>
       <form className="news-search" onSubmit={e=>{e.preventDefault();load(0);}}><input aria-label="搜索历史公告" placeholder="搜索标题或正文" value={q} onChange={e=>{setQ(e.target.value);if(!live)setPage(0);}}/><button className="icon-button" aria-label="搜索公告"><Search size={16}/></button></form>

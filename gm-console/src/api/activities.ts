@@ -10,7 +10,7 @@ export function publishActivities(api: ConsoleAPI, snapshot: ActivitySnapshot) {
 export async function executeActivitySave(api: ConsoleAPI, step: Step) {
   const changes = step.body.activities as ActivityChange[];
   const read = async () => {
-    const { data } = await api.http.get<ActivitySnapshot>("/api/v1/activities");
+    const { data } = await api.http.fresh<ActivitySnapshot>("/api/v1/activities");
     publishActivities(api, data);
     return data;
   };

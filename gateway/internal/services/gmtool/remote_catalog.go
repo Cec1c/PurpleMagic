@@ -27,10 +27,14 @@ type RemoteCatalog struct {
 	peer            *servicehttp.Client
 	mu              sync.Mutex
 	items           map[uint32]catalogItem
+	itemUsed        map[uint32]uint64
+	itemClock       uint64
 	metadataMu      sync.Mutex
 	manifestHash    string
 	professionMu    sync.Mutex
-	professionCache *professionManagementCache
+	professionCache map[byte]*professionManagementCache
+	professionUsed  map[byte]uint64
+	professionClock uint64
 }
 type catalogItem struct {
 	Entry              itemEntry
@@ -114,6 +118,9 @@ func (c *RemoteCatalog) background(in catalogRequest, out any) error {
 func (c *RemoteCatalog) item(id uint32) (itemEntry, bool, error) {
 	c.mu.Lock()
 	v, ok := c.items[id]
+	if ok {
+		c.touchItemLocked(id)
+	}
 	c.mu.Unlock()
 	if !ok {
 		if e := c.background(catalogRequest{Operation: "item", ItemID: id}, &v); e != nil {
@@ -124,16 +131,34 @@ func (c *RemoteCatalog) item(id uint32) (itemEntry, bool, error) {
 		}
 		v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
 		c.mu.Lock()
-		if len(c.items) >= 512 {
-			for key := range c.items {
-				delete(c.items, key)
-				break
-			}
-		}
-		c.items[id] = v
+		c.rememberItemLocked(id, v)
 		c.mu.Unlock()
 	}
 	return v.Entry, v.Found, nil
+}
+
+func (c *RemoteCatalog) touchItemLocked(id uint32) {
+	if c.itemUsed == nil {
+		c.itemUsed = map[uint32]uint64{}
+	}
+	c.itemClock++
+	c.itemUsed[id] = c.itemClock
+}
+func (c *RemoteCatalog) rememberItemLocked(id uint32, v catalogItem) {
+	if _, exists := c.items[id]; !exists && len(c.items) >= 512 {
+		var victim uint32
+		oldest := ^uint64(0)
+		for key := range c.items {
+			if at := c.itemUsed[key]; at < oldest {
+				oldest = at
+				victim = key
+			}
+		}
+		delete(c.items, victim)
+		delete(c.itemUsed, victim)
+	}
+	c.items[id] = v
+	c.touchItemLocked(id)
 }
 
 func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
@@ -144,6 +169,8 @@ func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
 		if _, ok := c.items[id]; !ok && !seen[id] {
 			missing = append(missing, id)
 			seen[id] = true
+		} else if _, ok := c.items[id]; ok {
+			c.touchItemLocked(id)
 		}
 	}
 	c.mu.Unlock()
@@ -167,15 +194,9 @@ func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for len(c.items)+len(rows) > 512 {
-		for key := range c.items {
-			delete(c.items, key)
-			break
-		}
-	}
 	for _, v := range rows {
 		v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
-		c.items[v.Entry.ID] = v
+		c.rememberItemLocked(v.Entry.ID, v)
 	}
 	return nil
 }
@@ -185,7 +206,9 @@ func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDi
 	if err := ctx.Err(); err != nil {
 		return nil, professionJobResources{}, nil, err
 	}
-	if cached := c.professionCache; cached != nil && cached.job == job {
+	if cached := c.professionCache[job]; cached != nil {
+		c.professionClock++
+		c.professionUsed[job] = c.professionClock
 		return cached.index, cached.resources, cached.quests, nil
 	}
 	var v catalogProfession
@@ -211,7 +234,25 @@ func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDi
 		return fail(e)
 	}
 	cached := &professionManagementCache{index: &professionDiskIndex{Checksum: c.peer.Hash(), ManifestHash: v.ManifestHash, Manifest: v.Manifest}, resources: professionJobResources{Profiles: profiles, Skills: skills}, quests: quests, job: job, loaded: true}
-	c.professionCache = cached
+	if c.professionCache == nil {
+		c.professionCache = map[byte]*professionManagementCache{}
+		c.professionUsed = map[byte]uint64{}
+	}
+	if len(c.professionCache) >= 16 {
+		var victim byte
+		oldest := ^uint64(0)
+		for k, at := range c.professionUsed {
+			if at < oldest {
+				oldest = at
+				victim = k
+			}
+		}
+		delete(c.professionCache, victim)
+		delete(c.professionUsed, victim)
+	}
+	c.professionClock++
+	c.professionUsed[job] = c.professionClock
+	c.professionCache[job] = cached
 	return cached.index, cached.resources, cached.quests, nil
 }
 

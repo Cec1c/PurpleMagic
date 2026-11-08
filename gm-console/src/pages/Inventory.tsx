@@ -1,6 +1,8 @@
+import { DelayedSpinner, LoadingSkeleton } from "../Loading";
 import { numberDraft, draftNumber } from "../numeric";
+import { refreshDraftValue } from "../draft-refresh";
 import { useEnterMotion } from "../motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LoaderCircle,
   ArrowRightLeft,
@@ -49,6 +51,9 @@ function ItemEditor({
   const expiration = capability?.configuration?.expiration;
   const [expirationDays, setExpirationDays] = useState("");
   const [replacementId, setReplacementId] = useState(item.id);
+  useEffect(() => {
+    if (item.remote?.appliedRequestId) setExpirationDays("");
+  }, [item.remote?.appliedRequestId]);
   const equipmentFields = !live || !!equipment;
   const [draft, setDraft] = useState({
     count: numberDraft(item.count),
@@ -57,6 +62,24 @@ function ItemEditor({
     forge: numberDraft(item.forge),
     bound: item.bound,
   });
+  const previous = useRef(draft);
+  useEffect(() => {
+    const next = { count: numberDraft(item.count), enhance: numberDraft(item.enhance),
+      amplify: numberDraft(item.amplify), forge: numberDraft(item.forge), bound: item.bound };
+    const before = previous.current;
+    setDraft(current => ({count:refreshDraftValue(current.count,before.count,next.count),
+      enhance:refreshDraftValue(current.enhance,before.enhance,next.enhance),
+      amplify:refreshDraftValue(current.amplify,before.amplify,next.amplify),
+      forge:refreshDraftValue(current.forge,before.forge,next.forge),
+      bound:refreshDraftValue(current.bound,before.bound,next.bound)}));
+    previous.current = next;
+  }, [item.version, item.count, item.enhance, item.amplify, item.forge, item.bound]);
+  const previousId = useRef(item.id);
+  useEffect(() => {
+    const old = previousId.current;
+    setReplacementId(v => refreshDraftValue(v,old,item.id));
+    previousId.current = item.id;
+  }, [item.id]);
   const changed =
     expirationDays !== "" ||
     Object.keys(draft).some(
@@ -363,7 +386,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
               <RotateCcw size={16} />
             </button>
           </div>
-          <div className="table-panel glass" aria-busy={loading}>
+          <div className="table-panel glass query-surface" aria-busy={loading}>
             <div className="table-filter">
               <div className="text-tabs">
                 {categories.map((c) => (
@@ -379,7 +402,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                   </button>
                 ))}
               </div>
-              <span className="inventory-read-state">{loading ? <><LoaderCircle size={15} className="is-spinning" />正在读取物品</> : `${rows.length} 件物品`}</span>
+              <span className="inventory-read-state">{loading ? <DelayedSpinner active size={15} /> : `${rows.length} 件物品`}</span>
             </div>
             <div className="table-scroll">
               <table className="inventory-table">
@@ -468,7 +491,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                 </tbody>
               </table>
             </div>
-            {!rows.length && (loading ? <div className="inventory-loading" role="status"><LoaderCircle size={28} className="is-spinning" /><span>正在读取物品</span></div> : <Empty title="没有找到物品" detail="调整关键词或切换分类" />)}
+            {!rows.length && (loading ? <LoadingSkeleton /> : <Empty title="没有找到物品" detail="调整关键词或切换分类" />)}
             <div className="table-footer">
               <span>
                 {visibleChecked.length ? (
@@ -498,13 +521,13 @@ export function Inventory({ state, character, request, notify }: PageProps) {
         </section>
         {item ? (
           <ItemEditor
-            key={`${item.key}-${item.version}`}
+            key={item.key}
             item={item}
             request={request}
           />
         ) : (
           <aside className="inspector glass">
-            <Empty title={loading ? "正在读取物品详情" : "选择一件物品"} />
+            {loading ? <LoadingSkeleton rows={6} /> : <Empty title="选择一件物品" />}
           </aside>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../Loading";
 import { useEnterMotion } from "../motion";
 import { useState, useEffect } from "react";
 import { BookOpen, CheckCircle2, RotateCcw, ChevronRight } from "lucide-react";
@@ -100,7 +101,7 @@ export function QuestPage({ state, character, request, selection, setSelection }
             />
             <span className="muted">{rows.length} 个任务</span>
           </div>
-          <div className="table-panel glass">
+          <div className="table-panel glass query-surface" aria-busy={!!state.api?.reading}>
             <div className="table-scroll">
               <table>
                 <thead>
@@ -176,7 +177,8 @@ export function QuestPage({ state, character, request, selection, setSelection }
                 </tbody>
               </table>
             </div>
-            {!rows.length && <Empty title="没有符合条件的任务" />}
+            {!!state.api?.reading && !rows.length && <LoadingSkeleton />}
+            {!state.api?.reading && !rows.length && <Empty title="没有符合条件的任务" />}
             <div className="table-footer">
               <span>已选 {selectedVisible.length} 项</span>
               <div className="button-row">

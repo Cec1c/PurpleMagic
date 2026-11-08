@@ -110,6 +110,7 @@ func (s *Server) v1Routes() http.Handler {
 	writes.HandleFunc("POST /api/v1/accounts/{accountId}/currency-adjustments", s.v1AdjustCurrency)
 	mux.HandleFunc("GET /api/v1/capabilities", s.v1Capabilities)
 	mux.HandleFunc("GET /api/v1/presence", s.v1Presence)
+	mux.HandleFunc("GET /api/v1/query-generation", s.v1QueryGeneration)
 	mux.HandleFunc("GET /api/v1/dashboard", s.v1Dashboard)
 	mux.HandleFunc("GET /api/v1/accounts", s.v1Accounts)
 	mux.HandleFunc("GET /api/v1/accounts/{accountId}", s.v1Account)
@@ -324,6 +325,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features := map[string]bool{"accounts.read": s.db != nil && err == nil, "characters.read": err == nil, "items.read": items, "mail.write": writable, "benefits.write": writable, "tasks.read": s.deps.Benefits != nil, "bans.write": false, "dungeonRuns.read": false}
 	_, currency := group.Account.(repository.AccountManagementUnitOfWork)
 	features["system.settings"] = available && group.Settings != nil
+	features["query.cacheGeneration"] = s.v1PVFChecksum() != ""
 	features["currency.read"] = available && group.Account != nil
 	features["currency.write"] = available && currency
 	features["premium.read"] = available && group.Account != nil
@@ -384,4 +386,12 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["inventory.account.write"] = available && accountInventoryWrites && items && s.deps.Runtime != nil
 	features["quests.write"] = available && questWrites && questErr == nil && s.deps.Runtime != nil
 	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"apiVersion": "1", "features": features, "csrfToken": s.v1CSRF(r), "benefitScopes": []string{"account", "character"}, "legacyBenefitsScopes": []string{"account", "character"}, "itemIndexReady": items, "maxPageSize": 100, "mailBatchSize": 10}})
+}
+
+func (s *Server) v1QueryGeneration(w http.ResponseWriter, r *http.Request) {
+	if r.URL.RawQuery != "" {
+		v1Fail(w, r, 400, "invalid_query", "此接口不接受查询参数", false)
+		return
+	}
+	v1Reply(w, r, 200, v1Envelope{Data: map[string]string{"pvfChecksum": s.v1PVFChecksum()}})
 }

@@ -305,10 +305,22 @@ func TestV1ProfessionMySQL(t *testing.T) {
 			check(e)
 			token, e := s.startSession()
 			check(e)
+			originalRepos := s.deps.Repos
+			counted := &countedProfessionReader{CharacterRepository: g.Character, CharacterSummaryReader: g.Character.(repository.CharacterSummaryReader), CharacterResourceReader: g.Character.(repository.CharacterResourceReader), ProfessionManagementReader: g.Character.(repository.ProfessionManagementReader)}
+			s.deps.Repos = func() (repository.Group, bool) {
+				group, ok := originalRepos()
+				group.Character = counted
+				return group, ok
+			}
 			status, body := v1TestCall(t, s, token, "GET", "/api/v1/characters/10/profession")
-			if status != 200 {
+			if status != 200 || counted.calls != 1 {
 				t.Fatal(status, body)
 			}
+			counted.changeJob = true
+			if status, body := v1TestCall(t, s, token, "GET", "/api/v1/characters/10/profession"); status != 409 {
+				t.Fatal("concurrent profession change", status, body)
+			}
+			s.deps.Repos = originalRepos
 			payload := map[string]any{"accountId": "wallet:1", "targetJob": 2, "targetGrowType": 17, "revision": body["data"].(map[string]any)["revision"], "pvfChecksum": source.checksum, "reason": "HTTP职业调整"}
 			call := func(path, key string, headers map[string]string) (int, map[string]any) {
 				raw, _ := json.Marshal(payload)

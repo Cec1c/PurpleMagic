@@ -1,3 +1,5 @@
+import { QueryCache } from "./query-cache";
+import { queryKey, queryPolicy, mutationTags } from "./query-policy";
 export type Envelope<T> = {
   data: T;
   page?: { limit: number; nextCursor?: string };
@@ -21,13 +23,57 @@ export class HttpClient {
   private view = new AbortController();
   private active = 0;
   private waiting = new Set<() => void>();
-  private cache = new Map<string, { at: number; value: any }>();
+  readonly cache = new QueryCache();
+  private generation = "";
+  private generationAt = 0;
+  private generationEnabled = false;
+  private generationRead?: Promise<void>;
+  private generationEpoch = 0;
+  private channel?: BroadcastChannel;
+  constructor(private fetcher: typeof fetch = (...args) => fetch(...args)) {
+    if (typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
+      this.channel = new BroadcastChannel("purplemagic-query-invalidation-v1");
+      this.channel.onmessage = event => {
+        if (event.data?.clear === true) { this.resetGenerationCheck(); this.cache.invalidate(); }
+        else if (Array.isArray(event.data?.tags) && event.data.tags.every((t: unknown) => typeof t === "string"))
+          this.cache.invalidate(event.data.tags);
+      };
+    }
+  }
+  invalidate(tags?: string[], reason?: unknown) {
+    if (!tags) this.resetGenerationCheck();
+    this.cache.invalidate(tags, reason);
+    this.channel?.postMessage(tags ? { tags } : { clear: true });
+  }
+  private resetGenerationCheck() {
+    this.generationEpoch++;
+    this.generationAt = 0;
+    this.generationRead = undefined;
+  }
+  peek<T = any>(path: string) {
+    return this.cache.peek<Envelope<T>>(this.cacheKey(path), true);
+  }
+  private cacheKey(path: string) { return this.generation + ":" + queryKey(path); }
+  private async checkGeneration() {
+    if (!this.generationEnabled || Date.now() - this.generationAt < 30000) return;
+    if (!this.generationRead) {
+      const epoch = this.generationEpoch;
+      this.generationRead = this.transport<Envelope<{pvfChecksum:string}>>("/api/v1/query-generation").then(v => {
+        if (epoch !== this.generationEpoch) throw new DOMException("读取已取消", "AbortError");
+        const hash = v.data.pvfChecksum;
+        if (!/^[a-f0-9]{64}$/.test(hash)) throw new ApiError("PVF 索引版本暂不可用");
+        if (this.generation !== hash) { this.cache.invalidate(); this.generation = hash; }
+        this.generationAt = Date.now();
+      }).finally(() => { if (epoch === this.generationEpoch) this.generationRead = undefined; });
+    }
+    await this.generationRead;
+  }
   cancelReads() {
     this.view.abort();
     this.view = new AbortController();
   }
-  clearCache() {
-    this.cache.clear();
+  clearCache(reason?: unknown) {
+    this.invalidate(undefined, reason);
   }
   private async acquire(signal: AbortSignal) {
     while (this.active >= 4) {
@@ -56,8 +102,29 @@ export class HttpClient {
       [...this.waiting].forEach((wake) => wake());
     };
   }
-  constructor(private fetcher: typeof fetch = (...args) => fetch(...args)) {}
-  async raw<T = any>(
+  async raw<T = any>(path: string, method = "GET", body?: unknown, key?: string,
+    signal?: AbortSignal, headers: Record<string, string> = {}): Promise<T> {
+    if (["/admin/api/news", "/admin/api/news/entries", "/admin/api/source", "/admin/api/connection"].includes(path)) path = path.replace("/admin/api/", "/api/v1/hub/");
+    if (method === "GET") {
+      const combined = signal ? AbortSignal.any([this.view.signal, signal]) : this.view.signal;
+      combined.throwIfAborted();
+      const policy = queryPolicy(path);
+      if (policy && !Object.keys(headers).length) {
+        await this.checkGeneration();
+        combined.throwIfAborted();
+        const p = this.generation && policy.tags.includes("definitions")
+          ? { ...policy, ttl: 86400000, stale: 86400000 } : policy;
+        return this.cache.get(this.cacheKey(path), p,
+          shared => this.transport<T>(path, method, body, key, shared, headers), combined);
+      }
+      return this.transport<T>(path, method, body, key, combined, headers);
+    }
+    const tags = mutationTags(path);
+    this.invalidate(tags);
+    try { return await this.transport<T>(path, method, body, key, signal, headers); }
+    finally { this.invalidate(tags); }
+  }
+  private async transport<T = any>(
     path: string,
     method = "GET",
     body?: unknown,
@@ -103,7 +170,7 @@ export class HttpClient {
     let release: (() => void) | undefined;
     try {
       if (method === "GET") release = await this.acquire(controller.signal);
-      else if (path === "/api/auth/logout" || path === "/api/v1/settings/pvf") this.clearCache();
+
       let response: Response;
       try {
         response = await bounded(() =>
@@ -149,7 +216,7 @@ export class HttpClient {
         value.success === false ||
         value.ok === false
       ) {
-        throw new ApiError(
+        const failure = new ApiError(
           typeof value.error === "string"
             ? value.error
             : value.error?.message || value.message || "请求未完成",
@@ -157,6 +224,8 @@ export class HttpClient {
           value.error?.code || "request_failed",
           value.requestId || "",
         );
+        if (response.status === 401 || response.status === 403) this.clearCache(failure);
+        throw failure;
       }
       return value;
     } finally {
@@ -166,30 +235,23 @@ export class HttpClient {
     }
   }
   async get<T = any>(path: string, signal?: AbortSignal) {
-    const combined = signal
-      ? AbortSignal.any([this.view.signal, signal])
-      : this.view.signal;
-    combined.throwIfAborted();
-    // Only immutable PVF views get a short bounded cache. Transaction previews
-    // and player balances always read fresh data from the server.
-    const staticView = /^\/api\/v1\/(items|quests)(\?.*|\/[0-9]+)?$/.test(path);
-    const cached = staticView ? this.cache.get(path) : undefined;
-    if (cached && Date.now() - cached.at < 20000)
-      return structuredClone(cached.value) as Envelope<T>;
-    const value = await this.raw<Envelope<T>>(
-      path,
-      "GET",
-      undefined,
-      undefined,
-      combined,
-    );
-    combined.throwIfAborted();
-    if (staticView) {
-      if (this.cache.size >= 32)
-        this.cache.delete(this.cache.keys().next().value!);
-      this.cache.set(path, { at: Date.now(), value: structuredClone(value) });
-    }
-    return value;
+    return this.raw<Envelope<T>>(path, "GET", undefined, undefined, signal);
+  }
+  async fresh<T = any>(path: string, signal?: AbortSignal) {
+    const combined = signal ? AbortSignal.any([this.view.signal, signal]) : this.view.signal;
+    return this.transport<Envelope<T>>(path, "GET", undefined, undefined, combined);
+  }
+  async observe<T = any>(path: string, signal: AbortSignal, apply: (value: Envelope<T>) => void) {
+    signal.throwIfAborted();
+    await this.checkGeneration();
+    signal.throwIfAborted();
+    const fresh = this.cache.peek<Envelope<T>>(this.cacheKey(path));
+    if (fresh) { apply(fresh); return; }
+    const cached = this.peek<T>(path);
+    if (cached) apply(cached);
+    const value = await this.get<T>(path, signal);
+    signal.throwIfAborted();
+    apply(value);
   }
   async post<T = any>(path: string, body: unknown, key?: string) {
     return (await this.raw<Envelope<T>>(path, "POST", body, key)).data;
@@ -202,6 +264,7 @@ export class HttpClient {
       backgroundBenefits?: boolean;
     }>("/api/v1/capabilities");
     this.csrf = data.csrfToken;
+    this.generationEnabled = !!data.features["query.cacheGeneration"];
     return data;
   }
   async login(key: string, remember = true) {

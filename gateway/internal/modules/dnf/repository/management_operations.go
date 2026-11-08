@@ -31,6 +31,11 @@ type AccountCurrencyReader interface {
 	LoadAccountCurrency(context.Context, string) (AccountRecord, bool, error)
 }
 
+// AccountCurrencyBatchReader projects visible directory wallets in one query per shard.
+type AccountCurrencyBatchReader interface {
+	LoadAccountCurrencies(context.Context, []string) (map[string]AccountRecord, error)
+}
+
 type CharacterManagementUnitOfWork interface {
 	WithinCharacterManagement(context.Context, string, string, func(Group, ManagementReceiptStore) error) error
 	CharacterManagementLog(context.Context, string, int64, int) ([]ManagementLogRow, error)

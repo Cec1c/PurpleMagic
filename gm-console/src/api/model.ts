@@ -15,8 +15,10 @@ export type LiveData = {
     ids: string[];
     accountIds: string[];
     online?: string;
+    accountId?: string;
   };
   inventory: {
+    owner?: string;
     tab: string;
     next: Record<string, string>;
     pvf: string;

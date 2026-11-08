@@ -73,12 +73,12 @@ test('older item search cannot replace newer search results',async()=>{
  release();await old;assert.equal(api.meta.resources.library.items[0].itemId,'2');assert.equal(api.meta.reading,0);
 });
 
-test('short static view cache excludes write preparation and resets after writes',async()=>{
+test('static definitions and grant options cache while PVF changes invalidate them',async()=>{
  const api=new ConsoleAPI(()=>{});let reads=0;
  api.http.fetcher=async()=>{reads++;return response({items:[]});};
  await api.http.get('/api/v1/items?q=1');await api.http.get('/api/v1/items?q=1');assert.equal(reads,1);
- await api.http.get('/api/v1/items/1/grant-options');await api.http.get('/api/v1/items/1/grant-options');assert.equal(reads,3);
- await api.http.post('/api/v1/settings/pvf',{mode:'disk'});await api.http.get('/api/v1/items?q=1');assert.equal(reads,5);
+ await api.http.get('/api/v1/items/1/grant-options');await api.http.get('/api/v1/items/1/grant-options');assert.equal(reads,2);
+ await api.http.post('/api/v1/settings/pvf',{mode:'disk'});await api.http.get('/api/v1/items?q=1');assert.equal(reads,4);
 });
 
 test('multi-character task preview freezes targets and lost response retry skips successful characters',async()=>{

@@ -10,17 +10,24 @@ import (
 	"time"
 
 	"dnf90.local/gateway/internal/diagnostics"
+	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
 )
 
 type v1AccountRow struct {
-	PanelID        string     `json:"panelId"`
-	AccountID      string     `json:"accountId"`
-	Name           string     `json:"name"`
-	Disabled       bool       `json:"disabled"`
-	CreatedAt      *time.Time `json:"createdAt"`
-	LastLoginAt    *time.Time `json:"lastLoginAt"`
-	CharacterCount int        `json:"characterCount"`
+	PanelID        string               `json:"panelId"`
+	AccountID      string               `json:"accountId"`
+	Name           string               `json:"name"`
+	Disabled       bool                 `json:"disabled"`
+	CreatedAt      *time.Time           `json:"createdAt"`
+	LastLoginAt    *time.Time           `json:"lastLoginAt"`
+	CharacterCount int                  `json:"characterCount"`
+	Currency       *v1DirectoryCurrency `json:"currency,omitempty"`
+}
+
+type v1DirectoryCurrency struct {
+	Balance  string `json:"balance"`
+	Revision string `json:"revision"`
 }
 
 func scanV1Account(row interface{ Scan(...any) error }) (v1AccountRow, error) {
@@ -134,6 +141,23 @@ func (s *Server) v1Accounts(w http.ResponseWriter, r *http.Request) {
 		accounts[i].CharacterCount = counts[accounts[i].AccountID]
 	}
 	assemblyDone(nil)
+	if group, e := s.repositories(); e == nil {
+		if reader, ok := group.Account.(repository.AccountCurrencyBatchReader); ok {
+			done := diagnostics.Start(r.Context(), "accounts.currencies")
+			wallets, e := reader.LoadAccountCurrencies(r.Context(), ids)
+			done(e)
+			// A failed optional projection leaves the directory available; clients can retry wallets individually.
+			if e == nil {
+				for i := range accounts {
+					if wallet, found := wallets[accounts[i].AccountID]; found && wallet.AccountID == accounts[i].AccountID {
+						if balance, e := adminops.CurrencyBalance(wallet); e == nil {
+							accounts[i].Currency = &v1DirectoryCurrency{Balance: strconv.FormatInt(balance, 10), Revision: adminops.CurrencyRevision(wallet)}
+						}
+					}
+				}
+			}
+		}
+	}
 	v1Reply(w, r, 200, v1Envelope{Data: accounts, Page: &page})
 }
 
