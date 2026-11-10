@@ -144,8 +144,8 @@
             "properties": {
               "client_session_id": { "type": "string", "minLength": 1 },
               "launch_instance_id": { "type": "string", "minLength": 1 },
-              "launch_ordinal": { "type": "integer", "minimum": 1 },
-              "active_slot": { "type": "integer", "minimum": 1 },
+              "launch_ordinal": { "type": "integer", "minimum": 0 },
+              "active_slot": { "type": "integer", "minimum": 0 },
               "handoff_mode": { "type": "string" },
               "pid": { "type": ["integer", "null"] },
               "process_created_utc": { "type": ["string", "null"] },

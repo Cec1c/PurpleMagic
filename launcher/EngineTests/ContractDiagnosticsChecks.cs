@@ -188,6 +188,12 @@ internal static class ContractDiagnosticsChecks
                     Stopwatch.GetTimestamp(),
                     "2026-11-11T00:00:01.000Z"));
 
+                var prelaunchZip = Path.Combine(exportsDir, "PurpleMagic-Prelaunch.zip");
+                var prelaunchExported = await ledger.ExportBundleAsync(
+                    new ContractBundleExportInput(prelaunchZip, IncidentId: "inc-prelaunch-00"));
+                check(File.Exists(prelaunchExported.Path) && prelaunchExported.Incidents == 1,
+                    "prelaunch diagnostic bundle export succeeds before any game starts");
+
                 var fakeCreatedA = DateTime.Parse("2026-11-11T00:00:02.000Z").ToUniversalTime().ToFileTimeUtc();
                 var fakeCreatedB = DateTime.Parse("2026-11-11T00:00:05.000Z").ToUniversalTime().ToFileTimeUtc();
                 var exePath = Path.Combine(clientDir, "DNF.exe");
@@ -389,31 +395,34 @@ internal static class ContractDiagnosticsChecks
             }
             archive.Dispose();
 
-            // 5. Cross-validate real C#-exported Contract v1 bundle against scripts/analyze_diagnostics.py + Draft 2020-12 JSON Schema
+            // 5. Cross-validate real C#-exported Contract v1 bundles (prelaunch + multi-session) against scripts/analyze_diagnostics.py + Draft 2020-12 JSON Schema
             var analyzerScript = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "scripts", "analyze_diagnostics.py"));
             if (File.Exists(analyzerScript))
             {
-                var py = new ProcessStartInfo("python")
+                foreach (var (zipTarget, expectedSessions) in new[] { (Path.Combine(exportsDir, "PurpleMagic-Prelaunch.zip"), 1), (bundlePath, 2) })
                 {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                py.ArgumentList.Add(analyzerScript);
-                py.ArgumentList.Add(bundlePath);
-                using var pyProc = Process.Start(py)!;
-                var stdout = await pyProc.StandardOutput.ReadToEndAsync();
-                var stderr = await pyProc.StandardError.ReadToEndAsync();
-                await pyProc.WaitForExitAsync();
-                check(pyProc.ExitCode == 0, $"analyze_diagnostics.py validates real C# Contract v1 bundle ({stderr.Trim()})");
-                if (pyProc.ExitCode == 0)
-                {
-                    using var analyzedDoc = JsonDocument.Parse(stdout);
-                    check(analyzedDoc.RootElement.GetProperty("verified").GetBoolean() &&
-                          analyzedDoc.RootElement.GetProperty("contract_name").GetString() == "purplemagic-anton-first-entry-diagnostics" &&
-                          analyzedDoc.RootElement.GetProperty("sessions").GetArrayLength() == 2,
-                        "analyze_diagnostics.py confirms verified=true and 2 correlated sessions");
+                    var py = new ProcessStartInfo("python")
+                    {
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    py.ArgumentList.Add(analyzerScript);
+                    py.ArgumentList.Add(zipTarget);
+                    using var pyProc = Process.Start(py)!;
+                    var stdout = await pyProc.StandardOutput.ReadToEndAsync();
+                    var stderr = await pyProc.StandardError.ReadToEndAsync();
+                    await pyProc.WaitForExitAsync();
+                    check(pyProc.ExitCode == 0, $"analyze_diagnostics.py validates real C# Contract v1 bundle ({Path.GetFileName(zipTarget)}: {stderr.Trim()})");
+                    if (pyProc.ExitCode == 0)
+                    {
+                        using var analyzedDoc = JsonDocument.Parse(stdout);
+                        check(analyzedDoc.RootElement.GetProperty("verified").GetBoolean() &&
+                              analyzedDoc.RootElement.GetProperty("contract_name").GetString() == "purplemagic-anton-first-entry-diagnostics" &&
+                              analyzedDoc.RootElement.GetProperty("sessions").GetArrayLength() == expectedSessions,
+                            $"analyze_diagnostics.py confirms verified=true and {expectedSessions} session(s)");
+                    }
                 }
             }
         }

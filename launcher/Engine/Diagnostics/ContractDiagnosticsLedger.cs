@@ -755,12 +755,14 @@ internal sealed class ContractDiagnosticsLedger : IDisposable
                     }
                 }
 
-                activeIncidentId ??= bundleIncidentId;
+                if (selected.Length > 0) activeIncidentId ??= bundleIncidentId;
             }
 
+            var transientPrelaunch = false;
             if (selected.Length == 0)
             {
                 selected = [CreatePrelaunchSnapshotSession(bundleIncidentId, protoProfile, endpoint, enhanced)];
+                transientPrelaunch = true;
             }
 
             foreach (var s in selected)
@@ -772,7 +774,7 @@ internal sealed class ContractDiagnosticsLedger : IDisposable
                     EmitClockAnchor(s, "local_system_clock", null, null, null, s.ServerClockAnchored ? null : "local_export_anchor", null);
                 }
                 EmitTraceIntegrity(s, "bundle_export");
-                SchedulePersist(s);
+                if (!transientPrelaunch) SchedulePersist(s);
             }
 
             await FlushDiskBarrierAsync();
