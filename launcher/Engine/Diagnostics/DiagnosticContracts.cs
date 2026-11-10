@@ -9,7 +9,12 @@ public sealed record DiagnosticOptions(bool Enabled = false, string ProblemType 
 }
 public sealed record DiagnosticInstance(string Id, string Window, int Pid, string StartedUtc, string Status, string ExeVersion, bool Selected, string CrashStatus = "starting");
 public sealed record DiagnosticClip(string Id, string SessionId, string StartedUtc, string EndedUtc, string Reason, long Bytes, string[] Categories);
-public sealed record DiagnosticStatus(bool Enabled, string Phase, string Message, DiagnosticInstance[] Instances, DiagnosticClip[] Clips, int Countdown = 0);
+public sealed record DiagnosticStatus(bool Enabled, string Phase, string Message, DiagnosticInstance[] Instances, DiagnosticClip[] Clips, int Countdown = 0)
+{
+    public string ActiveIncidentId { get; init; } = "";
+    public ContractSessionStatus[] SessionLedgers { get; init; } = [];
+    public ContractObservationItem[] RecentObservations { get; init; } = [];
+}
 public sealed record DiagnosticExport(string Path, long Bytes, string Sha256, int Incidents);
 internal sealed record ProcessIdentity(int Pid, long Created, int WindowsSession, string Path, string Id);
 internal sealed record DiagnosticField(double? Value, string Status = "ok", string? Reason = null);

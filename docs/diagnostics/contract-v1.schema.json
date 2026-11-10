@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contract-v1.schema.json",
+  "title": "PurpleMagic Anton First-Entry Diagnostics Contract v1",
+  "type": "object",
+  "$defs": {
+    "manifest": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "contract_name",
+        "incident_id",
+        "launcher_version",
+        "client_file_sha256",
+        "pvf_file_sha256",
+        "protocol_profile",
+        "server_endpoint",
+        "sessions",
+        "capabilities",
+        "integrity",
+        "files"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "contract_name": { "const": "purplemagic-anton-first-entry-diagnostics" },
+        "exported_utc": { "type": "string", "pattern": "Z$" },
+        "incident_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "launcher_version": { "type": "string", "minLength": 1 },
+        "launcher_commit": { "type": "string", "minLength": 1 },
+        "diagnostic_module_version": { "type": "string", "minLength": 1 },
+        "build_flavor": { "enum": ["standard", "anticheat"] },
+        "client_file_sha256": { "type": ["string", "null"] },
+        "client_file_bytes": { "type": ["integer", "null"] },
+        "client_file_unknown_reason": { "type": ["string", "null"] },
+        "pvf_file_sha256": { "type": ["string", "null"] },
+        "pvf_file_bytes": { "type": ["integer", "null"] },
+        "pvf_file_unknown_reason": { "type": ["string", "null"] },
+        "declared_manifest_digests": {
+          "type": "object",
+          "required": [
+            "manifest_client_sha256",
+            "manifest_pvf_sha256",
+            "publication_sequence",
+            "content_version",
+            "source_id"
+          ],
+          "properties": {
+            "manifest_client_sha256": { "type": "string" },
+            "manifest_pvf_sha256": { "type": "string" },
+            "publication_sequence": { "type": "integer", "minimum": 0 },
+            "content_version": { "type": "string" },
+            "source_id": { "type": "string" }
+          }
+        },
+        "server_version": { "type": ["string", "null"] },
+        "server_version_unknown_reason": { "type": ["string", "null"] },
+        "protocol_profile": { "type": "string", "minLength": 1 },
+        "server_endpoint": {
+          "type": "object",
+          "required": ["game_host", "bootstrap_port", "channel_server_id", "api_origin"],
+          "properties": {
+            "game_host": { "type": "string" },
+            "bootstrap_port": { "type": "integer", "minimum": 0 },
+            "channel_server_id": { "type": "integer" },
+            "previous_channel_server_id": { "type": ["integer", "null"] },
+            "api_origin": { "type": "string" }
+          }
+        },
+        "time_policy": {
+          "type": "object",
+          "required": [
+            "utc_for_cross_machine_alignment",
+            "qpc_for_local_intervals",
+            "compare_qpc_across_hosts",
+            "raw_qpc_frequency_required",
+            "host_mono_frequency_hz"
+          ],
+          "properties": {
+            "utc_for_cross_machine_alignment": { "const": true },
+            "qpc_for_local_intervals": { "const": true },
+            "compare_qpc_across_hosts": { "const": false },
+            "raw_qpc_frequency_required": { "const": true },
+            "host_mono_frequency_hz": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "pre_trigger_seconds",
+            "post_trigger_seconds",
+            "max_bytes_per_session",
+            "max_incidents"
+          ],
+          "properties": {
+            "pre_trigger_seconds": { "type": "integer", "minimum": 1 },
+            "post_trigger_seconds": { "type": "integer", "minimum": 1 },
+            "max_bytes_per_session": { "type": "integer", "minimum": 1 },
+            "max_incidents": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "required": [
+            "launcher_sessions",
+            "manual_observations",
+            "game_socket_ownership",
+            "client_side_packet_capture",
+            "application_frames",
+            "native_actor_events",
+            "native_registry_events",
+            "native_context_events",
+            "native_render_events"
+          ],
+          "additionalProperties": { "type": "boolean" }
+        },
+        "capability_reasons": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"] }
+        },
+        "optional_payloads": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["present", "unknown_reason"],
+            "properties": {
+              "present": { "type": "boolean" },
+              "unknown_reason": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "client_session_id",
+              "launch_instance_id",
+              "pid",
+              "process_created_utc",
+              "started_utc",
+              "ended_utc",
+              "end_state"
+            ],
+            "properties": {
+              "client_session_id": { "type": "string", "minLength": 1 },
+              "launch_instance_id": { "type": "string", "minLength": 1 },
+              "launch_ordinal": { "type": "integer", "minimum": 1 },
+              "active_slot": { "type": "integer", "minimum": 1 },
+              "handoff_mode": { "type": "string" },
+              "pid": { "type": ["integer", "null"] },
+              "process_created_utc": { "type": ["string", "null"] },
+              "executable_path": { "type": ["string", "null"] },
+              "executable_path_sha256": { "type": ["string", "null"] },
+              "started_utc": { "type": "string", "pattern": "Z$" },
+              "ended_utc": { "type": ["string", "null"] },
+              "end_state": { "type": "string" },
+              "receiver_character_id": { "type": ["integer", "null"] },
+              "receiver_character_name": { "type": ["string", "null"] },
+              "association_source": { "type": ["string", "null"] },
+              "enhanced_session_id": { "type": ["string", "null"] },
+              "entries": { "type": "array" }
+            }
+          }
+        },
+        "integrity": { "$ref": "#/$defs/integrity" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "bytes", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "bytes": { "type": "integer", "minimum": 0 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": [
+        "queue_dropped",
+        "critical_events_lost",
+        "truncated_records",
+        "ring_evicted_records",
+        "capture_dropped_packets",
+        "capture_dropped_packets_unknown_reason",
+        "native_events_capability",
+        "native_events_unknown_reason",
+        "per_session"
+      ],
+      "properties": {
+        "queue_dropped": { "type": "integer", "minimum": 0 },
+        "critical_events_lost": { "type": "integer", "minimum": 0 },
+        "truncated_records": { "type": "integer", "minimum": 0 },
+        "ring_evicted_records": { "type": "integer", "minimum": 0 },
+        "capture_dropped_packets": { "type": ["integer", "null"] },
+        "capture_dropped_packets_unknown_reason": { "type": ["string", "null"] },
+        "native_events_capability": { "type": "boolean" },
+        "native_events_unknown_reason": { "type": ["string", "null"] },
+        "per_session": { "type": "array" }
+      }
+    },
+    "event_record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "event",
+        "source",
+        "client_session_id",
+        "event_seq",
+        "observed_utc",
+        "mono_ticks",
+        "mono_frequency_hz",
+        "pid",
+        "process_created_utc"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "event": {
+          "enum": [
+            "session.start",
+            "process.started",
+            "character.associated",
+            "scene.entry",
+            "connection.open",
+            "connection.close",
+            "observation.reported",
+            "clock.anchor",
+            "process.exited",
+            "trace.integrity",
+            "frame.decoded",
+            "actor.mode0.begin",
+            "actor.mode0.end",
+            "actor.mode1.begin",
+            "actor.mode1.lookup",
+            "actor.mode1.end",
+            "scene.context_changed",
+            "registry.insert.begin",
+            "registry.insert.end",
+            "registry.remove",
+            "registration.check",
+            "actor.render_submit"
+          ]
+        },
+        "source": { "enum": ["launcher", "packet_capture", "native_client"] },
+        "client_session_id": { "type": "string", "minLength": 1 },
+        "incident_id": { "type": ["string", "null"] },
+        "event_seq": { "type": "integer", "minimum": 1 },
+        "observed_utc": { "type": "string", "pattern": "Z$" },
+        "mono_ticks": { "type": "integer" },
+        "mono_frequency_hz": { "type": "integer", "minimum": 1 },
+        "pid": { "type": ["integer", "null"] },
+        "process_created_utc": { "type": ["string", "null"] },
+        "thread_id": { "type": ["integer", "null"] }
+      }
+    }
+  }
+}

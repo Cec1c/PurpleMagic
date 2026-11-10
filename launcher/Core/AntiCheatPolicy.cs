@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace ServerS5A3;
@@ -55,6 +56,16 @@ public static class LauncherBuild
     public const string Flavor = "standard";
     public const string ChannelPath = "/launcher/v2/";
 #endif
+    public static string Commit
+    {
+        get
+        {
+            var info = typeof(LauncherBuild).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
+            var plus = info.IndexOf('+');
+            var raw = plus >= 0 && plus + 1 < info.Length ? info[(plus + 1)..] : "";
+            return Regex.IsMatch(raw, "^[0-9a-fA-F]{7,40}$") ? raw.ToLowerInvariant() : "unknown";
+        }
+    }
     public static void RequireFlavor(string flavor)
     {
         if (flavor != Flavor) throw new InvalidOperationException("更新包与当前登录器的保护类型不同，请使用同类型发行包。");

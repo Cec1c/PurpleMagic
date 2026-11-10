@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Net.Security;
 using System.Security.Cryptography;
@@ -5,6 +6,8 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
 namespace ServerS5A3;
+
+public sealed record HttpTraceSample(string HttpTraceId, string EndpointKind, int HttpStatus, double DurationMs, string ObservedUtc, long MonoTicks, string? ServerDateUtc = null);
 
 public sealed record LoginReply(bool Ok, string? Account_id, string? Token, string? Message)
 {
@@ -27,11 +30,13 @@ public sealed class PlayerApi : IDisposable
     public HttpClient Http { get; }
     public PlayerProfile Profile { get; }
     private readonly Action<int>? responseObserved;
+    private readonly Action<HttpTraceSample>? traceObserved;
     public static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true, TypeInfoResolver = CoreJson.Default };
-    public PlayerApi(PlayerProfile profile, Action<int>? responseObserved = null)
+    public PlayerApi(PlayerProfile profile, Action<int>? responseObserved = null, Action<HttpTraceSample>? traceObserved = null)
     {
         Profile = profile;
         this.responseObserved = responseObserved;
+        this.traceObserved = traceObserved;
         Http = new HttpClient(new HttpClientHandler {
             UseProxy = false, AllowAutoRedirect = false,
             AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
@@ -51,8 +56,17 @@ public sealed class PlayerApi : IDisposable
     public async Task<LoginReply> Submit(string action, string account, string password, string device, string? newPassword = null, string? diagnosticCorrelationId = null)
     {
         if (action is not ("register" or "login" or "binding-code" or "password")) throw new ArgumentException(nameof(action));
-        using var response = await Http.PostAsJsonAsync(Profile.ApiUrl + "/api/account/" + action, new AccountRequest(account, password, device) { newPassword = newPassword, requireQQBinding = Profile.RequireQQBinding, diagnosticCorrelationId = diagnosticCorrelationId }, CoreJson.Default.AccountRequest);
+        var traceId = "http-" + Guid.NewGuid().ToString("N")[..16];
+        var watch = Stopwatch.StartNew();
+        using var request = new HttpRequestMessage(HttpMethod.Post, Profile.ApiUrl + "/api/account/" + action) {
+            Content = JsonContent.Create(new AccountRequest(account, password, device) { newPassword = newPassword, requireQQBinding = Profile.RequireQQBinding, diagnosticCorrelationId = diagnosticCorrelationId }, CoreJson.Default.AccountRequest)
+        };
+        request.Headers.TryAddWithoutValidation("X-PurpleMagic-Trace", traceId);
+        using var response = await Http.SendAsync(request);
+        var elapsed = watch.Elapsed.TotalMilliseconds;
+        var serverDate = response.Headers.Date?.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
         try { responseObserved?.Invoke((int)response.StatusCode); } catch (Exception) { }
+        try { traceObserved?.Invoke(new(traceId, "account_" + action, (int)response.StatusCode, Math.Round(elapsed, 3), DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), Stopwatch.GetTimestamp(), serverDate)); } catch (Exception) { }
         var reply = await response.Content.ReadFromJsonAsync(CoreJson.Default.LoginReply);
         if (reply?.Ok != true) throw new AccountApiException(reply ?? new(false, null, null, "账号服务暂不可用。"));
         if (action == "login" && Profile.RequireQQBinding && string.IsNullOrWhiteSpace(reply.BoundQQ))

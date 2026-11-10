@@ -13,7 +13,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.10";
+    public const string VersionText = "1.0.11";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -66,7 +66,7 @@ public sealed class LauncherEngine : IDisposable
         previousUpdateOutcome = BundleInstaller.ReadOutcome(install);
         diagnostics = new(stateRoot);
         diagnostics.Changed += () => Changed?.Invoke(State);
-        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
+        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
         Emit("ready", previousUpdateFailure ?? (discovered ? "已自动识别客户端目录。" : preferences.ClientDirectory == "" ? "请选择客户端目录，检查更新后登录。" : "客户端目录已就绪。"));
     }
     private void Emit(string phase, string message, long current = 0, long total = 0)
@@ -174,7 +174,7 @@ public sealed class LauncherEngine : IDisposable
             var directoryChanged = value.ClientDirectory != preferences.ClientDirectory;
             preferences = value with { Account = value.RememberAccount ? value.Account : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
-            diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
+            diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
             if (directoryChanged) { plan = []; await Task.Run(RefreshClientVersion); }
             Emit("ready", "设置已保存。");
         }
@@ -217,7 +217,12 @@ public sealed class LauncherEngine : IDisposable
         using var api = new PlayerApi(root);
         api.Http.Timeout = TimeSpan.FromSeconds(90);
         using var metadataTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-        using var response = await api.Http.GetAsync(root.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json", HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
+        var traceId = "http-" + Guid.NewGuid().ToString("N")[..16];
+        using var metadataRequest = new HttpRequestMessage(HttpMethod.Get, root.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json");
+        metadataRequest.Headers.TryAddWithoutValidation("X-PurpleMagic-Trace", traceId);
+        using var response = await api.Http.SendAsync(metadataRequest, HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
+        var serverDate = response.Headers.Date?.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        diagnostics.RecordHttpTrace(new(traceId, "bootstrap_metadata", (int)response.StatusCode, Math.Round(metadataClock.Elapsed.TotalMilliseconds, 3), DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), Stopwatch.GetTimestamp(), serverDate));
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound && bootstrap is null)
         {
             plan = []; Emit("ready", "后台更新服务尚未部署；登录使用现有本服兼容配置。"); return;
@@ -228,7 +233,7 @@ public sealed class LauncherEngine : IDisposable
         var raw = output.ToArray(); var next = Trust.Verify(raw, root);
         if (bootstrap is not null && envelope is not null) Trust.CheckSequence(next, raw, bootstrap, envelope);
         SafeFiles.Atomic(Path.Combine(stateRoot, "bootstrap.json"), raw); bootstrap = next; envelope = raw;
-        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0);
+        diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
         diagnostics.Event("metadata_verified", metadataClock.Elapsed.TotalMilliseconds, bootstrap?.Sequence);
         Emit("checking", "发布信息已验证。");
     }
@@ -348,7 +353,7 @@ public sealed class LauncherEngine : IDisposable
             }
             var channels = await ChannelProbe.Check(Profile, m => Emit("checking", m));
             diagnostics.Event("channel_verified", stageClock.Elapsed.TotalMilliseconds, channels.ServerId); stageClock.Restart();
-            Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile, status => diagnostics.Event("account_http_response", number: status));
+            Emit("logging-in", "正在验证账号…"); using var api = new PlayerApi(Profile, status => diagnostics.Event("account_http_response", number: status), trace => diagnostics.RecordHttpTrace(trace));
             var correlation = preferences.Diagnostics is { Enabled: true, HasConsent: true } ? Guid.NewGuid().ToString("N") : null;
             var reply = await api.Submit("login", input.Account.Trim(), input.Password, Device(), diagnosticCorrelationId: correlation);
             if (correlation is not null) diagnostics.LoginContext(Profile, correlation, reply.Diagnostics);
@@ -364,13 +369,16 @@ public sealed class LauncherEngine : IDisposable
             finally { foreach (var process in running) process.Dispose(); }
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = preferences.ClientDirectory, Arguments = GameContract.Arguments(reply.Token ?? "", Profile.GameHost, Profile.BootstrapPort) };
             Process game;
+            string handoffMode;
 #if ANTICHEAT
+            handoffMode = guard is null ? "direct_child" : "anticheat_guard_child";
             game = guard is null ? Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。") : await guard.Launch(executable, start.Arguments);
 #else
+            handoffMode = "direct_child";
             game = Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。");
 #endif
             games.Add((input.Account.Trim(), game));
-            diagnostics.Track(game, executable);
+            diagnostics.Track(game, executable, handoffMode);
             diagnostics.Event("process_started", stageClock.Elapsed.TotalMilliseconds);
             preferences = preferences with { Account = preferences.RememberAccount ? input.Account.Trim() : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
@@ -408,6 +416,11 @@ public sealed class LauncherEngine : IDisposable
     }
     public Task<DiagnosticExport> ExportDiagnostics(string sessionId, string target) => diagnostics.Export(sessionId, target);
     public Task ElevateDiagnostics(string sessionId) => diagnostics.Elevate(sessionId);
+    public Task<string> SetDiagnosticIncident(ContractIncidentInput input) => diagnostics.SetIncident(input);
+    public Task AssociateDiagnosticCharacter(ContractCharacterInput input) => diagnostics.AssociateCharacter(input);
+    public Task<string> MarkDiagnosticEntry(ContractEntryInput input) => diagnostics.MarkEntry(input);
+    public Task<ContractObservationItem> ReportDiagnosticObservation(ContractObservationInput input) => diagnostics.ReportObservation(input);
+    public Task<DiagnosticExport> ExportDiagnosticBundle(ContractBundleExportInput input) => diagnostics.ExportBundle(input);
     public void RecordDiagnosticError(Exception error) => diagnostics.Failure("operation_error", error);
     public void StopProtectedGames()
     {

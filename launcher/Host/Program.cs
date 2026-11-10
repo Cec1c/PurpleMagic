@@ -64,6 +64,21 @@ async Task Dispatch(Request request)
             case "diagnosticExport":
                 var export = await engine.ExportDiagnostics(request.Args.GetProperty("sessionId").GetString()!, request.Args.GetProperty("path").GetString()!);
                 Respond(new(request.Id, true, State: engine.State, DiagnosticExport: export)); return;
+            case "diagnosticExportBundle":
+                var bundleExport = await engine.ExportDiagnosticBundle(request.Args.Deserialize(WireJson.Default.ContractBundleExportInput) ?? throw new InvalidDataException());
+                Respond(new(request.Id, true, State: engine.State, DiagnosticExport: bundleExport)); return;
+            case "diagnosticSetIncident":
+                var incidentId = await engine.SetDiagnosticIncident(request.Args.Deserialize(WireJson.Default.ContractIncidentInput) ?? new());
+                Respond(new(request.Id, true, State: engine.State, DiagnosticIncidentId: incidentId)); return;
+            case "diagnosticAssociateCharacter":
+                await engine.AssociateDiagnosticCharacter(request.Args.Deserialize(WireJson.Default.ContractCharacterInput) ?? throw new InvalidDataException());
+                break;
+            case "diagnosticMarkEntry":
+                var entryId = await engine.MarkDiagnosticEntry(request.Args.Deserialize(WireJson.Default.ContractEntryInput) ?? throw new InvalidDataException());
+                Respond(new(request.Id, true, State: engine.State, DiagnosticEntryId: entryId)); return;
+            case "diagnosticReportObservation":
+                var observation = await engine.ReportDiagnosticObservation(request.Args.Deserialize(WireJson.Default.ContractObservationInput) ?? throw new InvalidDataException());
+                Respond(new(request.Id, true, State: engine.State, DiagnosticObservation: observation)); return;
             case "diagnosticElevate": await engine.ElevateDiagnostics(request.Args.GetProperty("sessionId").GetString()!); break;
             case "resetGameConfiguration":
                 var confirmed = request.Args.TryGetProperty("confirmed", out var confirmation) && confirmation.ValueKind == JsonValueKind.True;

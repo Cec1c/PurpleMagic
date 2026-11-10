@@ -61,7 +61,8 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if ((call.method == 'chooseDirectory' ||
-              call.method == 'saveDiagnosticLog')) {
+              call.method == 'saveDiagnosticLog' ||
+              call.method == 'saveDiagnosticBundle')) {
             return selected;
           }
           return null;
@@ -360,6 +361,97 @@ void main() {
       await tester.pumpAndSettle();
       expect(model.phase, UpdatePhase.ready);
       expect(model.diagnosticError, '诊断写入失败');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'contract v1 visibility shortcut marks missing/reentry and exports zip bundle without enhanced toggle',
+    (tester) async {
+      final fake = FakeCore();
+      fake.state['diagnostics'] = {
+        'enabled': false,
+        'phase': 'off',
+        'message': '已关闭',
+        'instances': [],
+        'clips': [],
+        'activeIncidentId': '',
+        'sessionLedgers': [
+          {
+            'clientSessionId': 'cs-anton-1',
+            'launchInstanceId': 'slot-1#launch-1',
+            'pid': 2001,
+            'processCreatedUtc': '2026-11-11T00:00:00Z',
+            'running': true,
+            'startedUtc': '2026-11-11T00:00:00Z',
+            'endedUtc': null,
+            'incidentId': null,
+            'receiverCharacterId': null,
+            'receiverCharacterName': null,
+            'associationSource': null,
+            'currentEntryId': null,
+            'sceneEpoch': 0,
+            'eventCount': 3,
+            'observationCount': 0,
+          },
+        ],
+        'recentObservations': [],
+      };
+      mockDirectoryPicker(r'C:\Fixture\Exports\PurpleMagic-Incident.zip');
+      final model = LauncherController(client: fake);
+      await start(tester, controller: model, size: const Size(1280, 760));
+      expect(find.byKey(const Key('diagnostics-session-shortcut')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('diagnostics-session-shortcut')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('incident-id-input')),
+        'inc-team-sync-88',
+      );
+      await tester.tap(find.byKey(const Key('apply-incident-id')));
+      await tester.pumpAndSettle();
+      expect(fake.diagnosticArguments?['incidentId'], 'inc-team-sync-88');
+
+      await tester.enterText(
+        find.byKey(const Key('receiver-character-input')),
+        '本端红眼',
+      );
+      await tester.tap(find.byKey(const Key('bind-character-button')));
+      await tester.pumpAndSettle();
+      expect(fake.diagnosticArguments?['clientSessionId'], 'cs-anton-1');
+      expect(fake.diagnosticArguments?['receiverCharacterName'], '本端红眼');
+
+      await tester.tap(find.byKey(const Key('peer-scope-single')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('peer-character-input')),
+        '不可见奶爸',
+      );
+      await tester.tap(find.byKey(const Key('onset-15')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('obs-missing')));
+      await tester.pumpAndSettle();
+      expect(fake.diagnosticArguments?['state'], 'missing');
+      expect(fake.diagnosticArguments?['peerScope'], 'single_peer');
+      expect(fake.diagnosticArguments?['peerCharacterName'], '不可见奶爸');
+      expect(fake.diagnosticArguments?['onsetOffsetSeconds'], 15);
+
+      await tester.tap(find.byKey(const Key('obs-recovered')));
+      await tester.pumpAndSettle();
+      expect(fake.diagnosticArguments?['state'], 'recovered_after_reentry');
+
+      await tester.tap(find.byKey(const Key('export-diagnostic-bundle')));
+      await tester.pumpAndSettle();
+      expect(
+        fake.calls.where((m) => m == 'diagnosticExportBundle').length,
+        1,
+      );
+      expect(
+        fake.diagnosticArguments?['path'],
+        r'C:\Fixture\Exports\PurpleMagic-Incident.zip',
+      );
+      expect(fake.diagnosticArguments?['incidentId'], 'inc-team-sync-88');
+      expect(find.textContaining('已保存：'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -900,17 +992,92 @@ class FakeCore extends CoreClient {
         emit();
         return {'ok': true, 'state': state};
       case 'diagnosticExport':
+      case 'diagnosticExportBundle':
         diagnosticArguments = args;
         if (diagnosticFailure) throw StateError('诊断写入失败');
         emit();
         return {
           'ok': true,
+          'state': state,
           'diagnosticExport': {
             'path': args?['path'],
             'bytes': 4096,
             'incidents': 1,
           },
         };
+      case 'diagnosticSetIncident':
+        diagnosticArguments = args;
+        final nextIncident = args?['generateNew'] == true
+            ? 'inc-generated-01'
+            : (args?['incidentId'] as String? ?? 'inc-generated-01');
+        state['diagnostics'] = {
+          ...?state['diagnostics'] as Map<String, dynamic>?,
+          'activeIncidentId': nextIncident,
+        };
+        emit();
+        return {
+          'ok': true,
+          'state': state,
+          'diagnosticIncidentId': nextIncident,
+        };
+      case 'diagnosticAssociateCharacter':
+        diagnosticArguments = args;
+        final ledgers = List<Map<String, dynamic>>.from(
+          ((state['diagnostics'] as Map?)?['sessionLedgers'] as List? ?? [])
+              .map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+        for (final row in ledgers) {
+          if (row['clientSessionId'] == args?['clientSessionId']) {
+            row['receiverCharacterName'] = args?['receiverCharacterName'];
+            row['associationSource'] = 'user_selected';
+          }
+        }
+        state['diagnostics'] = {
+          ...?state['diagnostics'] as Map<String, dynamic>?,
+          'sessionLedgers': ledgers,
+        };
+        emit();
+        return {'ok': true, 'state': state};
+      case 'diagnosticMarkEntry':
+        diagnosticArguments = args;
+        emit();
+        return {
+          'ok': true,
+          'state': state,
+          'diagnosticEntryId': 'entry-reentry-2',
+        };
+      case 'diagnosticReportObservation':
+        diagnosticArguments = args;
+        final obs = {
+          'clientSessionId': args?['clientSessionId'],
+          'launchInstanceId': 'slot-1#launch-1',
+          'pid': 2001,
+          'eventSeq': 5,
+          'observedUtc': '2026-11-11T00:01:00Z',
+          'entryId': 'entry-1',
+          'sceneEpoch': args?['state'] == 'recovered_after_reentry' ? 2 : 1,
+          'receiverCharacterName': '本端红眼',
+          'peerScope': args?['peerScope'],
+          'peerCharacterName': args?['peerCharacterName'],
+          'state': args?['state'],
+          'estimatedOnsetUtc': '2026-11-11T00:00:45Z',
+          'timeUncertaintyMs': args?['timeUncertaintyMs'],
+        };
+        final existingObs = List<Map<String, dynamic>>.from(
+          ((state['diagnostics'] as Map?)?['recentObservations'] as List? ?? [])
+              .map((e) => Map<String, dynamic>.from(e as Map)),
+        )..insert(0, obs);
+        final currentIncident =
+            (state['diagnostics'] as Map?)?['activeIncidentId'] as String? ?? '';
+        state['diagnostics'] = {
+          ...?state['diagnostics'] as Map<String, dynamic>?,
+          'activeIncidentId': currentIncident.isEmpty
+              ? 'inc-auto-01'
+              : currentIncident,
+          'recentObservations': existingObs,
+        };
+        emit();
+        return {'ok': true, 'state': state, 'diagnosticObservation': obs};
       case 'updateLauncher':
         launcherArguments = args;
         if (launcherError != null) throw StateError(launcherError!);

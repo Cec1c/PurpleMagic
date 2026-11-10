@@ -17,8 +17,8 @@ constexpr UINT kTrayMessage = WM_APP + 1;
 constexpr UINT kTrayOpen = 1;
 constexpr UINT kTrayExit = 2;
 
-HRESULT SaveDiagnosticLog(HWND owner, const flutter::EncodableValue* arguments,
-                          std::string* selected) {
+HRESULT SaveDiagnosticFile(HWND owner, const flutter::EncodableValue* arguments,
+                           bool bundle_zip, std::string* selected) {
   Microsoft::WRL::ComPtr<IFileSaveDialog> dialog;
   HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr,
       CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
@@ -27,11 +27,12 @@ HRESULT SaveDiagnosticLog(HWND owner, const flutter::EncodableValue* arguments,
   if (FAILED(hr = dialog->GetOptions(&options))) return hr;
   if (FAILED(hr = dialog->SetOptions(options | FOS_FORCEFILESYSTEM |
       FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT | FOS_NOCHANGEDIR | FOS_STRICTFILETYPES))) return hr;
-  const COMDLG_FILTERSPEC types[] = {{L"诊断日志 (*.log)", L"*.log"}};
-  dialog->SetFileTypes(1, types);
-  dialog->SetDefaultExtension(L"log");
-  dialog->SetTitle(L"PurpleMagic — 日志另存为");
-  dialog->SetFileName(L"PurpleMagic.log");
+  const COMDLG_FILTERSPEC log_types[] = {{L"诊断日志 (*.log)", L"*.log"}};
+  const COMDLG_FILTERSPEC bundle_types[] = {{L"诊断包 (*.zip)", L"*.zip"}};
+  dialog->SetFileTypes(1, bundle_zip ? bundle_types : log_types);
+  dialog->SetDefaultExtension(bundle_zip ? L"zip" : L"log");
+  dialog->SetTitle(bundle_zip ? L"PurpleMagic — 诊断包另存为" : L"PurpleMagic — 日志另存为");
+  dialog->SetFileName(bundle_zip ? L"PurpleMagic-Incident.zip" : L"PurpleMagic.log");
   const auto* fields = arguments ? std::get_if<flutter::EncodableMap>(arguments) : nullptr;
   if (fields) {
     const auto field = fields->find(flutter::EncodableValue("fileName"));
@@ -145,11 +146,13 @@ bool FlutterWindow::OnCreate() {
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
         const auto window = GetHandle();
         const auto& name = call.method_name();
-        if (name == "chooseDirectory" || name == "saveDiagnosticLog") {
+        if (name == "chooseDirectory" || name == "saveDiagnosticLog" ||
+            name == "saveDiagnosticBundle") {
           std::string selected;
-          const HRESULT hr = name == "saveDiagnosticLog"
-              ? SaveDiagnosticLog(window, call.arguments(), &selected)
-              : ChooseDirectory(window, call.arguments(), &selected);
+          const HRESULT hr = name == "chooseDirectory"
+              ? ChooseDirectory(window, call.arguments(), &selected)
+              : SaveDiagnosticFile(window, call.arguments(),
+                                   name == "saveDiagnosticBundle", &selected);
           if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
             result->Success();
           } else if (FAILED(hr) || selected.empty()) {

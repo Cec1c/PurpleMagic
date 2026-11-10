@@ -1,3 +1,10 @@
+## 2026-11-11 — 登录器 1.0.11 与进图可见性诊断契约（Contract v1）
+
+- 整理并规范化登录器诊断体系，在保留外层 5 / 记录 4 增强诊断 `.log` 的同时，新增 `purplemagic-anton-first-entry-diagnostics`（Contract v1）会话台账与原子 `.zip` 诊断包导出。
+- 每次游戏启动独立建立 `client_session_id`，生成时刻原子分配 `event_seq` 并记录 UTC 时间与原始 QPC tick/频率，支持同队共享 `incident_id`、双开本端角色绑定、进图轮次链（`entry_id` / `parent_entry_id`）及队友不可见／晚出现／现在出现／退出重进恢复标记（保留补报估计发生时间）。
+- 新增基于双端进程创建时间校验的 Win32 `iphlpapi` 游戏进程 TCP/UDP 套接字归属追踪，区分磁盘实际 EXE/PVF SHA-256 与发布清单声明摘要，如实声明未安装原生/抓包探针的能力边界且排除全部凭据与敏感命令行。
+- 升级离线分析器 `scripts/analyze_diagnostics.py` 支持 Contract v1 `.zip` 与 `.jsonl` 完整性、Schema、单调序号与敏感字段校验；仅发布登录器 1.0.11 与网关产物映射，不重启游戏服务。
+
 ## 2026-11-08 — 通关统计查询恢复
 
 - 修复通关统计与账号统计被外层 3 秒超时提前取消的问题，统计查询统一使用 8 秒预算。

@@ -89,6 +89,32 @@ def main():
         report = analyze(Path(result['path']))
         assert report['verified'] and report['records'] > 0
         assert Path(result['path']).suffix == '.log'
+        ledgers = diagnostic_when(lambda d: len(d.get('sessionLedgers') or []) >= 1)['sessionLedgers']
+        client_session_id = ledgers[0]['clientSessionId']
+        inc_reply = call('diagnosticSetIncident', {'incidentId': 'inc-host-e2e-01', 'generateNew': False})
+        assert inc_reply['diagnosticIncidentId'] == 'inc-host-e2e-01'
+        call('diagnosticAssociateCharacter', {'clientSessionId': client_session_id, 'receiverCharacterName': 'HostTester', 'receiverCharacterId': 7})
+        obs1 = call('diagnosticReportObservation', {
+            'clientSessionId': client_session_id,
+            'state': 'missing',
+            'peerScope': 'single_peer',
+            'peerCharacterName': 'TeammateB',
+            'onsetOffsetSeconds': 5,
+            'timeUncertaintyMs': 3000,
+        })['diagnosticObservation']
+        assert obs1['state'] == 'missing' and obs1['sceneEpoch'] == 1
+        obs2 = call('diagnosticReportObservation', {
+            'clientSessionId': client_session_id,
+            'state': 'recovered_after_reentry',
+            'peerScope': 'single_peer',
+            'peerCharacterName': 'TeammateB',
+            'onsetOffsetSeconds': 0,
+            'timeUncertaintyMs': 1000,
+        })['diagnosticObservation']
+        assert obs2['state'] == 'recovered_after_reentry' and obs2['sceneEpoch'] == 2
+        bundle_res = call('diagnosticExportBundle', {'path': str(exports / 'incident-bundle.zip'), 'incidentId': 'inc-host-e2e-01'})['diagnosticExport']
+        bundle_report = analyze(Path(bundle_res['path']))
+        assert bundle_report['verified'] and bundle_report['incident_id'] == 'inc-host-e2e-01' and len(bundle_report['enhanced_logs']) >= 1
         if args.parent_exit:
             assert args.native_crash_fixture
             process.kill()
@@ -120,8 +146,8 @@ def main():
             crashes = [r for r in rows if r.get('type') == 'exception']
             assert len(crashes) >= 2 and any(r['fields']['first_chance']['value'] == 0 for r in crashes)
             assert all(len(r['evidence']['stack']) >= 3 for r in crashes)
-            assert rows[0]['schema_version'] == rows[-1]['schema_version'] == 4
-            assert all(r['record_version'] == 3 for r in rows[1:-1])
+            assert rows[0]['schema_version'] == rows[-1]['schema_version'] in (4, 5)
+            assert all(r['record_version'] == rows[0]['schema_version'] - 1 for r in rows[1:-1])
             assert all(r['evidence']['native']['context']['context_status'] == 'ok' and
                        r['evidence']['native']['context']['registers'] and
                        r['evidence']['native']['pause_ms'] > 0 for r in crashes)

@@ -301,6 +301,14 @@ class _PreviewHomeState extends State<PreviewHome> {
                 onPressed: _diagnostics,
                 icon: const Icon(Icons.monitor_heart_outlined, size: 16),
                 label: const Text('诊断已开启', style: TextStyle(fontSize: 11)),
+              )
+            else if ((model.diagnostics['sessionLedgers'] as List? ?? const [])
+                .any((s) => s is Map && s['running'] == true))
+              TextButton.icon(
+                key: const Key('diagnostics-session-shortcut'),
+                onPressed: () => _diagnostics(initialTab: 1),
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                label: const Text('进图诊断', style: TextStyle(fontSize: 11)),
               ),
             _icon(Icons.settings_outlined, '设置', _settings, key: 'settings'),
             const SizedBox(width: 10),
@@ -1315,14 +1323,17 @@ class _PreviewHomeState extends State<PreviewHome> {
     }
   }
 
-  Future<void> _diagnostics() => showDialog<void>(
+  Future<void> _diagnostics({int initialTab = 0}) => showDialog<void>(
     context: context,
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
       child: Glass(
         solid: model.reducedEffects,
         color: const Color(0xe5221f30),
-        child: SizedBox(width: 600, child: DiagnosticsPanel(model: model)),
+        child: SizedBox(
+          width: 640,
+          child: DiagnosticsPanel(model: model, initialTab: initialTab),
+        ),
       ),
     ),
   );

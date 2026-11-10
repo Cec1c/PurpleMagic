@@ -128,6 +128,32 @@ internal sealed class DiagnosticStorage
             Cleanup();
         }
     }
+    internal byte[]? ReadCompleteLogBytes(string sessionId)
+    {
+        lock (gate) {
+            if (!Guid.TryParseExact(sessionId, "N", out _)) return null;
+            var index = ReadIndex(sessionId);
+            if (index is null) return null;
+            var filePath = FileFor(sessionId);
+            if (!File.Exists(filePath)) return null;
+            using var source = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (source.Length < index.Bytes || source.Length > MaxLog || index.Bytes > MaxLog) return null;
+            using var dest = new MemoryStream((int)index.Bytes + 2048);
+            using var reader = new StreamReader(source, new UTF8Encoding(false, true), false, 65536, true);
+            long bytes = 0;
+            while (reader.ReadLine() is { } line) {
+                var raw = Encoding.UTF8.GetBytes(line + "\n");
+                if (bytes + raw.Length > index.Bytes) break;
+                using var parsed = JsonDocument.Parse(line);
+                dest.Write(raw, 0, raw.Length); bytes += raw.Length;
+                if (bytes == index.Bytes) break;
+            }
+            if (bytes != index.Bytes) return null;
+            var summary = Envelope("log_summary", index);
+            dest.Write(summary, 0, summary.Length);
+            return dest.ToArray();
+        }
+    }
     public DiagnosticExport Export(string sessionId, string target)
     {
         lock (gate) {

@@ -29,7 +29,7 @@ public sealed record State(string Phase, string Message, double Progress, long D
     public DiagnosticStatus? Diagnostics { get; init; }
 }
 public sealed record Request(int Id, string Method, JsonElement Args);
-public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null, DiagnosticExport? DiagnosticExport = null, LoginReply? AccountResult = null, string? ErrorCode = null, long RetryAfter = 0);
+public sealed record Response(int Id, bool Ok, string? Error = null, State? State = null, bool Restart = false, ConfigurationReset? ConfigurationReset = null, DiagnosticExport? DiagnosticExport = null, LoginReply? AccountResult = null, string? ErrorCode = null, long RetryAfter = 0, string? DiagnosticIncidentId = null, string? DiagnosticEntryId = null, ContractObservationItem? DiagnosticObservation = null);
 public sealed record ConfigurationReset(bool Reset, string? BackupPath);
 public sealed record Event(string Type, State State);
 public sealed record Credentials(string Account, string Password);
@@ -57,6 +57,13 @@ public sealed record BundleOutcome(string Version, bool Succeeded, string Reason
 [JsonSerializable(typeof(TransactionJournal))]
 [JsonSerializable(typeof(BundleJob))]
 [JsonSerializable(typeof(BundleOutcome))]
+[JsonSerializable(typeof(ContractSessionStatus))]
+[JsonSerializable(typeof(ContractObservationItem))]
+[JsonSerializable(typeof(ContractCharacterInput))]
+[JsonSerializable(typeof(ContractObservationInput))]
+[JsonSerializable(typeof(ContractIncidentInput))]
+[JsonSerializable(typeof(ContractEntryInput))]
+[JsonSerializable(typeof(ContractBundleExportInput))]
 public partial class WireJson : JsonSerializerContext { }
 
 public static class Trust

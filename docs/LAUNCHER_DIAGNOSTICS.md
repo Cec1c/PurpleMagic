@@ -1,4 +1,4 @@
-> 角色与时间上下文已新增源码候选：外层 5 / 记录 4 / 同意版本 3。完整字段、服务端接口、降级与验证见[角色上下文契约](diagnostics/CHARACTER_CONTEXT_V5.md)。下述原生证据能力沿用。
+> 登录器 1.0.11 已整合 **Contract v1 进图会话与可见性诊断包（`.zip`）** 与 **外层 5 / 记录 4 / 同意版本 3 增强诊断日志（`.log`）**。详见 [安徒恩首进诊断契约](diagnostics/ANTON_DIAGNOSTICS_CONTRACT_V1.md) 与 [角色上下文契约](diagnostics/CHARACTER_CONTEXT_V5.md)。下述原生证据能力沿用。
 
 # 登录器增强诊断
 

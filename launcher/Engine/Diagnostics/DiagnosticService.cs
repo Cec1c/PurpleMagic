@@ -40,6 +40,7 @@ internal sealed class DiagnosticService : IDisposable
 {
     private readonly string root;
     private readonly DiagnosticStorage storage;
+    private readonly ContractDiagnosticsLedger contractLedger;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly Channel<Action> commands = Channel.CreateBounded<Action>(new BoundedChannelOptions(64) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
     // Bounded batches: two pending plus one being written, at most 512 KiB each.
@@ -68,11 +69,16 @@ internal sealed class DiagnosticService : IDisposable
     private bool writeFailed;
     private volatile DiagnosticStatus status = new(false, "off", "已关闭", [], []);
     public DiagnosticStatus Status => status;
+    internal ContractDiagnosticsLedger ContractLedger => contractLedger;
     public event Action? Changed;
     public DiagnosticService(string stateRoot)
     {
         root = Path.Combine(stateRoot, "diagnostics"); storage = new(Path.Combine(root, "logs"));
-        LoadRegistry(); writer = Task.Run(WriteLoop); worker = Task.Factory.StartNew(Loop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        contractLedger = new(stateRoot);
+        contractLedger.Changed += () => Post(Publish);
+        LoadRegistry();
+        Publish();
+        writer = Task.Run(WriteLoop); worker = Task.Factory.StartNew(Loop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         notifications = Task.Run(NotifyLoop);
     }
     private void LoadRegistry()
@@ -103,9 +109,22 @@ internal sealed class DiagnosticService : IDisposable
         if (!closing && !commands.Writer.TryWrite(() => { try { action(); } catch (Exception) { error = "diagnostic_command_failed"; } }))
             error = "command_queue_full";
     }
-    public void Configure(DiagnosticOptions value, string directory, string pvf, long sequence)
+    public void Configure(
+        DiagnosticOptions value,
+        string directory,
+        string pvf,
+        long sequence,
+        ServerS5A3.PlayerProfile? profile = null,
+        string? contentVersion = null,
+        string? sourceId = null)
     {
         value = value with { Enabled = value.Enabled && value.HasConsent };
+        try
+        {
+            var effectiveProfile = profile ?? new ServerS5A3.PlayerProfile("", "", "", "", "", 0, "", pvf, "");
+            contractLedger.Configure(value.Enabled, directory, effectiveProfile, sequence, contentVersion, sourceId);
+        }
+        catch (Exception) { /* Contract ledger configuration is best effort. */ }
         Post(() => {
             if (options.Enabled && (!value.Enabled || directory != clientDirectory)) EndAll(value.Enabled ? "client_directory_changed" : "diagnostics_disabled");
             options = value with { ProblemType = "auto" }; clientDirectory = directory; pvfHash = pvf; publication = sequence;
@@ -113,17 +132,26 @@ internal sealed class DiagnosticService : IDisposable
             Publish();
         });
     }
-    public void Track(Process game, string executable)
+    public void RecordHttpTrace(ServerS5A3.HttpTraceSample sample)
+    {
+        try { contractLedger.RecordHttpTrace(sample); }
+        catch (Exception) { /* Never throw into HTTP paths. */ }
+    }
+    public void Track(Process game, string executable, string handoffMode = "direct_child")
     {
         try {
             var pid = game.Id; var created = game.StartTime.ToUniversalTime().ToFileTimeUtc();
+            try { contractLedger.TrackLaunch(game, executable, handoffMode); }
+            catch (Exception) { /* Best effort contract session start. */ }
             Post(() => {
                 using var identity = new ReadOnlyGameProcess(pid, executable, created);
+                contractLedger.BindEnhancedSession(pid, identity.Identity.Created, identity.Identity.Id);
                 managed[pid] = identity.Identity;
                 pendingStarts[pid] = attempt;
                 if (managed.Count > 2) { var old = managed.Keys.First(k => k != pid); managed.Remove(old); pendingStarts.Remove(old); }
                 SaveRegistry();
                 if (options.Enabled && binding is null) StartBinding(new(pid, executable, created, identity.Identity.Id), attempt);
+                Publish();
             });
         } catch (Exception) { error = "process_tracking_failed"; }
     }
@@ -143,7 +171,9 @@ internal sealed class DiagnosticService : IDisposable
                     var serverEvent = kind is "context_changed" or "connection_changed" or "character_changed" or "settlement_changed" or "business_disconnect";
                     Record(s, "event", "server", new() { ["attempt"] = new(s.LoginAttempt) }, context.Status == "current" ? "ok" : "partial", 0, kind, observedUtc: serverEvent ? context.ObservedAt : null, context: context);
                     if (kind == "business_disconnect") s.CriticalPending = true;
+                    if (s.Process is not null) contractLedger.UpdateServerContext(s.Process.Identity.Pid, s.Id, kind, context);
                 }
+                if (targets.All(t => t.Process is null)) contractLedger.UpdateServerContext(null, null, kind, context);
             }));
         });
     }
@@ -171,7 +201,6 @@ internal sealed class DiagnosticService : IDisposable
             Record(launcher, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code, evidence: evidence);
             foreach (var s in sessions.Where(s => attempt > 0 && s.LoginAttempt == attempt)) {
                 Record(s, "event", "launcher", new() { ["duration_ms"] = new(durationMs), ["attempt"] = new(attempt), ["value"] = number is null ? new(null, "not_applicable") : new(number) }, "ok", 0, code, evidence: evidence);
-
             }
             if (code is "login_error" or "update_error" or "operation_error" && !sessions.Any(s => s.LoginAttempt == attempt)) {
                 launcher.Capture.AddRange(launcher.Ring.Snapshot()); Flush(launcher, code);
@@ -202,6 +231,76 @@ internal sealed class DiagnosticService : IDisposable
                 message.Kind == "native_exception" ? "partial" : "ok", 0, message.Kind, evidence: message.Evidence);
             if (message.Kind == "elevation_cancelled" && allowRestart && !closing) { s.Observer.Dispose(); s.Observer = new(s.Process!.Identity, false); break; }
         }
+    }
+    public Task<string> SetIncident(ContractIncidentInput input) => Task.Run(() =>
+    {
+        var id = contractLedger.SetIncident(input);
+        Post(Publish);
+        return id;
+    });
+    public Task AssociateCharacter(ContractCharacterInput input) => Task.Run(() =>
+    {
+        contractLedger.AssociateCharacter(input);
+        Post(() =>
+        {
+            if (options.Enabled)
+            {
+                var (_, list, _) = contractLedger.SnapshotUiStatus();
+                var target = list.FirstOrDefault(x => x.ClientSessionId == input.ClientSessionId);
+                var active = target?.Pid is { } p ? sessions.FirstOrDefault(s => s.Process?.Identity.Pid == p) : null;
+                if (active is not null)
+                {
+                    Record(active, "event", "launcher", new()
+                    {
+                        ["character_id"] = input.ReceiverCharacterId is { } cid ? new(cid) : new(null, "not_applicable", "user_name_only")
+                    }, "ok", 0, "user_character_associated");
+                }
+            }
+            Publish();
+        });
+    });
+    public Task<string> MarkEntry(ContractEntryInput input) => Task.Run(() =>
+    {
+        var entryId = contractLedger.MarkNewEntry(input);
+        Post(Publish);
+        return entryId;
+    });
+    public Task<ContractObservationItem> ReportObservation(ContractObservationInput input) => Task.Run(() =>
+    {
+        var item = contractLedger.ReportObservation(input);
+        Post(() =>
+        {
+            if (options.Enabled && item.Pid is { } p)
+            {
+                var active = sessions.FirstOrDefault(s => s.Process?.Identity.Pid == p);
+                if (active is not null)
+                {
+                    Record(active, "event", "launcher", new()
+                    {
+                        ["contract_event_seq"] = new(item.EventSeq),
+                        ["scene_epoch"] = new(item.SceneEpoch)
+                    }, "ok", 0, "observation_" + item.State);
+                }
+            }
+            Publish();
+        });
+        return item;
+    });
+    public async Task<DiagnosticExport> ExportBundle(ContractBundleExportInput input)
+    {
+        if (Interlocked.CompareExchange(ref exporting, 1, 0) != 0) throw new InvalidOperationException("正在导出，请稍候。");
+        try
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            await Send(() =>
+            {
+                foreach (var active in sessions) Flush(active, "recording", wait: true);
+            });
+            await saves.Writer.WriteAsync(new(new("bundle", "bundle", "", "", 0, "", "barrier", 0, 0, 0, 0, false, [], [], 0), [], "", "") { Completion = completion });
+            await completion.Task;
+            return await contractLedger.ExportBundleAsync(input, storage.ReadCompleteLogBytes);
+        }
+        finally { Volatile.Write(ref exporting, 0); }
     }
     public async Task<DiagnosticExport> Export(string sessionId, string target)
     {
@@ -268,10 +367,13 @@ internal sealed class DiagnosticService : IDisposable
             launchAttempts.Remove(loginAttempt);
             if (process.Version != "unsupported") s.Module = new(process, process.ModuleBase); else s.Phase = "unsupported";
             sessions.Add(s); managed[process.Identity.Pid] = process.Identity; SaveRegistry();
+            contractLedger.TrackVerifiedProcess(process.Identity.Pid, process.Identity.Created, process.Identity.WindowsSession, process.Identity.Path, "discovered_process", s.Id);
+            var snap = s.ContextFeed.Snapshot();
+            if (snap.ReceivedAt is not null) contractLedger.UpdateServerContext(process.Identity.Pid, s.Id, "context_changed", snap);
             s.Identity = Record(s, "identity", "collector", new() {
                 ["pid"] = new(process.Identity.Pid), ["created_unix_ms"] = new(new DateTimeOffset(DateTime.FromFileTimeUtc(process.Identity.Created)).ToUnixTimeMilliseconds()),
                 ["windows_session"] = new(process.Identity.WindowsSession), ["publication_sequence"] = new(publication),
-                ["server_events"] = s.ContextFeed.Snapshot().ReceivedAt is not null ? new(1) : new(null, "not_applicable", "awaiting_server_context") }, "ok", 0, "game_bound");
+                ["server_events"] = snap.ReceivedAt is not null ? new(1) : new(null, "not_applicable", "awaiting_server_context") }, "ok", 0, "game_bound");
             Flush(s, "recording");
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or OverflowException) { observer?.Dispose(); retryAfter[process.Identity.Pid] = clock.Elapsed.TotalMilliseconds + 30000; process.Dispose(); error = "process_binding_failed"; }
@@ -339,7 +441,9 @@ internal sealed class DiagnosticService : IDisposable
         if (s.Process is not null) categories.Add("performance");
         if (s.HasSamples) categories.Add("at5t"); if (s.HasOperations) categories.Add("player_operations"); if (s.HasExceptions) categories.Add("native_exception");
         missing.AddRange(s.Missing);
-        var summary = new DiagnosticSummary(s.Id, s.Id, s.Process?.Hash ?? "", s.Process?.PvfHash ?? "", s.Publication, s.Process?.Version ?? "launcher",
+        var sharedIncident = contractLedger.FindSharedIncidentForEnhanced(s.Id);
+        var summaryIncident = !string.IsNullOrEmpty(sharedIncident) ? sharedIncident : s.Id;
+        var summary = new DiagnosticSummary(s.Id, summaryIncident, s.Process?.Hash ?? "", s.Process?.PvfHash ?? "", s.Publication, s.Process?.Version ?? "launcher",
             reason, 0, s.Errors, s.Dropped, s.Ring.Overwritten, s.Truncated, [.. missing],
             [.. categories], s.Interval, ServerEventsConnected: context.ReceivedAt is not null,
             ServerClockOffsetMs: context.Clock.OffsetMs, ServerClockUncertaintyMs: context.Clock.UncertaintyMs,
@@ -485,7 +589,13 @@ internal sealed class DiagnosticService : IDisposable
         var rows = sessions.Select(s => new DiagnosticInstance(s.Id, s.Process!.Window, s.Process!.Identity.Pid, s.StartedUtc, s.Phase, s.Process!.Version, true, s.CrashStatus)).ToArray();
         var phase = !options.Enabled ? "off" : error != "" ? "error" : sessions.Count > 0 ? "basic" : "waiting";
         var message = phase switch { "off" => "已关闭", "error" => "日志记录异常：" + error, "basic" => "正在记录本次启动", _ => binding is not null ? "正在读取游戏版本" : "等待游戏启动" };
-        status = new(options.Enabled, phase, message, rows, clips);
+        var (activeIncident, ledgers, observations) = contractLedger.SnapshotUiStatus();
+        status = new(options.Enabled, phase, message, rows, clips)
+        {
+            ActiveIncidentId = activeIncident,
+            SessionLedgers = ledgers,
+            RecentObservations = observations
+        };
     }
     private static void StartSampling(DiagnosticSession s, double now, double duration)
     {
@@ -507,6 +617,7 @@ internal sealed class DiagnosticService : IDisposable
     public void Dispose()
     {
         closing = true; commands.Writer.TryComplete();
-        try { worker.GetAwaiter().GetResult(); writer.GetAwaiter().GetResult(); } finally { clock.Stop(); }
+        try { worker.GetAwaiter().GetResult(); writer.GetAwaiter().GetResult(); }
+        finally { contractLedger.Dispose(); clock.Stop(); }
     }
 }
