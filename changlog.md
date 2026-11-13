@@ -1,3 +1,7 @@
+## 2026-11-13 — 公开登录器插件路径准入修复
+
+- 内容清单仅新增客户端根目录精确 `CombatPower.dll` 与 `DpsMeter.dll` 路径准入；其他可执行/插件路径、类型、大小、摘要及压缩校验保持不变。
+
 ## 2026-11-11 — 登录器 1.0.11 与进图可见性诊断契约（Contract v1）
 
 - 整理并规范化登录器诊断体系，在保留外层 5 / 记录 4 增强诊断 `.log` 的同时，新增 `purplemagic-anton-first-entry-diagnostics`（Contract v1）会话台账与原子 `.zip` 诊断包导出。
