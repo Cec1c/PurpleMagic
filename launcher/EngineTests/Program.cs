@@ -37,6 +37,14 @@ if (args.Length == 2 && args[0] == "--news-interop") { await NewsIntegration.Run
 if (args.Length == 2 && args[0] == "--bundle-lifecycle") { await BundleLifecycleChecks.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--bundle-exit") { await BundleExitChecks.Run(args[1]); return; }
 if (args.Length == 1 && args[0] == "--native-plugin-paths") { NativePluginPathChecks.Run(); return; }
+if (args.Length == 1 && args[0] == "--native-plugin-update") {
+    var fixture = Path.Combine(Path.GetTempPath(), "purplemagic-plugin-update-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(fixture);
+    var count = 0;
+    try { await NativePluginUpdateChecks.Run(fixture, (ok, name) => { if (!ok) throw new Exception(name); count++; Console.WriteLine("PASS " + name); }); }
+    finally { Directory.Delete(fixture, true); }
+    Console.WriteLine("PASS TOTAL " + count + " native plugin update checks; isolated data only."); return;
+}
 
 if (args.Length == 2 && args[0] == "--diagnostic-benchmark") { await DiagnosticBenchmark.Run(args[1]); return; }
 if (args.Length == 1 && args[0] == "--diagnostic-at5t-child") { DiagnosticChecks.MemoryChild(true); return; }
@@ -94,6 +102,7 @@ try
 
     Check(Trust.Verify(envelope, root).Content!.Files.Length == 2, "own PSS bootstrap and content contract");
     NativePluginPathChecks.Run();
+    await NativePluginUpdateChecks.Run(temp, Check);
     var transition = bootstrap with { Profile = root with { ChannelServerId = 1, PreviousChannelServerId = 0 } };
     var migrated = Trust.Verify(Sign(transition), root).Profile;
     Check(migrated.ChannelServerId == 1 && migrated.PreviousChannelServerId == 0, "signed directory transition survives AOT bootstrap JSON");

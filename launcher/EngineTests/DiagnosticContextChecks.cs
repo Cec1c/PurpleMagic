@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using Dnf90.Launcher.Diagnostics;
 using ServerS5A3;
@@ -60,7 +61,9 @@ internal static class DiagnosticContextChecks
         var text = File.ReadAllText(exported.Path);
         check(text.Contains("character_name") && text.Contains("business_disconnect") && text.Contains("cards_revealed") && !text.Contains("read_token"), "private support log keeps character and business disconnect despite exit zero, without credentials");
         var script = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../scripts/analyze_diagnostics.py"));
-        using var analyzer = Process.Start(new ProcessStartInfo("python") { ArgumentList = { script, exported.Path }, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true })!;
+        var analyzerStart = new ProcessStartInfo("python") { ArgumentList = { script, exported.Path }, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, UseShellExecute = false, CreateNoWindow = true };
+        analyzerStart.Environment["PYTHONIOENCODING"] = "utf-8";
+        using var analyzer = Process.Start(analyzerStart)!;
         var output = await analyzer.StandardOutput.ReadToEndAsync(); var error = await analyzer.StandardError.ReadToEndAsync(); await analyzer.WaitForExitAsync();
         check(analyzer.ExitCode == 0, "real exported schema 5 accepted by analyzer: " + error);
         using var analysis = JsonDocument.Parse(output);
