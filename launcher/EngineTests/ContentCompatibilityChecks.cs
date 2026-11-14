@@ -10,7 +10,7 @@ static class ContentCompatibilityChecks
         using var key=RSA.Create(2048);
         var root=new PlayerProfile("https://accounts.example.test",new string('a',64),key.ExportSubjectPublicKeyInfoPem(),"","192.0.2.1",7001,new string('b',64),new string('c',64),"");
         var approved=root with { MinimumLauncherVersion=LauncherEngine.VersionText, ChannelHistory=new(936,"YWNjb3VudA=="){Adapter=NativeChannelHistory.AdapterId} };
-        Bootstrap Release(PlayerProfile profile,long sequence)=>new("DNF90-Flutter",1,sequence,profile,[],new("content-"+sequence,"fixture","stable",sequence,new string('d',64),root.ApiUrl,"",[new("DNF.exe",2,profile.ExeSha256,true,"","",0),new("Script.pvf",2,profile.PvfSha256,true,"","",0)]),new(LauncherEngine.VersionText,root.ApiUrl+"/app.zip",2,new string('e',64)));
+        Bootstrap Release(PlayerProfile profile,long sequence)=>new("DNF90-Flutter",1,sequence,profile,[],new("content-"+sequence,"fixture","stable",sequence,new string('d',64),root.ApiUrl,"",[new("DNF.exe",2,profile.ExeSha256,true,"","",0),new("Script.pvf",2,profile.PvfSha256,true,"","",0)]),new(LauncherEngine.VersionText,root.ApiUrl+"/app.zip",2,new string('e',64)) { BuildFlavor=LauncherBuild.Flavor });
         byte[] Sign(Bootstrap value)
         {
             var p=JsonSerializer.SerializeToUtf8Bytes(value,WireJson.Default.Bootstrap);
@@ -26,7 +26,7 @@ static class ContentCompatibilityChecks
             check(!engine.State.HasLauncherUpdate,"resource identity changes do not require same-version launcher replacement");
         }
         var future=approved with{MinimumLauncherVersion="99.0.0"};
-        var raw=Sign(Release(future,3) with{Launcher=new("99.0.0",root.ApiUrl+"/app.zip",2,new string('e',64))});
+        var raw=Sign(Release(future,3) with{Launcher=new("99.0.0",root.ApiUrl+"/app.zip",2,new string('e',64)) { BuildFlavor=LauncherBuild.Flavor }});
         Trust.Verify(raw,root); // Future metadata must load so the old app can self-update.
         var futureState=Path.Combine(temp,"future-contract");Directory.CreateDirectory(futureState);File.WriteAllBytes(Path.Combine(futureState,"bootstrap.json"),raw);
         using var old=new LauncherEngine(root,futureState);

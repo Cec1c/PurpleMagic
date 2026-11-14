@@ -13,7 +13,9 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.11";
+    public const string VersionText = "1.0.12";
+    public const string ContentCapabilitiesHeader = "X-DNF90-Content-Capabilities";
+    public const string ContentCapabilities = "native-plugins-v1";
     private readonly PlayerProfile root;
     private readonly string stateRoot;
     private readonly string? previousUpdateFailure;
@@ -220,6 +222,7 @@ public sealed class LauncherEngine : IDisposable
         var traceId = "http-" + Guid.NewGuid().ToString("N")[..16];
         using var metadataRequest = new HttpRequestMessage(HttpMethod.Get, root.ApiUrl.TrimEnd('/') + LauncherBuild.ChannelPath + "bootstrap.json");
         metadataRequest.Headers.TryAddWithoutValidation("X-PurpleMagic-Trace", traceId);
+        metadataRequest.Headers.TryAddWithoutValidation(ContentCapabilitiesHeader, ContentCapabilities);
         using var response = await api.Http.SendAsync(metadataRequest, HttpCompletionOption.ResponseHeadersRead, metadataTimeout.Token);
         var serverDate = response.Headers.Date?.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
         diagnostics.RecordHttpTrace(new(traceId, "bootstrap_metadata", (int)response.StatusCode, Math.Round(metadataClock.Elapsed.TotalMilliseconds, 3), DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), Stopwatch.GetTimestamp(), serverDate));

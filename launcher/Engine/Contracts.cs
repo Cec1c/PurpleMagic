@@ -103,7 +103,8 @@ public static class Trust
             {
                 SafeFiles.ValidateRelative(file.Path);
                 var allowed = file.Path.Equals("DNF.exe", StringComparison.OrdinalIgnoreCase) || file.Path.Equals("Script.pvf", StringComparison.OrdinalIgnoreCase) ||
-                    file.Path.Equals("dstr.dat", StringComparison.OrdinalIgnoreCase) || (file.Path.StartsWith("ImagePacks2/", StringComparison.OrdinalIgnoreCase) && file.Path.EndsWith(".npk", StringComparison.OrdinalIgnoreCase));
+                    file.Path.Equals("dstr.dat", StringComparison.OrdinalIgnoreCase) || file.Path.Equals("CombatPower.dll", StringComparison.OrdinalIgnoreCase) ||
+                    file.Path.Equals("DpsMeter.dll", StringComparison.OrdinalIgnoreCase) || (file.Path.StartsWith("ImagePacks2/", StringComparison.OrdinalIgnoreCase) && file.Path.EndsWith(".npk", StringComparison.OrdinalIgnoreCase));
                 if (!allowed || !names.Add(file.Path) || !Hash(file.Sha256) || file.Length is < 0 or > 8L * 1024 * 1024 * 1024 || file.Compression is not ("" or "none" or "gzip")) throw new InvalidDataException("内容文件路径、大小或格式无效。");
                 if (file.Compression == "gzip" && (!Hash(file.BlobSha256) || file.BlobLength is < 1 or > 8L * 1024 * 1024 * 1024)) throw new InvalidDataException("压缩文件信息无效。");
             }
