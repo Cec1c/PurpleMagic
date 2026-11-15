@@ -495,16 +495,29 @@ export function App() {
             {state.api?.error && (
               <div className="glass live-status" role="alert">
                 <span className="inline-error">{state.api.error}</span>
-                <button
-                  className="secondary"
-                  onClick={() =>
-                    void live?.guard(async () => {
-                      await live.retry();
-                    })
-                  }
-                >
-                  重试
-                </button>
+                {live?.repreviewableDungeonQuotaPending() ? (
+                  <button
+                    className="primary"
+                    disabled={!!state.api.busy}
+                    onClick={() => {
+                      const target = live.repreviewableDungeonQuotaPending();
+                      if (target) void live.guard(() => live.repreviewDungeonQuotas(target.id));
+                    }}
+                  >
+                    刷新并重新预览
+                  </button>
+                ) : (
+                  <button
+                    className="secondary"
+                    onClick={() =>
+                      void live?.guard(async () => {
+                        await live.retry();
+                      })
+                    }
+                  >
+                    重试
+                  </button>
+                )}
               </div>
             )}
             <div key={`${section}-${["query", "benefits", "activities", "anti-cheat"].includes(section) ? "global" : character.id}`} className="page-content">

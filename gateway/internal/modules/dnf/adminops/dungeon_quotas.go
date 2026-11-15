@@ -361,7 +361,6 @@ func DungeonQuotaRevision(v repository.DungeonQuotaManagementState, d DungeonQuo
 		c.AccountID,
 		c.Stats["delete_flag"],
 		c.Stats["gm_dungeon_quota_sequence_v1"],
-		c.UpdatedAt.UTC(),
 		premium.ServiceDayID(now),
 		epoch,
 		pairs,

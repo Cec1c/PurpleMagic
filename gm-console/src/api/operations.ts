@@ -250,23 +250,34 @@ export async function prepareOperation(
   } else if (command.kind === "reset-dungeon-quota") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换，请重新选择");
     if (!api.meta.features["dungeonQuotas.write"]) throw new Error("当前服务尚未开放副本额度重置");
-    const cached = api.meta.resources.dungeonQuotas;
-    const data = cached?.characterId === c.id ? cached : (await api.http.fresh(`${base}/dungeon-quotas`)).data;
-    if (api.current === c.id) api.meta.resources.dungeonQuotas = data;
-    const entry = (data?.quotas || []).find((q: DTO) => q.key === command.quotaKey);
-    if (!entry) throw new Error("请选择有效的副本额度重置项");
-    if (!entry.canReset || !(entry.used > 0)) throw new Error("当前副本未消耗次数，无需重置");
-    p.title = "确认重置副本额度";
-    p.summary = `重置「${entry.name}」已用次数：${entry.used}/${entry.limit} → 0/${entry.limit}（切换频道或重新选择角色后刷新客户端次数显示）`;
-    await preview(p.summary, base + "/dungeon-quota-operations", {
-      accountId: c.accountId,
-      action: "reset",
-      quotaKey: command.quotaKey,
-      revision: data.revision,
-      pvfChecksum: data.pvfChecksum,
-      definitionRevision: data.definitionRevision || "",
-      reason,
-    });
+    const runQuotaPreview = async (data: DTO) => {
+      if (api.current === c.id) {
+        api.meta.resources.dungeonQuotas = data;
+        api.publish();
+      }
+      const entry = (data?.quotas || []).find((q: DTO) => q.key === command.quotaKey);
+      if (!entry) throw new Error("请选择有效的副本额度重置项");
+      if (!entry.canReset || !(entry.used > 0)) throw new Error("当前副本未消耗次数，无需重置");
+      p.title = "确认重置副本额度";
+      p.summary = `重置「${entry.name}」已用次数：${entry.used}/${entry.limit} → 0/${entry.limit}（切换频道或重新选择角色后刷新客户端次数显示）`;
+      await preview(p.summary, base + "/dungeon-quota-operations", {
+        accountId: c.accountId,
+        action: "reset",
+        quotaKey: command.quotaKey,
+        revision: data.revision,
+        pvfChecksum: data.pvfChecksum,
+        definitionRevision: data.definitionRevision || "",
+        reason,
+      });
+    };
+    const { data: initial } = await api.http.fresh(`${base}/dungeon-quotas`);
+    try {
+      await runQuotaPreview(initial);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 409 && ["revision_conflict", "pvf_conflict", "plan_conflict"].includes(e.code))) throw e;
+      const { data: freshData } = await api.http.fresh(`${base}/dungeon-quotas`);
+      await runQuotaPreview(freshData);
+    }
   } else if (command.kind === "reset-skill-points") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
     const { data } = await api.http.fresh(base + "/skill-points");

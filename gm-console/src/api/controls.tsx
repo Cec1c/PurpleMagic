@@ -139,12 +139,17 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               重新预览
             </button>
           )}
+          {api.canRepreviewDungeonQuotas() && (
+            <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewDungeonQuotas(p.id))}>
+              刷新并重新预览
+            </button>
+          )}
         </>
       }
     >
       <p className="confirm-target">{p.target}</p>
       <p>{p.summary}</p>
-      {p.steps.some(s => /\/(inventory|quest|rename|adventure-rename|level|profession|skill-point|gold|mailbox|container|vault|expert-job)-operations$/.test(s.path)) && (
+      {p.steps.some(s => /\/(inventory|quest|rename|adventure-rename|level|profession|skill-point|gold|mailbox|container|vault|expert-job|dungeon-quota)-operations$/.test(s.path)) && (
         <p className="muted">{api.meta.systemSettings?.carbonMode ? "碳铀模式已开启 · 允许在线写入" : <>到<a href="#system" onClick={() => api.dismissPending()}>系统设置</a>里打开“碳铀模式”来强制数据写入。</>}</p>
       )}
       {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
@@ -219,6 +224,10 @@ export function OperationHistory({ onClose }: { onClose: () => void }) {
           {p.error && <p className="inline-error">{p.error}</p>}
         </div>
         <div className="operation-history-actions">
+          {api.canRepreviewDungeonQuotas(p) && (
+            <button className="primary" disabled={api.meta.busy}
+              onClick={() => { onClose(); void api.guard(() => api.repreviewDungeonQuotas(p.id)); }}>刷新并重新预览</button>
+          )}
           <button className="secondary" disabled={api.meta.busy && api.meta.pending?.id !== p.id}
             onClick={() => { api.openPending(p.id); onClose(); }}>查看</button>
           <button className="secondary" disabled={!api.canDeleteReceipt(p)}

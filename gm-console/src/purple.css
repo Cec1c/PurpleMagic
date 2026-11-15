@@ -111,6 +111,8 @@
 .operation-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .operation-history-toolbar > span { flex: 1; }
 .operation-history-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.section-tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gm-quick-refresh { min-height: 40px; padding: 8px 16px; border-radius: 999px; flex-shrink: 0; }
 .quota-group-stack { display: grid; gap: 20px; min-width: 0; }
 .quota-list { display: grid; gap: 12px; margin-top: 14px; }
 .quota-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--border-1); border-radius: var(--radius-lg, 14px); background: color-mix(in srgb, var(--surface-2) 68%, transparent); transition: border-color 0.16s ease, background 0.16s ease; }

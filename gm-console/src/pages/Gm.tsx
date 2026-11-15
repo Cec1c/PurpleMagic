@@ -11,6 +11,7 @@ import {
   Coins,
   TrendingUp,
   RotateCcw,
+  RefreshCw,
   PencilLine,
   Swords,
 } from "lucide-react";
@@ -25,7 +26,7 @@ import {
   type PageProps,
 } from "../ui";
 
-export function GmPage({ state, character, request }: PageProps) {
+export function GmPage({ state, character, request, notify }: PageProps) {
   const live = useLive();
   const [tab, setTab] = useState<
     "growth" | "quotas" | "currency" | "premium" | "history"
@@ -105,10 +106,29 @@ export function GmPage({ state, character, request }: PageProps) {
   const canWriteQuotas = !live || !!state.api?.features["dungeonQuotas.write"];
   const dailyQuotas = (currentQuotas || []).filter((item) => item.category === "daily");
   const weeklyQuotas = (currentQuotas || []).filter((item) => item.category === "weekly");
+  const [refreshing, setRefreshing] = useState(false);
+  const spinning = refreshing || !!state.api?.reading;
+  const refreshCurrent = async () => {
+    if (refreshing || state.api?.busy) return;
+    const message = tab === "quotas" ? "已刷新角色状态与副本额度" : "已刷新当前面板数据";
+    if (!live) {
+      notify?.(message);
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await live.guard(async () => {
+        await live.refreshGmTab(tab);
+        notify?.(message);
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
-      <div className="section-tabs">
+      <div className="section-tabs section-tabs-bar">
         <Tabs
           label="GM 管理"
           items={[
@@ -121,6 +141,16 @@ export function GmPage({ state, character, request }: PageProps) {
           value={tab}
           onChange={value => { live?.navigate("gm", true); setTab(value); }}
         />
+        <button
+          type="button"
+          className="secondary gm-quick-refresh"
+          aria-busy={refreshing}
+          disabled={refreshing || !!state.api?.busy}
+          onClick={() => void refreshCurrent()}
+        >
+          <RefreshCw className={spinning ? "is-spinning" : ""} size={15} />
+          {tab === "quotas" ? "刷新额度" : "刷新当前页"}
+        </button>
       </div>
       {tab === "growth" ? (
         <div className="form-layout">
@@ -350,6 +380,16 @@ export function GmPage({ state, character, request }: PageProps) {
             <p className="muted">
               重置后立即清零角色对应副本已用次数（未消耗时不可重复重置）。若角色在线，切换频道或重新选择角色即可刷新客户端显示。攻坚战角色每周次数重置不会回退同账号当日 10 次入场上限。
             </p>
+            <button
+              type="button"
+              className="secondary reset-points"
+              aria-busy={refreshing}
+              disabled={refreshing || !!state.api?.busy}
+              onClick={() => void refreshCurrent()}
+            >
+              <RefreshCw className={spinning ? "is-spinning" : ""} size={15} />
+              刷新角色状态与副本额度
+            </button>
           </aside>
         </div>
       ) : tab === "currency" ? (

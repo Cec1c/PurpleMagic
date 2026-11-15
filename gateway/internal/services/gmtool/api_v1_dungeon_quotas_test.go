@@ -481,9 +481,16 @@ func TestV1DungeonQuotasInMemoryAndExternal(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("enable carbon mode failed: %d %v", status, sysBody)
 	}
+	// Simulate go-server routine online save updating charac_info.updated_at between preview and commit.
+	store.mu.Lock()
+	onlineSaved := repository.CloneCharacter(store.chars["10"])
+	onlineSaved.UpdatedAt = fixedNow.Add(15 * time.Second)
+	store.chars["10"] = onlineSaved
+	store.mu.Unlock()
+
 	status, c2Body := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", antonCommit, "idem-anton-reset-0002")
 	if status != 200 {
-		t.Fatalf("anton commit with carbonMode failed: %d %v", status, c2Body)
+		t.Fatalf("anton commit with carbonMode after online UpdatedAt advance failed: %d %v", status, c2Body)
 	}
 	// Verify permanent instance dedupe key & Luke raid & gold were untouched!
 	persisted := store.chars["10"]
@@ -492,6 +499,40 @@ func TestV1DungeonQuotasInMemoryAndExternal(t *testing.T) {
 	}
 	if _, hasEpoch := persisted.Stats["raid_weekly_epoch_v1_1"]; hasEpoch {
 		t.Fatalf("anton weekly epoch still present: %v", persisted.Stats)
+	}
+
+	// Verify actual quota stat drift between preview and commit still returns 409 revision_conflict.
+	receipt2 := c2Body["data"].(map[string]any)
+	riftPreview := map[string]any{
+		"accountId":          "dnf:1001",
+		"action":             "reset",
+		"quotaKey":           "pandemonium_rift",
+		"revision":           receipt2["revision"],
+		"pvfChecksum":        receipt2["pvfChecksum"],
+		"definitionRevision": receipt2["definitionRevision"],
+		"reason":             "重置魔界裂缝",
+	}
+	status, p3Body := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations/preview", riftPreview, "")
+	if status != 200 {
+		t.Fatalf("rift preview failed: %d %v", status, p3Body)
+	}
+	store.mu.Lock()
+	riftDrifted := repository.CloneCharacter(store.chars["10"])
+	riftDrifted.Stats["dungeon_daily_entry_316_used"] = 3
+	store.chars["10"] = riftDrifted
+	store.mu.Unlock()
+	status, conflictErr := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", map[string]any{
+		"accountId":          "dnf:1001",
+		"action":             "reset",
+		"quotaKey":           "pandemonium_rift",
+		"revision":           receipt2["revision"],
+		"pvfChecksum":        receipt2["pvfChecksum"],
+		"definitionRevision": p3Body["data"].(map[string]any)["definitionRevision"],
+		"planToken":          p3Body["data"].(map[string]any)["planToken"],
+		"reason":             "重置魔界裂缝",
+	}, "idem-rift-conflict-0003")
+	if status != 409 || conflictErr["error"].(map[string]any)["code"] != "revision_conflict" {
+		t.Fatalf("expected 409 revision_conflict when managed quota stat changes, got %d %v", status, conflictErr)
 	}
 
 	// 6. RemoteCatalog cached the static quota catalog in 1 call!

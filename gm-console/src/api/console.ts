@@ -195,6 +195,11 @@ export class ConsoleAPI {
     this.controllers.get(scope)?.abort();
   }
   async retry() {
+    const quotaPending = this.repreviewableDungeonQuotaPending();
+    if (quotaPending) {
+      await this.repreviewDungeonQuotas(quotaPending.id);
+      return;
+    }
     const jobs = [...this.retries];
     this.retries.clear();
     this.meta.error = "";
@@ -944,15 +949,44 @@ export class ConsoleAPI {
     this.meta.resources.premium = data;
     this.publish();
   }
-  async dungeonQuotas() {
+  async dungeonQuotas(fresh = false) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
     if (!c || !this.meta.features["dungeonQuotas.read"]) return;
     const signal = this.signal("quotas");
-    await this.http.observe(`/api/v1/characters/${segment(id)}/dungeon-quotas`, signal, ({data}) => {
+    const path = `/api/v1/characters/${segment(id)}/dungeon-quotas`;
+    if (fresh) {
+      this.http.invalidate([`characters:${id}`, "presence"]);
+      const { data } = await this.http.fresh(path, signal);
+      if (signal.aborted || this.current !== id) return;
+      this.meta.resources.dungeonQuotas = data;
+      this.publish();
+      return;
+    }
+    await this.http.observe(path, signal, ({data}) => {
       if (signal.aborted || this.current !== id) return;
       this.meta.resources.dungeonQuotas = data;
       this.publish();
     });
+  }
+  async refreshGmTab(tab: "growth" | "quotas" | "currency" | "premium" | "history") {
+    const id = this.current;
+    if (!id) return;
+    this.meta.error = "";
+    this.retries.clear();
+    const c = this.state.characters.find(x => x.id === id);
+    this.http.invalidate([
+      `characters:${id}`,
+      ...(c?.accountId ? [`accounts:${c.accountId}`] : []),
+      "directory",
+      "presence",
+    ]);
+    await this.character(id, false);
+    if (this.current !== id) return;
+    if (tab === "quotas") await Promise.all([this.presence(), this.dungeonQuotas(true)]);
+    else if (tab === "growth") await Promise.all([this.presence(), this.growth()]);
+    else if (tab === "currency") await Promise.all([this.presence(), this.balances()]);
+    else if (tab === "premium") await Promise.all([this.presence(), this.premium()]);
+    else await Promise.all([this.presence(), this.history(), this.tasks()]);
   }
   async balances(names = ["gold", "currency"]) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
@@ -1283,6 +1317,81 @@ export class ConsoleAPI {
     return !!p?.rejected && !p.completed && p.steps.length === 1 && !p.steps[0].done &&
       p.steps[0].path.endsWith("/inventory-operations") &&
       ["plan_expired", "plan_conflict", "character_online"].includes(p.errorCode || "");
+  }
+  canRepreviewDungeonQuotas(p: Pending | undefined = this.meta.pending) {
+    return !!p?.rejected && !p.completed && p.steps.length === 1 && !p.steps[0].done &&
+      p.steps[0].path.endsWith("/dungeon-quota-operations") &&
+      ["revision_conflict", "pvf_conflict", "plan_conflict", "character_online"].includes(p.errorCode || "");
+  }
+  repreviewableDungeonQuotaPending() {
+    if (this.canRepreviewDungeonQuotas(this.meta.pending)) return this.meta.pending;
+    const latest = this.meta.operationHistory[0];
+    if (!this.meta.pending && this.meta.error && latest?.error === this.meta.error && this.canRepreviewDungeonQuotas(latest)) {
+      return latest;
+    }
+    return undefined;
+  }
+  async repreviewDungeonQuotas(id = this.repreviewableDungeonQuotaPending()?.id) {
+    if (!id || this.meta.busy) return;
+    if (this.meta.pending?.id !== id) {
+      const archived = this.meta.operationHistory.find(old => old.id === id);
+      if (!this.canRepreviewDungeonQuotas(archived)) return;
+      this.openPending(id);
+    }
+    const p = this.meta.pending;
+    if (!p || p.id !== id || !this.canRepreviewDungeonQuotas(p)) return;
+    this.meta.busy = true;
+    this.publish();
+    try {
+      const step = p.steps[0];
+      const readPath = step.path.replace(/\/dungeon-quota-operations$/, "/dungeon-quotas");
+      const { data } = await this.http.fresh(readPath);
+      if (this.current === data.characterId) this.meta.resources.dungeonQuotas = data;
+      const entry = (data?.quotas || []).find((q: DTO) => q.key === step.body.quotaKey);
+      if (!entry || !entry.canReset || !(entry.used > 0)) {
+        throw new Error("角色最新副本额度已刷新，当前副本未消耗次数");
+      }
+      const { planToken: _, ...rest } = step.body;
+      const nextBody = {
+        ...rest,
+        revision: data.revision,
+        pvfChecksum: data.pvfChecksum,
+        definitionRevision: data.definitionRevision || "",
+      };
+      const summary = `重置「${entry.name}」已用次数：${entry.used}/${entry.limit} → 0/${entry.limit}（切换频道或重新选择角色后刷新客户端次数显示）`;
+      const preview = await this.http.post(step.path + "/preview", nextBody);
+      const nextID = crypto.randomUUID();
+      if (p.error && this.meta.error === p.error) this.meta.error = "";
+      this.retries.clear();
+      this.meta.pending = {
+        ...p,
+        id: nextID,
+        createdAt: new Date().toISOString(),
+        summary,
+        steps: [{
+          ...step,
+          id: nextID + "-0",
+          label: summary,
+          body: {
+            ...nextBody,
+            planToken: preview.planToken,
+            definitionRevision: preview.definitionRevision || nextBody.definitionRevision,
+          },
+          result: preview.receipt,
+          attempted: false,
+          refreshed: false,
+        }],
+        confirmed: false,
+        rejected: false,
+        hidden: false,
+        error: undefined,
+        errorCode: undefined,
+      };
+      this.persistPending();
+    } finally {
+      this.meta.busy = false;
+      this.publish();
+    }
   }
   async repreviewInventory(id = this.meta.pending?.id) {
     const p = this.meta.pending;
