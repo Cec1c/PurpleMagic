@@ -6,6 +6,9 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,13 +22,36 @@ import (
 )
 
 type Module struct {
-	Handler http.Handler
-	server  *gmtool.Server
-	archive *platformpvf.DiskArchive
-	pools   map[string]*sql.DB
-	cancel  context.CancelFunc
-	done    chan struct{}
-	once    sync.Once
+	Handler         http.Handler
+	server          *gmtool.Server
+	archive         *platformpvf.DiskArchive
+	clearProjection *mysql.ClearHistoryProjection
+	pools           map[string]*sql.DB
+	cancel          context.CancelFunc
+	done            chan struct{}
+	once            sync.Once
+}
+
+func resolveClearSnapshotPath(cfg Config) string {
+	if envPath := strings.TrimSpace(os.Getenv("PURPLEMAGIC_CLEAR_SNAPSHOT_PATH")); envPath != "" {
+		if envPath == "none" || envPath == "memory" {
+			return ""
+		}
+		return envPath
+	}
+	if cfg.SessionStorePath != "" {
+		return filepath.Join(filepath.Dir(cfg.SessionStorePath), "clear-history-v1.snap")
+	}
+	if cfg.ItemIndexPath != "" {
+		return filepath.Join(filepath.Dir(cfg.ItemIndexPath), "clear-history-v1.snap")
+	}
+	if cacheDir, err := os.UserCacheDir(); err == nil && cacheDir != "" {
+		dir := filepath.Join(cacheDir, "purplemagic")
+		if os.MkdirAll(dir, 0o700) == nil {
+			return filepath.Join(dir, "clear-history-v1.snap")
+		}
+	}
+	return filepath.Join(os.TempDir(), "purplemagic-clear-history-v1.snap")
 }
 
 func Open(ctx context.Context, cfg Config, log func(string, ...any)) (_ *Module, result error) {
@@ -70,9 +96,10 @@ func Open(ctx context.Context, cfg Config, log func(string, ...any)) (_ *Module,
 		if e != nil {
 			return nil, errors.New("management database configuration invalid")
 		}
-		db.SetMaxOpenConns(8)
-		db.SetMaxIdleConns(2)
-		db.SetConnMaxLifetime(5 * time.Minute)
+		db.SetMaxOpenConns(16)
+		db.SetMaxIdleConns(16)
+		db.SetConnMaxLifetime(15 * time.Minute)
+		db.SetConnMaxIdleTime(5 * time.Minute)
 		m.pools[dsn] = db
 		check, stop := context.WithTimeout(ctx, 5*time.Second)
 		defer stop()
@@ -92,10 +119,18 @@ func Open(ctx context.Context, cfg Config, log func(string, ...any)) (_ *Module,
 	if err = mysql.CheckManagementSchema(ctx, data, mysql.MySQLGroupOptions{TablePrefix: cfg.TablePrefix, DatabasePlan: repository.DatabasePlan{WriteDatabases: cfg.Databases, ReadDatabases: cfg.Databases}}); err != nil {
 		return nil, errors.New("management receipt schema unavailable; run --init-management-schema")
 	}
-	group, err := mysql.NewMySQLGroupFromDB(data, mysql.MySQLGroupOptions{TablePrefix: cfg.TablePrefix, DatabasePlan: repository.DatabasePlan{WriteDatabases: cfg.Databases, ReadDatabases: cfg.Databases}})
+	group, err := mysql.NewMySQLGroupFromDB(data, mysql.MySQLGroupOptions{
+		TablePrefix:  cfg.TablePrefix,
+		DatabasePlan: repository.DatabasePlan{WriteDatabases: cfg.Databases, ReadDatabases: cfg.Databases},
+		ClearProjection: &mysql.ClearProjectionConfig{
+			SnapshotPath: resolveClearSnapshotPath(cfg),
+			Logger:       log,
+		},
+	})
 	if err != nil {
 		return nil, errors.New("management repository mapping invalid")
 	}
+	m.clearProjection = mysql.ClearProjectionFromGroup(group)
 	benefits, err := testbenefits.NewStore(registration, cfg.AccountTable)
 	if err != nil {
 		return nil, err
@@ -126,6 +161,9 @@ func Open(ctx context.Context, cfg Config, log func(string, ...any)) (_ *Module,
 	m.server, err = gmtool.NewManaged(ctx, gmtool.Config{Password: secret, LoginKeySHA256: cfg.LoginKeySHA256, SessionStorePath: cfg.SessionStorePath, Table: cfg.AccountTable, PVFPath: cfg.PVFPath, ItemIndexCachePath: cfg.ItemIndexPath, DatabaseLabel: "MariaDB", RequireOffline: true, Logger: log}, deps)
 	if err != nil {
 		return nil, err
+	}
+	if m.clearProjection != nil {
+		m.clearProjection.Start(workerCtx)
 	}
 	if cfg.Catalog != nil {
 		m.Handler = m.server.GatewayHandler(cfg.ServiceToken, cfg.PVFSHA256)
@@ -163,6 +201,9 @@ func (m *Module) Close() error {
 	m.once.Do(func() {
 		m.cancel()
 		<-m.done
+		if m.clearProjection != nil {
+			result = errors.Join(result, m.clearProjection.Close())
+		}
 		if m.server != nil {
 			result = errors.Join(result, m.server.Stop())
 		}

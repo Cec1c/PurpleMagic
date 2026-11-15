@@ -50,15 +50,22 @@ func (s *mysqlCharStore) QueryClears(ctx context.Context, q moderation.Query) (m
 		return out, err
 	}
 	out.From, out.To = q.From, q.To
+	if s.clearProjection != nil {
+		projected, used, err := s.clearProjection.queryClears(ctx, q)
+		if err != nil || used {
+			return projected, err
+		}
+	}
 	source, args, err := s.clearStatsSource(q, true)
 	if err != nil {
 		return out, err
 	}
 	source = "SELECT *,COUNT(*) OVER(PARTITION BY character_id,dungeon_id,difficulty,DATE_FORMAT(finished_at,'%Y-%m-%d %H')) AS hourly FROM (" + source + ") source_clears"
-	columns := map[string]string{"accountId": "account_id", "characterId": "character_id", "characterName": "MAX(character_name)", "dungeonId": "dungeon_id", "dungeonName": "MAX(dungeon_name)", "difficulty": "difficulty", "count": "COUNT(*)", "fastestMs": "MIN(NULLIF(duration_ms,0))", "averageMs": "AVG(NULLIF(duration_ms,0))", "peakHourly": "MAX(hourly)", "lastClearAt": "MAX(finished_at)", "fatigueSpent": "SUM(fatigue_spent)", "averageFatigue": "AVG(fatigue_spent)"}
+	posDuration := "CASE WHEN duration_ms>0 THEN duration_ms END"
+	columns := map[string]string{"accountId": "account_id", "characterId": "character_id", "characterName": "MAX(character_name)", "dungeonId": "dungeon_id", "dungeonName": "MAX(dungeon_name)", "difficulty": "difficulty", "count": "COUNT(*)", "fastestMs": "MIN(" + posDuration + ")", "averageMs": "AVG(" + posDuration + ")", "peakHourly": "MAX(hourly)", "lastClearAt": "MAX(finished_at)", "fatigueSpent": "SUM(fatigue_spent)", "averageFatigue": "AVG(fatigue_spent)"}
 	column := columns[q.SortBy]
 	order := "(" + column + " IS NULL) ASC," + column + " " + q.SortOrder + ",character_id,dungeon_id,difficulty,account_id"
-	query := "SELECT account_id,character_id,MAX(character_name),dungeon_id,MAX(dungeon_name),difficulty,COUNT(*),MAX(finished_at),COALESCE(MIN(NULLIF(duration_ms,0)),0),COALESCE(CAST(AVG(NULLIF(duration_ms,0)) AS SIGNED),0),MAX(hourly),SUM(fatigue_spent),AVG(fatigue_spent),COUNT(fatigue_spent) FROM (" + source + ") clears GROUP BY account_id,character_id,dungeon_id,difficulty HAVING (?=0 OR MIN(NULLIF(duration_ms,0))<=?) AND (?=0 OR MAX(hourly)>=?) ORDER BY " + order + " LIMIT ? OFFSET ?"
+	query := "SELECT account_id,character_id,MAX(character_name),dungeon_id,MAX(dungeon_name),difficulty,COUNT(*),MAX(finished_at),COALESCE(MIN(" + posDuration + "),0),COALESCE(CAST(AVG(" + posDuration + ") AS SIGNED),0),MAX(hourly),SUM(fatigue_spent),AVG(fatigue_spent),COUNT(fatigue_spent) FROM (" + source + ") clears GROUP BY account_id,character_id,dungeon_id,difficulty HAVING (?=0 OR MIN(" + posDuration + ")<=?) AND (?=0 OR MAX(hourly)>=?) ORDER BY " + order + " LIMIT ? OFFSET ?"
 	args = append(args, q.MaxDurationMS, q.MaxDurationMS, q.MinHourlyPeak, q.MinHourlyPeak, q.Limit+1, q.Offset)
 	rows, err := s.router.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -86,13 +93,20 @@ func (s *mysqlCharStore) QueryAccountClears(ctx context.Context, q moderation.Qu
 	if err := q.NormalizeSort("account-stats"); err != nil {
 		return nil, err
 	}
+	if s.clearProjection != nil {
+		projected, used, err := s.clearProjection.queryAccountClears(ctx, q)
+		if err != nil || used {
+			return projected, err
+		}
+	}
 	source, args, err := s.clearStatsSource(q, false)
 	if err != nil {
 		return nil, err
 	}
 	// Collapse each account's hour across ALL characters and write shards first.
 	// Rate numerator and denominator use the same sampled, positive-duration runs.
-	hours := "SELECT account_id,COUNT(*) AS runs,MIN(NULLIF(duration_ms,0)) AS fastest,SUM(NULLIF(duration_ms,0)) AS duration,COUNT(NULLIF(duration_ms,0)) AS timed,MAX(finished_at) AS last_clear,SUM(fatigue_spent) AS fatigue,COUNT(fatigue_spent) AS sampled,SUM(CASE WHEN duration_ms>0 THEN fatigue_spent END) AS rate_fatigue,SUM(CASE WHEN fatigue_spent IS NOT NULL AND duration_ms>0 THEN duration_ms END) AS rate_duration FROM (" + source + ") clears GROUP BY account_id,DATE_FORMAT(finished_at,'%Y-%m-%d %H')"
+	posDuration := "CASE WHEN duration_ms>0 THEN duration_ms END"
+	hours := "SELECT account_id,COUNT(*) AS runs,MIN(" + posDuration + ") AS fastest,SUM(" + posDuration + ") AS duration,COUNT(" + posDuration + ") AS timed,MAX(finished_at) AS last_clear,SUM(fatigue_spent) AS fatigue,COUNT(fatigue_spent) AS sampled,SUM(CASE WHEN duration_ms>0 THEN fatigue_spent END) AS rate_fatigue,SUM(CASE WHEN fatigue_spent IS NOT NULL AND duration_ms>0 THEN duration_ms END) AS rate_duration FROM (" + source + ") clears GROUP BY account_id,DATE_FORMAT(finished_at,'%Y-%m-%d %H')"
 	query := "SELECT account_id,SUM(runs),COALESCE(MIN(fastest),0),COALESCE(CAST(SUM(duration)/NULLIF(SUM(timed),0) AS SIGNED),0),SUM(fatigue),SUM(sampled),SUM(rate_fatigue)*1000.0/NULLIF(SUM(rate_duration),0),MAX(runs),MAX(last_clear) FROM (" + hours + ") hours GROUP BY account_id HAVING (?=0 OR MIN(fastest)<=?) AND (?=0 OR MAX(runs)>=?)"
 	args = append(args, q.MaxDurationMS, q.MaxDurationMS, q.MinHourlyPeak, q.MinHourlyPeak)
 	rows, err := s.router.db.QueryContext(ctx, query, args...)

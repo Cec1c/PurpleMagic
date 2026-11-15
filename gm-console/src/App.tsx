@@ -25,9 +25,12 @@ import {
   ArrowRightLeft,
   LoaderCircle,
   ExternalLink,
+  Zap,
+  Search,
+  ArrowLeft,
 } from "lucide-react";
 import type { Command, Section, Selection } from "./domain";
-import { applyCommand, resolveRecipients } from "./domain";
+import { applyCommand, isDirectCommand, resolveRecipients } from "./domain";
 import { initialState, loadState, persistState } from "./fixtures";
 import {
   Identity,
@@ -38,6 +41,7 @@ import {
   number,
   type PageProps,
 } from "./ui";
+import { AccountManagerModal } from "./AccountManagerModal";
 import { Inventory } from "./pages/Inventory";
 import { Dashboard } from "./pages/Dashboard";
 import { Players, PlayerPicker } from "./pages/Players";
@@ -48,6 +52,7 @@ import { AntiCheatPage } from "./pages/AntiCheat";
 import { ActivitiesPage } from "./pages/Activities";
 import { BenefitsPage } from "./pages/Benefits";
 import { SystemSettings } from "./pages/SystemSettings";
+import { shouldRefreshOnVisibility } from "./api/http";
 import { Settings } from "./pages/Settings";
 import { ConsoleAPI } from "./api/console";
 import { emptyState } from "./api/model";
@@ -146,11 +151,14 @@ export function App() {
     [characterId, setCharacterId] = useState(demo ? "1" : ""),
     [selection, setSelection] = useState<Selection>({
       accounts: [],
-      characters: demo ? ["1"] : [],
+      characters: [],
     }),
     [preferences, setPreferences] = useState(readPreferences),
     [appearance, setAppearance] = useState(false),
     [pickCharacter, setPickCharacter] = useState(false),
+    [manageAccount, setManageAccount] = useState<{ id: string; name?: string } | null>(null),
+    [fromAntiCheat, setFromAntiCheat] = useState(false),
+    [mailComposeTick, setMailComposeTick] = useState(0),
     [mobileNav, setMobileNav] = useState(false),
     [reset, setReset] = useState(false);
   const [tokenPanel, setTokenPanel] = useState(false);
@@ -185,8 +193,14 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => {
+    let lastVisibilityRefreshAt = Date.now();
     const visible = () => {
       if (!document.hidden && live?.meta.authenticated) {
+        const now = Date.now();
+        if (!shouldRefreshOnVisibility(now, lastVisibilityRefreshAt, live.http.lastReadAt)) {
+          return;
+        }
+        lastVisibilityRefreshAt = now;
         live.http.invalidate(["players", "directory", "presence"]);
         void live.guard(async () => {
           if (live.sectionId === "inventory") await live.inventory(live.meta.inventory.tab as import("./domain").InventoryTab);
@@ -217,8 +231,31 @@ export function App() {
     localStorage.setItem(preferenceKey, JSON.stringify(preferences));
   }, [preferences]);
   useEffect(() => {
+    if (!live) return;
+    live.onToast = (text) => setToast({ text, error: false });
+    return () => {
+      live.onToast = undefined;
+    };
+  }, [live]);
+  useEffect(() => {
     if (live) void live.boot();
   }, [live]);
+  useEffect(() => {
+    if (live && live.current !== characterId) {
+      setCharacterId(live.current);
+    }
+  }, [live, state]);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        if (live && !state.api?.authenticated) return;
+        e.preventDefault();
+        setPickCharacter((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [live, state.api?.authenticated]);
   useEffect(() => {
     if (live?.meta.authenticated) void live.guard(() => live.enter(section));
   }, [live, section, state.api?.authenticated, characterId, character.id]);
@@ -228,6 +265,11 @@ export function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   function go(id: Section) {
+    if (section === "anti-cheat" && (id === "inventory" || id === "gm" || id === "accounts")) {
+      setFromAntiCheat(true);
+    } else if (id === "anti-cheat" || (id !== "inventory" && id !== "gm" && id !== "accounts")) {
+      setFromAntiCheat(false);
+    }
     live?.navigate(id);
     setSection(id);
     location.hash = id;
@@ -240,11 +282,23 @@ export function App() {
         await live.select(id);
       });
     setCharacterId(id);
-    if (selection.accounts.length === 0 && selection.characters.length <= 1)
-      setSelection({ accounts: [], characters: [id] });
     setPickCharacter(false);
   }
   function request(command: Command) {
+    if (isDirectCommand(command, state)) {
+      if (live) {
+        void live.guard(() => live.runDirect(command, selection));
+      } else {
+        try {
+          const next = applyCommand(state, command, undefined, crypto.randomUUID());
+          setState(next);
+          setToast({ text: next.receipts[0].summary, error: false });
+        } catch (e) {
+          setToast({ text: (e as Error).message, error: true });
+        }
+      }
+      return;
+    }
     if (live) {
       void live.guard(() => live.prepare(command, selection));
       return;
@@ -286,6 +340,7 @@ export function App() {
         await live.resolveSelection(value);
       });
   }
+  const openAccount = (id: string, name?: string) => setManageAccount({ id, name });
   const props: PageProps = {
     state,
     character,
@@ -295,7 +350,12 @@ export function App() {
     go,
     request,
     notify: (text) => setToast({ text, error: false }),
+    openAccount,
+    openCharacterPicker: () => setPickCharacter(true),
+    mailComposeTick,
   };
+  const batchRecipients = resolveRecipients(state, selection);
+  const hasBatchSelection = selection.accounts.length > 0 || selection.characters.length > 0;
   const currentRecipients =
     pending?.command.kind === "mail"
       ? state.characters.filter(
@@ -304,7 +364,7 @@ export function App() {
             pending.command.recipients.includes(c.id),
         )
       : [];
-  const noIdentity = ["query", "accounts", "settings", "system", "quests", "benefits", "activities", "anti-cheat"].includes(section);
+  const noIdentity = ["query", "accounts", "settings", "system", "benefits", "activities", "anti-cheat"].includes(section);
   if (live && !state.api?.authenticated) {
     return <LiveContext.Provider value={live}>
       <div className="app-shell auth-shell">
@@ -422,14 +482,51 @@ export function App() {
               <strong>{nav.label}</strong>
             </div>
             <div className="topbar-actions">
+              {live && state.api?.systemSettings?.carbonMode && (
+                <button
+                  type="button"
+                  className="carbon-pill"
+                  title="点击关闭在线写入（碳铀模式）"
+                  disabled={!!state.api.busy}
+                  onClick={() =>
+                    void live.guard(async () => {
+                      await live.systemSettings(false);
+                      setToast({ text: "已关闭在线写入（碳铀模式）", error: false });
+                    })
+                  }
+                >
+                  <Zap size={14} />
+                  <span>在线写入已开启</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="topbar-target-pill"
+                title="快速搜索并切换角色或账号 (Ctrl+K)"
+                onClick={() => setPickCharacter(true)}
+              >
+                <Users size={14} />
+                <span>{character.id ? character.name : "选择角色"}</span>
+                <kbd className="kbd-hint">Ctrl+K</kbd>
+              </button>
               {live && live.operationReceipts().length > 0 && (
                 <button className="secondary" onClick={() => setReceiptPanel(true)}>
                   操作回执 · {live.operationReceipts().length}
                 </button>
               )}
-              <span className="topbar-selected">
-                {resolveRecipients(state, selection).length} 个已选角色
-              </span>
+              {hasBatchSelection && (
+                <span className="topbar-selected-pill">
+                  <span>已勾选 {batchRecipients.length} 个收件角色</span>
+                  <button
+                    type="button"
+                    aria-label="清空批量勾选"
+                    title="清空批量勾选"
+                    onClick={() => chooseSelection({ accounts: [], characters: [] })}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
               <IconButton
                 label={
                   preferences.theme === "dark" ? "切换浅色主题" : "切换深色主题"
@@ -450,9 +547,18 @@ export function App() {
               <IconButton label="外观设置" onClick={() => setAppearance(true)}>
                 <Settings2 size={18} />
               </IconButton>
-              <button className="primary" onClick={() => go("mail")}>
+              <button
+                className="primary"
+                onClick={() => {
+                  if (!hasBatchSelection && character.id) {
+                    chooseSelection({ accounts: [], characters: [character.id] });
+                  }
+                  setMailComposeTick((v) => v + 1);
+                  go("mail");
+                }}
+              >
                 <Mail size={15} />
-                发邮件
+                {hasBatchSelection ? `发邮件 (${batchRecipients.length})` : "发邮件"}
               </button>
             </div>
           </header>
@@ -474,14 +580,28 @@ export function App() {
                 </div>
                 <p>{nav.sub}</p>
               </div>
-              {!["query", "benefits", "activities", "anti-cheat"].includes(section) && <button
-                className="secondary current-target"
-                onClick={() => setPickCharacter(true)}
-              >
-                <Users size={15} />
-                {character.name}
-                <ChevronRight size={14} />
-              </button>}
+              <div className="page-head-actions">
+                {fromAntiCheat && (section === "inventory" || section === "gm" || section === "accounts") && (
+                  <button
+                    type="button"
+                    className="secondary back-to-anticheat"
+                    onClick={() => go("anti-cheat")}
+                  >
+                    <ArrowLeft size={14} />
+                    返回反作弊
+                  </button>
+                )}
+                {!["query", "benefits", "activities", "anti-cheat"].includes(section) && (
+                  <button
+                    className="secondary current-target"
+                    onClick={() => setPickCharacter(true)}
+                  >
+                    <Users size={15} />
+                    {character.name}
+                    <ChevronRight size={14} />
+                  </button>
+                )}
+              </div>
             </div>
             {!noIdentity &&
               character.id &&
@@ -490,11 +610,30 @@ export function App() {
                   state={state}
                   character={character}
                   onChoose={() => setPickCharacter(true)}
+                  onSelectCharacter={selectCharacter}
+                  onManageAccount={openAccount}
+                  onQuickMail={() => {
+                    if (character.id) {
+                      chooseSelection({ accounts: [], characters: [character.id] });
+                    }
+                    setMailComposeTick((v) => v + 1);
+                    go("mail");
+                  }}
                 />
               )}
             {state.api?.error && (
               <div className="glass live-status" role="alert">
                 <span className="inline-error">{state.api.error}</span>
+                {live?.canEnableCarbonAndRetry() && (
+                  <button
+                    type="button"
+                    className="amber-action-button"
+                    disabled={!!state.api.busy}
+                    onClick={() => void live.guard(() => live.enableCarbonAndRetry())}
+                  >
+                    ⚡ 开启在线写入并重试预览
+                  </button>
+                )}
                 {live?.repreviewableDungeonQuotaPending() ? (
                   <button
                     className="primary"
@@ -520,17 +659,49 @@ export function App() {
                 )}
               </div>
             )}
-            <div key={`${section}-${["query", "benefits", "activities", "anti-cheat"].includes(section) ? "global" : character.id}`} className="page-content">
+            <div key={section} className="page-content">
               {live && !state.api?.authenticated ? (
                 <LoginPanel />
               ) : live &&
                 !live.current &&
-                !["query", "accounts", "settings", "system", "quests", "benefits", "activities", "anti-cheat"].includes(section) ? (
-                <div className="glass content-panel">
-                  <Empty title="选择一位角色开始管理" />
-                  <button className="primary" onClick={() => go("accounts")}>
-                    查询账号与角色
-                  </button>
+                !["query", "accounts", "settings", "system", "quests", "mail", "benefits", "activities", "anti-cheat"].includes(section) ? (
+                <div className="glass content-panel empty-character-panel">
+                  <Empty
+                    title="选择一位角色开始管理"
+                    detail="选定后将直接留在当前功能页继续操作"
+                  />
+                  <div className="empty-character-actions">
+                    <button className="primary" onClick={() => setPickCharacter(true)}>
+                      <Search size={15} />
+                      搜索并选择角色 (Ctrl+K)
+                    </button>
+                    <button className="secondary" onClick={() => go("accounts")}>
+                      前往账号与角色目录
+                    </button>
+                  </div>
+                  {!!state.api?.recentCharacters.length && (
+                    <div className="recent-character-section">
+                      <span className="muted">最近访问角色</span>
+                      <div className="recent-character-grid">
+                        {state.api.recentCharacters.map((rc) => (
+                          <button
+                            key={rc.id}
+                            type="button"
+                            className="recent-character-card"
+                            onClick={() => selectCharacter(rc.id)}
+                          >
+                            <strong>{rc.name}</strong>
+                            <small>
+                              Lv.{rc.level} · {rc.job}
+                            </small>
+                            <small className="muted">
+                              {rc.accountName ? `账号 ${rc.accountName}` : `ID ${rc.id}`}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -584,7 +755,7 @@ export function App() {
         )}
         {pickCharacter && (
           <Modal
-            title="切换当前角色"
+            title="快速搜索角色或账号"
             wide
             onClose={() => setPickCharacter(false)}
           >
@@ -594,8 +765,23 @@ export function App() {
               setSelection={chooseSelection}
               pickOnly
               onChoose={selectCharacter}
+              onManageAccount={(id, name) => {
+                setPickCharacter(false);
+                setManageAccount({ id, name });
+              }}
             />
           </Modal>
+        )}
+        {manageAccount && (
+          <AccountManagerModal
+            accountId={manageAccount.id}
+            accountName={manageAccount.name}
+            state={state}
+            request={request}
+            onClose={() => setManageAccount(null)}
+            onSelectCharacter={selectCharacter}
+            go={go}
+          />
         )}
         {state.api?.pending && !state.api.pending.hidden && <LiveConfirmation pending={state.api.pending} />}
         {receiptPanel && live && <OperationHistory onClose={() => setReceiptPanel(false)} />}
@@ -840,7 +1026,7 @@ export function App() {
                   className="primary"
                   onClick={() => {
                     setState(initialState());
-                    setSelection({ accounts: [], characters: ["1"] });
+                    setSelection({ accounts: [], characters: [] });
                     setCharacterId("1");
                     setReset(false);
                     setToast({ text: "演示数据已重置", error: false });

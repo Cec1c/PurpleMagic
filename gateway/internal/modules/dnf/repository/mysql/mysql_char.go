@@ -254,6 +254,7 @@ func mysqlTwoDigit(value int) string {
 
 type mysqlCharStore struct {
 	mysqlStoreBase
+	clearProjection *ClearHistoryProjection
 }
 
 func (s *mysqlCharStore) AdvanceStoryDigest(ctx context.Context, characterID string, level, migrationVersion uint32) error {

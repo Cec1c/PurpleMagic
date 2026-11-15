@@ -20,6 +20,8 @@ type Client struct {
 	http            *http.Client
 }
 
+const maxAdminResponseBytes int64 = 4 << 20
+
 func NewClient(endpoint, token string) (*Client, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil || u.User != nil || u.Host == "" || u.Path != Path || u.RawQuery != "" || u.Fragment != "" || len(token) < 32 {
@@ -29,7 +31,12 @@ func NewClient(endpoint, token string) (*Client, error) {
 	if u.Scheme != "https" && !(u.Scheme == "http" && ip != nil && (ip.IsLoopback() || ip.IsPrivate())) {
 		return nil, errors.New("game API requires HTTPS or a private IP endpoint")
 	}
-	return &Client{endpoint: endpoint, token: token, http: &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.MaxIdleConns = 32
+	transport.MaxIdleConnsPerHost = 16
+	transport.IdleConnTimeout = 90 * time.Second
+	return &Client{endpoint: endpoint, token: token, http: &http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
 func (c *Client) Call(ctx context.Context, input Request) (Response, error) {
@@ -56,12 +63,8 @@ func (c *Client) Call(ctx context.Context, input Request) (Response, error) {
 	if resp.StatusCode != http.StatusOK {
 		return result, fmt.Errorf("game runtime API HTTP %d", resp.StatusCode)
 	}
-	limit := int64(65536)
-	if input.Action == "online_snapshot" {
-		limit = 512 << 10
-	}
-	raw, err = io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil || int64(len(raw)) > limit {
+	raw, err = io.ReadAll(io.LimitReader(resp.Body, maxAdminResponseBytes+1))
+	if err != nil || int64(len(raw)) > maxAdminResponseBytes {
 		return result, errors.New("invalid game runtime response")
 	}
 	if err = json.Unmarshal(raw, &result); err != nil || result.Version != Version {

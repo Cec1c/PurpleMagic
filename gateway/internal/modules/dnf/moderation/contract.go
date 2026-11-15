@@ -22,10 +22,11 @@ type Clear struct {
 	FatigueSpent  *int64    `json:"fatigueSpent"`
 }
 type Query struct {
-	AccountID          string    `json:"accountId,omitempty"`
-	HideBanned         bool      `json:"hideBanned,omitempty"`
-	ExcludedAccountIDs []string  `json:"-"` // Resolved by the trusted account service.
-	SortBy             string    `json:"sortBy,omitempty"`
+	AccountID          string            `json:"accountId,omitempty"`
+	HideBanned         bool              `json:"hideBanned,omitempty"`
+	ExcludedAccountIDs []string          `json:"-"` // Resolved by the trusted account service.
+	AccountNames       map[string]string `json:"-"` // Optional accountId -> login name map for clear search.
+	SortBy             string            `json:"sortBy,omitempty"`
 	SortOrder          string    `json:"sortOrder,omitempty"`
 	Search             string    `json:"search,omitempty"`
 	MaxDurationMS      int64     `json:"maxDurationMs,omitempty"`

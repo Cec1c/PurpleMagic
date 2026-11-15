@@ -85,6 +85,14 @@ func (r *v1WaitingReader) FindSummary(ctx context.Context, _ string) (repository
 }
 func (r *v1WaitingReader) SearchSummaries(ctx context.Context, _, _ string, _ int) ([]repository.CharacterSummary, error) {
 	r.deadline, _ = ctx.Deadline()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// If the server applied the 15s default read deadline, verify it immediately
+	// without making unit tests block for 15 wall-clock seconds.
+	if time.Until(r.deadline) > 5*time.Second {
+		return nil, context.DeadlineExceeded
+	}
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
@@ -101,15 +109,16 @@ func TestV1ReadDeadlineAndCancellation(t *testing.T) {
 	start := time.Now()
 	w := httptest.NewRecorder()
 	s.routes().ServeHTTP(w, request)
-	if w.Code != 503 || reader.deadline.IsZero() || reader.deadline.Sub(start) > 3100*time.Millisecond || time.Since(start) > 5*time.Second {
-		t.Fatal("read deadline not enforced", w.Code, reader.deadline, time.Since(start))
+	budget := reader.deadline.Sub(start)
+	if w.Code != 503 || reader.deadline.IsZero() || budget < 14*time.Second || budget > 15500*time.Millisecond || time.Since(start) > time.Second {
+		t.Fatal("read deadline not enforced", w.Code, budget, time.Since(start))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	start = time.Now()
 	w = httptest.NewRecorder()
 	s.routes().ServeHTTP(w, request.WithContext(ctx))
-	if w.Code != 503 || time.Since(start) > time.Second {
-		t.Fatal("caller cancellation not preserved")
+	if w.Code != statusClientClosedRequest || time.Since(start) > time.Second {
+		t.Fatal("caller cancellation not preserved quietly", w.Code)
 	}
 }

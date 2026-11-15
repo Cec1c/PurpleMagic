@@ -1,11 +1,18 @@
 import { LoadingSkeleton } from "../Loading";
 import { useState, useEffect } from "react";
-import { Mail, ArrowUpRight, Users, UserRound, Search } from "lucide-react";
+import { Mail, ArrowUpRight, Users, UserRound, Search, Backpack, Shield, WandSparkles, Settings2, Clock3 } from "lucide-react";
 import { useLive } from "../api/context";
 import { LoadMore } from "../api/controls";
+import { query } from "../api/http";
+import { characterDTO } from "../api/console";
 import { resolveRecipients } from "../domain";
+import {
+  readDirectoryMemory,
+  writeDirectoryMemory,
+  writeInventoryTabMemory,
+} from "../navigation-state";
 import { ResetPassword } from "./ResetPassword";
-import type { State, Selection } from "../domain";
+import type { State, Selection, Account, Character } from "../domain";
 import {
   SearchField,
   Tabs,
@@ -22,40 +29,142 @@ export function PlayerPicker({
   selection,
   setSelection,
   onChoose,
+  onManageAccount,
   pickOnly = false,
 }: {
   state: State;
   selection: Selection;
   setSelection: (v: Selection) => void;
   onChoose?: (id: string) => void;
+  onManageAccount?: (accountId: string, accountName?: string) => void;
   pickOnly?: boolean;
 }) {
   const live = useLive();
   const [q, setQ] = useState("");
+  const [quickResult, setQuickResult] = useState<{
+    characters: Character[];
+    accounts: Account[];
+    qqMatches: { qq: string; accountId: string; accountName: string }[];
+    accountRoles: Record<string, Character[]>;
+  } | null>(null);
+  const [searching, setSearching] = useState(false);
+
   useEffect(() => {
     if (!live) return;
-    const timer = setTimeout(
-      () => void live.guard(() => live.directory("characters", q)),
-      250,
-    );
-    return () => { clearTimeout(timer); live.cancelScope("directory"); };
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setQuickResult(null);
+      setSearching(false);
+      const timer = setTimeout(
+        () => void live.guard(() => live.directory("characters", "")),
+        120,
+      );
+      return () => {
+        clearTimeout(timer);
+        live.cancelScope("directory");
+      };
+    }
+    const ctrl = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void live
+        .guard(async () => {
+          const res = await live.quickSearch(trimmed, ctrl.signal);
+          if (!ctrl.signal.aborted) setQuickResult(res);
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setSearching(false);
+        });
+    }, 220);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [live, q]);
-  const rows = state.characters.filter((c) =>
-    `${c.name} ${c.id} ${state.accounts.find((a) => a.id === c.accountId)?.name}`
-      .toLowerCase()
-      .includes(q.toLowerCase()),
-  );
+
+  const isQuickMode = !!live && !!q.trim();
+  const rows = isQuickMode
+    ? (() => {
+        if (!quickResult) return [];
+        const byId = new Map<string, Character>();
+        for (const c of quickResult.characters) byId.set(c.id, c);
+        for (const list of Object.values(quickResult.accountRoles)) {
+          for (const c of list) if (!byId.has(c.id)) byId.set(c.id, c);
+        }
+        return [...byId.values()];
+      })()
+    : state.characters.filter((c) =>
+        `${c.name} ${c.id} ${state.accounts.find((a) => a.id === c.accountId)?.name}`
+          .toLowerCase()
+          .includes(q.toLowerCase()),
+      );
+
+  const displayAccounts: Account[] = isQuickMode
+    ? (() => {
+        if (!quickResult) return [];
+        const map = new Map<string, Account>();
+        for (const a of quickResult.accounts) map.set(a.id, a);
+        for (const c of rows) {
+          if (!map.has(c.accountId)) {
+            const known = state.accounts.find((a) => a.id === c.accountId);
+            map.set(
+              c.accountId,
+              known || {
+                id: c.accountId,
+                name: c.accountId,
+                points: 0,
+                tokens: 0,
+                status: "正常",
+              },
+            );
+          }
+        }
+        return [...map.values()];
+      })()
+    : state.accounts.filter((a) =>
+        q.trim()
+          ? rows.some((c) => c.accountId === a.id) ||
+            `${a.name} ${a.id}`.toLowerCase().includes(q.toLowerCase())
+          : rows.some((c) => c.accountId === a.id),
+      );
+
+  const recent = state.api?.recentCharacters || [];
+
   return (
     <>
       <SearchField
-        placeholder="搜索账号、角色名或 ID"
+        placeholder="同时搜索角色名、账号名、ID 或绑定 QQ 号"
         value={q}
         onChange={setQ}
       />
+      {pickOnly && !q.trim() && recent.length > 0 && (
+        <div className="picker-recent">
+          <div className="picker-recent-head">
+            <Clock3 size={13} />
+            <span>最近访问角色</span>
+          </div>
+          <div className="recent-character-grid compact">
+            {recent.map((rc) => (
+              <button
+                key={rc.id}
+                type="button"
+                className="recent-character-card"
+                onClick={() => onChoose?.(rc.id)}
+              >
+                <strong>{rc.name}</strong>
+                <small>
+                  Lv.{rc.level} · {rc.job}
+                </small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="picker-list">
-        {state.accounts
-          .filter((a) => rows.some((c) => c.accountId === a.id))
-          .map((a) => (
+        {displayAccounts.map((a) => {
+          const accountChars = rows.filter((c) => c.accountId === a.id);
+          const qq = quickResult?.qqMatches.find((m) => m.accountId === a.id)?.qq;
+          return (
             <section key={a.id}>
               <div className="picker-account">
                 {!pickOnly && (
@@ -72,14 +181,29 @@ export function PlayerPicker({
                 )}
                 <Users size={15} />
                 <strong>{a.name}</strong>
+                {a.name !== a.id && <small className="mono">{a.id}</small>}
+                {qq && <Pill tone="cyan">QQ {qq}</Pill>}
+                {a.status === "限制登录" && <Pill tone="orange">限制登录</Pill>}
                 <small>
-                  {state.characters.filter((c) => c.accountId === a.id).length}{" "}
-                  个角色
+                  {a.characterCount ?? accountChars.length} 个角色
                 </small>
+                {onManageAccount && (
+                  <button
+                    type="button"
+                    className="text-button picker-manage-account"
+                    onClick={() => onManageAccount(a.id, a.name)}
+                  >
+                    <Settings2 size={13} />
+                    管理账号
+                  </button>
+                )}
               </div>
-              {rows
-                .filter((c) => c.accountId === a.id)
-                .map((c) => (
+              {accountChars.length === 0 ? (
+                <div className="picker-empty-account muted">
+                  该账号暂无角色{onManageAccount ? "，可点击右上「管理账号」调整点券、黑钻或重置密码" : ""}
+                </div>
+              ) : (
+                accountChars.map((c) => (
                   <div className="picker-character" key={c.id}>
                     {!pickOnly && (
                       <CheckBox
@@ -92,7 +216,7 @@ export function PlayerPicker({
                           if (selection.accounts.includes(c.accountId)) {
                             setSelection({
                               accounts: selection.accounts.filter(
-                                (a) => a !== c.accountId,
+                                (accId) => accId !== c.accountId,
                               ),
                               characters: [
                                 ...new Set([
@@ -121,7 +245,7 @@ export function PlayerPicker({
                     <div>
                       <strong>{c.name}</strong>
                       <small>
-                        Lv.{c.level} · {c.job}
+                        Lv.{c.level} · {c.job} · ID {c.id}
                       </small>
                     </div>
                     <span className={`status ${c.online ? "online" : ""}`}>
@@ -141,17 +265,24 @@ export function PlayerPicker({
                       </button>
                     )}
                   </div>
-                ))}
+                ))
+              )}
             </section>
-          ))}
+          );
+        })}
       </div>
-      {!rows.length && <Empty title="没有匹配的角色" />}
-      <LoadMore
-        show={!!state.api?.directory.next}
-        onClick={() =>
-          void live?.guard(() => live.directory("characters", q, true))
-        }
-      />
+      {searching && !displayAccounts.length && <LoadingSkeleton rows={3} />}
+      {!searching && !displayAccounts.length && (
+        <Empty title="没有匹配的角色或账号" detail="可输入角色名、账号名、ID 或绑定 QQ 号检索" />
+      )}
+      {!isQuickMode && (
+        <LoadMore
+          show={!!state.api?.directory.next}
+          onClick={() =>
+            void live?.guard(() => live.directory("characters", q, true))
+          }
+        />
+      )}
       {!pickOnly && (
         <p className="muted">
           已选择 {resolveRecipients(state, selection).length}{" "}
@@ -169,26 +300,86 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
     setSelection,
     selectCharacter,
     go,
+    notify,
+    openAccount,
     accountMode = false,
   } = props;
   const [resetAccount, setResetAccount] = useState<{ id: string; name: string } | null>(null);
+  const initialDir = readDirectoryMemory(live);
+  const hasSavedDir = !!(
+    initialDir &&
+    (initialDir.initialized ||
+      initialDir.q ||
+      initialDir.accountId ||
+      (initialDir.online && initialDir.online !== "all") ||
+      initialDir.ids.length > 0 ||
+      initialDir.accountIds.length > 0)
+  );
   const [mode, setMode] = useState<"characters" | "accounts">(
-      accountMode ? "accounts" : "characters",
+      hasSavedDir ? initialDir!.mode : accountMode ? "accounts" : "characters",
     ),
-    [q, setQ] = useState(""),
-    [accountScope, setAccountScope] = useState(""),
-    [online, setOnline] = useState("all");
+    [q, setQ] = useState(hasSavedDir ? initialDir!.q : ""),
+    [accountScope, setAccountScope] = useState(hasSavedDir ? initialDir!.accountId || "" : ""),
+    [online, setOnline] = useState(hasSavedDir ? initialDir!.online || "all" : "all");
+  const [crossCharacters, setCrossCharacters] = useState<Character[]>([]);
+
   useEffect(() => {
+    writeDirectoryMemory(live, { mode, q, accountId: accountScope, online });
     if (!live) return;
     const timer = setTimeout(
       () => void live.guard(() => live.directory(mode, q, false, accountScope, online)),
-      250,
+      220,
     );
-    return () => { clearTimeout(timer); live.cancelScope("directory"); };
+    return () => {
+      clearTimeout(timer);
+      live.cancelScope("directory");
+    };
   }, [live, mode, q, accountScope, online]);
+
+  useEffect(() => {
+    const trimmed = q.trim();
+    if (mode !== "accounts" || !trimmed) {
+      setCrossCharacters([]);
+      return;
+    }
+    if (!live) {
+      setCrossCharacters(
+        state.characters
+          .filter((c) => `${c.name} ${c.id}`.toLowerCase().includes(trimmed.toLowerCase()))
+          .slice(0, 8),
+      );
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      void live.http
+        .get<any[]>(query("/api/v1/characters", { q: trimmed, limit: 8 }), ctrl.signal)
+        .then(({ data }) => {
+          if (!ctrl.signal.aborted) {
+            setCrossCharacters(
+              (data || []).map((v) =>
+                characterDTO(
+                  v,
+                  state.characters.find((c) => c.id === String(v.characterId)),
+                ),
+              ),
+            );
+          }
+        })
+        .catch(() => {
+          if (!ctrl.signal.aborted) setCrossCharacters([]);
+        });
+    }, 240);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [live, mode, q]);
+
   const rows = state.characters.filter(
     (c) =>
       (!live || state.api?.directory.ids.includes(c.id)) &&
+      (!!live || !accountScope || c.accountId === accountScope) &&
       (online === "all" ||
         (c.online !== null && (online === "online") === c.online)) &&
       (!!live ||
@@ -199,12 +390,24 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
   const accounts = state.accounts.filter((a) =>
     live
       ? state.api?.directory.accountIds.includes(a.id)
-      : rows.some((c) => c.accountId === a.id),
+      : q.trim()
+        ? `${a.name} ${a.id}`.toLowerCase().includes(q.toLowerCase()) ||
+          rows.some((c) => c.accountId === a.id)
+        : rows.some((c) => c.accountId === a.id),
   );
   const selected = resolveRecipients(state, selection);
   function open(id: string) {
-    go("inventory");
     selectCharacter(id);
+    go("inventory");
+  }
+  function openEquipped(id: string) {
+    writeInventoryTabMemory(live, "equipped");
+    selectCharacter(id);
+    go("inventory");
+  }
+  function openGm(id: string) {
+    selectCharacter(id);
+    go("gm");
   }
   const listIds =
       mode === "accounts" ? accounts.map((a) => a.id) : rows.map((c) => c.id),
@@ -247,7 +450,10 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
         <select
           aria-label="在线状态"
           value={online}
-          onChange={(e) => { setOnline(e.target.value); if (e.target.value !== "all") setMode("characters"); }}
+          onChange={(e) => {
+            setOnline(e.target.value);
+            if (e.target.value !== "all") setMode("characters");
+          }}
         >
           <option value="all">全部状态</option>
           <option value="online">在线</option>
@@ -312,22 +518,39 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                       <td>{number(a.rawPoints ?? a.points)}</td>
                       <td>{live ? a.status : number(a.tokens)}</td>
                       <td>
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            setQ(live ? "" : a.name);
-                            setAccountScope(live ? a.id : "");
-                            setMode("characters");
-                          }}
-                        >
-                          查看角色
-                          <ArrowUpRight size={14} />
-                        </button>
-                        {accountMode && live?.meta.features["accounts.password-reset"] && (
-                          <button className="text-button" onClick={() => setResetAccount({ id: a.id, name: a.name })}>
-                            重置密码
+                        <div className="inline-jump-actions">
+                          {openAccount && (
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={() => openAccount(a.id, a.name)}
+                            >
+                              <Settings2 size={14} />
+                              管理账号
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setQ(live ? "" : a.name);
+                              setAccountScope(live ? a.id : "");
+                              setMode("characters");
+                            }}
+                          >
+                            查看角色
+                            <ArrowUpRight size={14} />
                           </button>
-                        )}
+                          {accountMode && live?.meta.features["accounts.password-reset"] && (
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={() => setResetAccount({ id: a.id, name: a.name })}
+                            >
+                              重置密码
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -376,7 +599,22 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                         <small className="cell-meta">{c.job}</small>
                       </td>
                       <td>
-                        {state.accounts.find((a) => a.id === c.accountId)?.name}
+                        {openAccount ? (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() =>
+                              openAccount(
+                                c.accountId,
+                                state.accounts.find((a) => a.id === c.accountId)?.name,
+                              )
+                            }
+                          >
+                            {state.accounts.find((a) => a.id === c.accountId)?.name || c.accountId}
+                          </button>
+                        ) : (
+                          state.accounts.find((a) => a.id === c.accountId)?.name || c.accountId
+                        )}
                       </td>
                       <td>
                         <span className={`status ${c.online ? "online" : ""}`}>
@@ -389,13 +627,42 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                         </span>
                       </td>
                       <td>
-                        <button
-                          className="text-button"
-                          onClick={() => open(c.id)}
-                        >
-                          打开工作区
-                          <ArrowUpRight size={14} />
-                        </button>
+                        <div className="inline-jump-actions">
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => open(c.id)}
+                          >
+                            <Backpack size={14} />
+                            背包
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => openEquipped(c.id)}
+                          >
+                            <Shield size={14} />
+                            穿戴
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => openGm(c.id)}
+                          >
+                            <WandSparkles size={14} />
+                            GM
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              selectCharacter(c.id);
+                              notify(`已切换当前角色为 ${c.name}`);
+                            }}
+                          >
+                            选定
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -403,9 +670,56 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
           </table>
         </div>
         {!!state.api?.reading && !listIds.length && <LoadingSkeleton />}
-        {!state.api?.reading && (mode === "accounts" ? accounts.length : rows.length) === 0 && (
-          <Empty title="没有匹配结果" detail="尝试其他账号、名称或 ID" />
+        {!state.api?.reading && mode === "accounts" && accounts.length === 0 && crossCharacters.length > 0 && (
+          <div className="cross-match-banner">
+            <div className="cross-match-head">
+              <span>
+                未找到匹配账号，但在角色目录中找到 <strong>{crossCharacters.length}</strong> 位匹配角色：
+              </span>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setMode("characters")}
+              >
+                切换到角色视图
+              </button>
+            </div>
+            <div className="cross-match-list">
+              {crossCharacters.map((c) => (
+                <div key={c.id} className="cross-match-card">
+                  <div>
+                    <strong>{c.name}</strong>
+                    <small>
+                      Lv.{c.level} · {c.job} · 账号 {c.accountId}
+                    </small>
+                  </div>
+                  <div className="inline-jump-actions">
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => open(c.id)}
+                    >
+                      背包
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => openGm(c.id)}
+                    >
+                      GM
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
+        {!state.api?.reading &&
+          (mode === "accounts"
+            ? accounts.length === 0 && crossCharacters.length === 0
+            : rows.length === 0) && (
+            <Empty title="没有匹配结果" detail="尝试其他账号、名称或 ID" />
+          )}
         <div className="table-footer">
           <span>
             <Search size={14} />

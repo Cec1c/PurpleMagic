@@ -126,6 +126,9 @@ func (s *Server) v1Moderation(w http.ResponseWriter, r *http.Request) {
 		request.ModerationQuery = &q
 	}
 	result, err := s.deps.Runtime.Call(r.Context(), request)
+	if request.Action == "change_ban" {
+		s.invalidateModerationAccounts()
+	}
 	if err != nil {
 		if result.Error == "封禁状态已变化，请刷新后重新确认" {
 			v1Fail(w, r, 409, "revision_conflict", result.Error, false)

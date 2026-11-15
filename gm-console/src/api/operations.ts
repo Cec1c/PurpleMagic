@@ -3,10 +3,10 @@ import { activityChanges, type ActivitySnapshot } from "../activities";
 import { executeActivitySave, publishActivities } from "./activities";
 import { itemExpirationLabel } from "../item-expiration";
 import type { Command, Selection } from "../domain";
-import { benefitReward } from "../domain";
+import { benefitReward, computeCeraAdjustment } from "../domain";
 import type { ConsoleAPI } from "./console";
 import type { DTO, Pending, Step } from "./model";
-import { segment, ApiError } from "./http";
+import { segment, ApiError, safeNumber } from "./http";
 const reason = "PurpleMagic 管理操作";
 function changed(a: unknown, b: unknown) {
   return !(Object.is(a, b) || (Number.isNaN(a) && Number.isNaN(b)));
@@ -218,9 +218,12 @@ export async function prepareOperation(
     });
   } else if (command.kind === "premium-grant") {
     integer(command.days, 1, 3650);
-    if (!c || c.accountId !== command.accountId) throw new Error("账号已切换，请重新选择");
+    if (!command.accountId?.trim()) throw new Error("请先选择账号");
+    if (!command.standalone && (!c || c.accountId !== command.accountId)) throw new Error("账号已切换，请重新选择");
     if (!api.meta.features["premium.write"]) throw new Error("当前网关尚未开放黑钻开通");
-    p.target = api.state.accounts.find(a => a.id === command.accountId)?.name || command.accountId;
+    p.title = "确认黑钻续期";
+    const panelAcc = api.meta.accountPanel?.accountId === command.accountId ? api.meta.accountPanel.account : undefined;
+    p.target = panelAcc?.name || api.state.accounts.find(a => a.id === command.accountId)?.name || command.accountId;
     p.summary = `为该账号开通 / 续期黑钻贵族 ${command.days} 天，账号内所有角色共享`;
     add(p.summary, `/api/v1/accounts/${segment(command.accountId)}/premium-grants`, {days:command.days});
   } else if (command.kind === "rename-character") {
@@ -235,16 +238,20 @@ export async function prepareOperation(
       accountId: c.accountId, expectedName: command.expectedName, newName, reason,
     });
   } else if (command.kind === "rename-adventure") {
-    if (!c || command.accountId !== c.accountId) throw new Error("账号已切换，请重新填写冒险团名");
+    if (!command.accountId?.trim()) throw new Error("请先选择账号");
+    if (!command.standalone && (!c || command.accountId !== c.accountId)) throw new Error("账号已切换，请重新填写冒险团名");
     if (!api.meta.features["adventure.rename"]) throw new Error("当前服务未启用冒险团改名");
-    const current = api.meta.resources.adventureName;
+    const current = command.standalone
+      ? (api.meta.accountPanel?.accountId === command.accountId ? api.meta.accountPanel.adventureName : api.meta.resources.adventureName)
+      : api.meta.resources.adventureName;
     if (!current || current.accountId !== command.accountId || current.name !== command.expectedName) throw new Error("冒险团名已变化，请刷新后重试");
     const newName = command.newName.trim();
     if (!newName || newName === current.name) throw new Error("请输入与当前名字不同的新冒险团名");
     p.title = "确认冒险团改名";
-    p.target = api.state.accounts.find(a => a.id === c.accountId)?.name || c.accountId;
-    p.summary = `账号 ${c.accountId} 的冒险团：${current.name} → ${newName}`;
-    await preview(p.summary, `/api/v1/accounts/${segment(c.accountId)}/adventure-rename-operations`, {
+    const panelAcc = api.meta.accountPanel?.accountId === command.accountId ? api.meta.accountPanel.account : undefined;
+    p.target = panelAcc?.name || api.state.accounts.find(a => a.id === command.accountId)?.name || command.accountId;
+    p.summary = `账号 ${command.accountId} 的冒险团：${current.name} → ${newName}`;
+    await preview(p.summary, `/api/v1/accounts/${segment(command.accountId)}/adventure-rename-operations`, {
       expectedName: command.expectedName, newName, reason,
     });
   } else if (command.kind === "reset-dungeon-quota") {
@@ -349,6 +356,49 @@ export async function prepareOperation(
         p.steps.length ? base + "/skill-points" : undefined,
       );
     }
+  } else if (command.kind === "character-gold") {
+    if (!c || command.characterId !== c.id) throw new Error("角色已切换，请重新选择");
+    if (!api.meta.features["gold.write"]) throw new Error("当前服务未开放角色金币修改");
+    const r = api.meta.resources;
+    if (!r.gold?.revision) throw new Error("角色金币尚未读取完成");
+    integer(command.gold);
+    if (!changed(command.gold, c.gold)) throw new Error("没有需要保存的修改");
+    p.title = "确认修改金币";
+    await preview(
+      `金币 → ${command.gold.toLocaleString()}`,
+      base + "/gold-operations",
+      {
+        accountId: c.accountId,
+        action: "set",
+        amount: String(command.gold),
+        revision: r.gold.revision,
+        reason,
+      },
+    );
+    p.summary = p.steps.map((s) => s.label).join("；");
+  } else if (command.kind === "account-currency") {
+    if (!command.accountId?.trim()) throw new Error("请先选择账号");
+    if (!command.standalone && (!c || c.accountId !== command.accountId)) throw new Error("账号已切换，请重新选择");
+    if (!api.meta.features["currency.write"]) throw new Error("当前服务未开放账号点券调整");
+    const wallet = command.standalone
+      ? (api.meta.accountPanel?.accountId === command.accountId ? api.meta.accountPanel.currency : api.meta.resources.currency)
+      : api.meta.resources.currency;
+    if (!wallet?.revision || (wallet.accountId && wallet.accountId !== command.accountId)) {
+      throw new Error("点券余额尚未读取，请刷新后重试");
+    }
+    const calc = computeCeraAdjustment(String(wallet.balance ?? "0"), command.mode, command.amountText);
+    if (!calc.valid) throw new Error(calc.error || "请输入有效的点券整数金额");
+    p.title = "确认调整点券";
+    const panelAcc = api.meta.accountPanel?.accountId === command.accountId ? api.meta.accountPanel.account : undefined;
+    p.target = panelAcc?.name || api.state.accounts.find(a => a.id === command.accountId)?.name || command.accountId;
+    const sign = calc.delta > 0n ? "+" : "";
+    const label = `点券 ${calc.current.toLocaleString()} → ${calc.after.toLocaleString()}（${sign}${calc.delta.toLocaleString()}）`;
+    add(
+      label,
+      `/api/v1/accounts/${segment(command.accountId)}/currency-adjustments`,
+      { currency: "cera", amount: calc.delta.toString(), revision: wallet.revision, reason },
+    );
+    p.summary = label;
   } else if (command.kind === "currency") {
     if (!c || command.characterId !== c.id) throw new Error("角色已切换");
     const a = api.state.accounts.find((a) => a.id === c.accountId)!;
@@ -696,19 +746,54 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
       const deleted = new Set((step.body.items || []).map((v: DTO) => v.mailId));
       api.patch({mails:api.state.mails.filter(m => !deleted.has(m.id) || !step.path.includes(`/characters/${segment(m.characterId)}/`))});
     }
+    if (step.result?.kind === "currency-adjustment") {
+      const done = step.result;
+      if (api.state.characters.find(c => c.id === api.current)?.accountId === done.accountId) {
+        api.meta.resources.currency = { accountId: done.accountId, currency: done.currency || "cera", balance: done.after, revision: done.revision };
+      }
+      const panel = api.meta.accountPanel;
+      if (panel && panel.accountId === done.accountId) {
+        api.meta.accountPanel = {
+          ...panel,
+          currency: { accountId: done.accountId, currency: done.currency || "cera", balance: done.after, revision: done.revision },
+          account: panel.account
+            ? { ...panel.account, points: safeNumber(done.after), rawPoints: done.after }
+            : undefined,
+        };
+      }
+      api.patch({
+        accounts: api.state.accounts.map(a =>
+          a.id === done.accountId ? { ...a, points: safeNumber(done.after), rawPoints: done.after } : a
+        ),
+      });
+    }
     if (step.result?.kind === "premium-grant") {
       if (api.state.characters.find(c => c.id === api.current)?.accountId === step.result.accountId) {
         api.meta.resources.premium = step.result;
+      }
+      const panel = api.meta.accountPanel;
+      if (panel && panel.accountId === step.result.accountId) {
+        api.meta.accountPanel = { ...panel, premium: step.result };
+        api.publish();
       }
     }
     if (step.result?.kind === "rename-operation") {
       const renamed = step.result;
       api.patch({ characters: api.state.characters.map(c => c.id === renamed.characterId && c.accountId === renamed.accountId ? { ...c, name: renamed.after } : c) });
+      api.syncRecentCharacter(renamed.characterId, { name: renamed.after });
     }
     if (step.result?.kind === "adventure-rename-operation") {
       const renamed = step.result;
       if (api.meta.resources.adventureName?.accountId === renamed.accountId) {
         api.meta.resources.adventureName = { accountId: renamed.accountId, name: renamed.after };
+      }
+      const panel = api.meta.accountPanel;
+      if (panel && panel.accountId === renamed.accountId) {
+        api.meta.accountPanel = {
+          ...panel,
+          adventureName: { accountId: renamed.accountId, name: renamed.after },
+          account: panel.account ? { ...panel.account, adventureName: renamed.after } : undefined,
+        };
       }
       api.patch({ accounts: api.state.accounts.map(a => a.id === renamed.accountId ? { ...a, adventureName: renamed.after } : a) });
     }

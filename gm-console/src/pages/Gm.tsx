@@ -25,12 +25,18 @@ import {
   timestamp,
   type PageProps,
 } from "../ui";
+import { CeraCalculator } from "../AccountManagerModal";
+import { readGmTabMemory, writeGmTabMemory } from "../navigation-state";
 
-export function GmPage({ state, character, request, notify }: PageProps) {
+export function GmPage({ state, character, request, notify, openAccount }: PageProps) {
   const live = useLive();
+  const remoteTab = state.api?.gmTab;
   const [tab, setTab] = useState<
     "growth" | "quotas" | "currency" | "premium" | "history"
-  >("growth");
+  >(() => remoteTab || readGmTabMemory(live));
+  useEffect(() => {
+    if (remoteTab && remoteTab !== tab) setTab(remoteTab);
+  }, [remoteTab]);
   useEffect(() => {
     if (!live) return;
     void live.guard(async () => {
@@ -65,28 +71,27 @@ export function GmPage({ state, character, request, notify }: PageProps) {
   useEffect(() => { setNewAdventureName(""); }, [character.accountId]);
   useEffect(() => { setNewAdventureName(v => v === adventureName ? "" : v); }, [adventureName]);
   const carbonMode = !!state.api?.systemSettings?.carbonMode;
+  const nextJobValue = live ? `${character.jobCode}:${character.growType}` : character.job;
   const previous = useRef({ owner: character.id, level: numberDraft(character.level),
-    job: `${character.jobCode}:${character.growType}`, sp: numberDraft(character.sp),
+    job: nextJobValue, sp: numberDraft(character.sp),
     tp: numberDraft(character.tp), gold: character.gold, points: a.points,
     pointsText: a.rawPoints || "", tokens: a.tokens });
   useEffect(() => {
     const next = { owner: character.id, level: numberDraft(character.level),
-      job: `${character.jobCode}:${character.growType}`, sp: numberDraft(character.sp),
+      job: nextJobValue, sp: numberDraft(character.sp),
       tp: numberDraft(character.tp), gold: character.gold, points: a.points,
       pointsText: a.rawPoints || "", tokens: a.tokens };
     const old = previous.current, changed = old.owner !== next.owner;
-    if (live) {
-      setLevel(v => refreshDraftValue(v, old.level, next.level, changed));
-      setJob(v => refreshDraftValue(v, old.job, next.job, changed));
-      setSp(v => refreshDraftValue(v, old.sp, next.sp, changed));
-      setTp(v => refreshDraftValue(v, old.tp, next.tp, changed));
-      setGold(v => refreshDraftValue(v, old.gold, next.gold, changed));
-      setPoints(v => refreshDraftValue(v, old.points, next.points, changed));
-      setPointsText(v => refreshDraftValue(v, old.pointsText, next.pointsText, changed));
-      setTokens(v => refreshDraftValue(v, old.tokens, next.tokens, changed));
-    }
+    setLevel(v => refreshDraftValue(v, old.level, next.level, changed));
+    setJob(v => refreshDraftValue(v, old.job, next.job, changed));
+    setSp(v => refreshDraftValue(v, old.sp, next.sp, changed));
+    setTp(v => refreshDraftValue(v, old.tp, next.tp, changed));
+    setGold(v => refreshDraftValue(v, old.gold, next.gold, changed));
+    setPoints(v => refreshDraftValue(v, old.points, next.points, changed));
+    setPointsText(v => refreshDraftValue(v, old.pointsText, next.pointsText, changed));
+    setTokens(v => refreshDraftValue(v, old.tokens, next.tokens, changed));
     previous.current = next;
-  }, [live, character.id, character.level, character.jobCode, character.growType,
+  }, [live, character.id, character.level, character.job, character.jobCode, character.growType,
     character.sp, character.tp, character.gold, a.points, a.rawPoints, a.tokens]);
   const skillPoints = state.api?.resources.skillPoints;
   const balance = skillPoints?.balance;
@@ -139,7 +144,7 @@ export function GmPage({ state, character, request, notify }: PageProps) {
             { id: "history", label: "操作记录" },
           ]}
           value={tab}
-          onChange={value => { live?.navigate("gm", true); setTab(value); }}
+          onChange={value => { live?.navigate("gm", true); writeGmTabMemory(live, value); setTab(value); }}
         />
         <button
           type="button"
@@ -394,90 +399,136 @@ export function GmPage({ state, character, request, notify }: PageProps) {
         </div>
       ) : tab === "currency" ? (
         <div className="form-layout">
-          <form
-            className="glass content-panel"
-            onSubmit={(e) => {
-              e.preventDefault();
-              request({
-                kind: "currency",
-                characterId: character.id,
-                gold,
-                points,
-                ...(live ? { pointsText } : {}),
-                tokens,
-              });
-            }}
-          >
-            <div className="panel-heading">
-              <h2>
-                <Coins size={20} />
-                金币与点券
-              </h2>
-              <Pill>账号 {a.name}</Pill>
-            </div>
-            <Field label="角色金币">
-              <input
-                type="number"
-                min={0}
-                max={2147483647}
-                value={Number.isFinite(gold) ? gold : ""}
-                onChange={(e) => setGold(Number(e.target.value))}
-              />
-            </Field>
-            <div className="field-grid">
-              <Field label="账号点券">
-                <input
-                  type={live ? "text" : "number"}
-                  inputMode="numeric"
-                  pattern={live ? "[0-9]+" : undefined}
-                  value={
-                    live ? pointsText : Number.isFinite(points) ? points : ""
-                  }
-                  onChange={(e) =>
-                    live
-                      ? setPointsText(e.target.value)
-                      : setPoints(Number(e.target.value))
-                  }
-                />
-              </Field>
-              <Field
-                label="账号代币券"
-                hint={live ? "当前服务未提供此币种管理接口" : undefined}
-              >
+          <div className="currency-split-stack">
+            <form
+              className="glass content-panel"
+              onSubmit={(e) => {
+                e.preventDefault();
+                request({
+                  kind: "character-gold",
+                  characterId: character.id,
+                  gold,
+                });
+              }}
+            >
+              <div className="panel-heading">
+                <h2>
+                  <Coins size={20} />
+                  角色金币
+                </h2>
+                <Pill>{character.name}</Pill>
+              </div>
+              <Field label="目标金币数额">
                 <input
                   type="number"
                   min={0}
                   max={2147483647}
-                  disabled={!!live}
-                  value={Number.isFinite(tokens) ? tokens : ""}
-                  onChange={(e) => setTokens(Number(e.target.value))}
+                  aria-label="角色金币"
+                  value={Number.isFinite(gold) ? gold : ""}
+                  onChange={(e) => setGold(Number(e.target.value))}
                 />
               </Field>
-            </div>
-            <div className="form-footer">
-              <span>填写修改后的目标数值</span>
-              <button className="primary">
-                <Save size={16} />
-                保存修改
-              </button>
-            </div>
-          </form>
+              <div className="cera-quick-chips">
+                {[1000000, 10000000, 100000000].map((step) => (
+                  <button
+                    type="button"
+                    key={step}
+                    onClick={() =>
+                      setGold(
+                        Math.min(
+                          2147483647,
+                          (Number.isFinite(gold) ? gold : 0) + step,
+                        ),
+                      )
+                    }
+                  >
+                    +{(step / 10000).toLocaleString()}万
+                  </button>
+                ))}
+                {Number.isFinite(character.gold) && gold !== character.gold && (
+                  <button
+                    type="button"
+                    className="chip-clear"
+                    onClick={() => setGold(character.gold)}
+                  >
+                    恢复当前金币
+                  </button>
+                )}
+              </div>
+              <div className="form-footer">
+                <span>仅作用于当前角色背包金币</span>
+                <button
+                  className="primary"
+                  disabled={
+                    !!state.api?.busy ||
+                    !Number.isFinite(gold) ||
+                    gold === character.gold ||
+                    (!!live &&
+                      (!state.api?.features["gold.write"] ||
+                        !state.api?.resources.gold?.revision))
+                  }
+                >
+                  <Save size={16} />
+                  保存角色金币
+                </button>
+              </div>
+            </form>
+
+            <CeraCalculator
+              accountId={character.accountId}
+              accountName={a.name}
+              currentRaw={
+                live
+                  ? String(
+                      state.api?.resources.currency?.balance ??
+                        a.rawPoints ??
+                        0,
+                    )
+                  : String(a.rawPoints ?? (Number.isFinite(a.points) ? a.points : 0))
+              }
+              busy={!!state.api?.busy}
+              disabled={
+                !!live &&
+                (!state.api?.features["currency.write"] ||
+                  !state.api?.resources.currency?.revision)
+              }
+              onSubmit={(mode, amountText) =>
+                request({
+                  kind: "account-currency",
+                  accountId: character.accountId,
+                  mode,
+                  amountText,
+                })
+              }
+            />
+          </div>
           <aside className="glass content-panel">
             <h3>当前资产</h3>
             <dl className="detail-list">
               <div>
-                <dt>金币</dt>
+                <dt>角色金币</dt>
                 <dd className="gold-text">{number(character.gold)}</dd>
               </div>
               <div>
-                <dt>点券</dt>
+                <dt>账号点券</dt>
                 <dd>{number(a.rawPoints ?? a.points)}</dd>
               </div>
-              <div>
-                <dt>代币券</dt>
-                <dd>{number(a.tokens)}</dd>
-              </div>
+              {!live && (
+                <div>
+                  <dt>代币券</dt>
+                  <dd>{number(a.tokens)}</dd>
+                </div>
+              )}
             </dl>
+            {openAccount && character.accountId && (
+              <button
+                type="button"
+                className="secondary reset-points"
+                onClick={() => openAccount(character.accountId, a.name)}
+              >
+                打开账号独立管理面板
+              </button>
+            )}
           </aside>
         </div>
       ) : tab === "premium" ? (

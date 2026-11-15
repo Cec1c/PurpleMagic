@@ -16,10 +16,20 @@ export class ApiError extends Error {
     super(message);
   }
 }
+export const VISIBILITY_REFRESH_COOLDOWN_MS = 30_000;
+export function shouldRefreshOnVisibility(
+  now: number,
+  lastVisibilityRefreshAt: number,
+  lastReadAt: number,
+  cooldownMs = VISIBILITY_REFRESH_COOLDOWN_MS,
+): boolean {
+  return now - Math.max(lastVisibilityRefreshAt, lastReadAt) >= cooldownMs;
+}
 export class HttpClient {
   csrf = "";
   readTimeout = 12000;
   writeTimeout = 45000;
+  lastReadAt = 0;
   private view = new AbortController();
   private active = 0;
   private waiting = new Set<() => void>();
@@ -73,6 +83,7 @@ export class HttpClient {
     this.view = new AbortController();
   }
   clearCache(reason?: unknown) {
+    this.lastReadAt = 0;
     this.invalidate(undefined, reason);
   }
   private async acquire(signal: AbortSignal) {
@@ -227,6 +238,7 @@ export class HttpClient {
         if (response.status === 401 || response.status === 403) this.clearCache(failure);
         throw failure;
       }
+      if (method === "GET") this.lastReadAt = Date.now();
       return value;
     } finally {
       release?.();

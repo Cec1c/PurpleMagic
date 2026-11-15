@@ -80,7 +80,45 @@ export type Attachment = {
   name: string;
   count: number;
   enhance: number;
+  forge?: number;
+  kind?: string;
+  category?: string;
+  subtype?: string;
 };
+export type CeraMode = "add" | "sub" | "set";
+export const MAX_CERA = 9223372036854775807n;
+export function computeCeraAdjustment(currentRaw: string, mode: CeraMode, inputRaw: string): {
+  valid: boolean;
+  current: bigint;
+  delta: bigint;
+  after: bigint;
+  error?: string;
+} {
+  const cleanCurrent = /^\d+$/.test((currentRaw || "").trim()) ? BigInt(currentRaw.trim()) : 0n;
+  const trimmed = (inputRaw || "").trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "请输入有效的非负整数金额" };
+  }
+  const value = BigInt(trimmed);
+  if (value > MAX_CERA) {
+    return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "金额超出上限" };
+  }
+  if (mode === "add") {
+    if (value <= 0n) return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "增加金额须大于 0" };
+    if (cleanCurrent > MAX_CERA - value) return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "变更后点券超出上限" };
+    return { valid: true, current: cleanCurrent, delta: value, after: cleanCurrent + value };
+  }
+  if (mode === "sub") {
+    if (value <= 0n) return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "扣除金额须大于 0" };
+    if (value > cleanCurrent) return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "扣除金额超过当前点券余额" };
+    return { valid: true, current: cleanCurrent, delta: -value, after: cleanCurrent - value };
+  }
+  const delta = value - cleanCurrent;
+  if (delta === 0n) {
+    return { valid: false, current: cleanCurrent, delta: 0n, after: cleanCurrent, error: "目标点券与当前余额一致" };
+  }
+  return { valid: true, current: cleanCurrent, delta, after: value };
+}
 export type Mail = {
   id: string;
   characterId: string;
@@ -173,8 +211,10 @@ export type Command =
   | { kind: "reset-skill-points"; characterId: string }
   | { kind: "reset-dungeon-quota"; characterId: string; quotaKey: string }
   | { kind: "rename-character"; characterId: string; expectedName: string; newName: string }
-  | { kind: "premium-grant"; accountId: string; days: number }
-  | { kind: "rename-adventure"; accountId: string; expectedName: string; newName: string }
+  | { kind: "premium-grant"; accountId: string; days: number; standalone?: boolean }
+  | { kind: "rename-adventure"; accountId: string; expectedName: string; newName: string; standalone?: boolean }
+  | { kind: "character-gold"; characterId: string; gold: number }
+  | { kind: "account-currency"; accountId: string; mode: CeraMode; amountText: string; standalone?: boolean }
   | {
       kind: "mail";
       recipients: string[];
@@ -319,6 +359,7 @@ export function applyCommand(
     for (const i of items) {
       integer(i.count, 1, 99999);
       integer(i.enhance, 0, 31);
+      if (i.forge !== undefined) integer(i.forge, 0, 8);
       if (!i.id) throw new Error("请选择附件物品");
     }
     for (const id of [...new Set(recipients)]) {
@@ -486,6 +527,26 @@ export function applyCommand(
       summary = "已保存角色成长";
       break;
     }
+    case "character-gold": {
+      const c = offline(s, command.characterId);
+      integer(command.gold);
+      c.gold = command.gold;
+      target = c.name;
+      summary = `金币 → ${command.gold.toLocaleString()}`;
+      break;
+    }
+    case "account-currency": {
+      const a = s.accounts.find((a) => a.id === command.accountId);
+      if (!a) throw new Error("账号不存在");
+      const currentRaw = a.rawPoints ?? String(Number.isFinite(a.points) ? a.points : 0);
+      const calc = computeCeraAdjustment(currentRaw, command.mode, command.amountText);
+      if (!calc.valid) throw new Error(calc.error || "点券金额无效");
+      a.rawPoints = calc.after.toString();
+      a.points = Number(calc.after <= BigInt(Number.MAX_SAFE_INTEGER) ? calc.after : Number.MAX_SAFE_INTEGER);
+      target = a.name;
+      summary = `点券 ${calc.current.toLocaleString()} → ${calc.after.toLocaleString()}`;
+      break;
+    }
     case "currency": {
       const c = offline(s, command.characterId);
       const a = s.accounts.find((a) => a.id === c.accountId)!;
@@ -634,4 +695,14 @@ export function applyCommand(
     at: now,
   });
   return s;
+}
+
+export function isDirectCommand(command: Command, state: State): boolean {
+  if (command.kind === "news-move") return true;
+  if (command.kind === "news" && !command.published) return true;
+  if (command.kind === "news-delete") {
+    const target = state.news.find((n) => n.id === command.id);
+    if (target && !target.published) return true;
+  }
+  return false;
 }

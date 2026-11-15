@@ -171,6 +171,10 @@ func (s *Server) ExternalHandler(webRoot, publicOrigin string, peer *servicehttp
 		}
 		res, e := peer.Do(r.Context(), r.Method, r.URL.RequestURI(), raw, r.Header)
 		if e != nil {
+			if errors.Is(r.Context().Err(), context.Canceled) {
+				v1Fail(w, r, statusClientClosedRequest, "request_canceled", "请求已取消", false)
+				return
+			}
 			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-gateway-failed", e)
 			v1Fail(w, r, 503, "gateway_unavailable", "游戏网关连接暂不可用", true)
 			return

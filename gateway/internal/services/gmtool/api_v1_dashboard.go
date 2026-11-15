@@ -4,6 +4,7 @@ import (
 	"context"
 	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -60,25 +61,35 @@ func (c *dashboardCache) get(ctx context.Context, now time.Time, load func(conte
 			}
 		}
 		c.loading = make(chan struct{})
+		done := c.loading
 		c.mu.Unlock()
-		bounded, cancel := context.WithTimeout(ctx, 4*time.Second)
-		value := load(bounded, now)
-		cancel()
-		c.mu.Lock()
-		// A failed/cancelled read is retried sooner; incomplete groups are not zeros.
-		ttl := 60 * time.Second
-		if len(value.Metrics) == 0 {
-			ttl = 10 * time.Second
+		resCh := make(chan dashboardView, 1)
+		go func() {
+			bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			value := load(bounded, now)
+			cancel()
+			c.mu.Lock()
+			// A failed/cancelled read is retried sooner; incomplete groups are not zeros.
+			ttl := 60 * time.Second
+			if len(value.Metrics) == 0 {
+				ttl = 10 * time.Second
+			}
+			c.value = &value
+			c.until = now.Add(ttl)
+			if day, _, _ := dashboardBounds(now); c.until.After(day.Add(24 * time.Hour)) {
+				c.until = day.Add(24 * time.Hour)
+			}
+			close(done)
+			c.loading = nil
+			c.mu.Unlock()
+			resCh <- value
+		}()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case value := <-resCh:
+			return &value, nil
 		}
-		c.value = &value
-		c.until = now.Add(ttl)
-		if day, _, _ := dashboardBounds(now); c.until.After(day.Add(24 * time.Hour)) {
-			c.until = day.Add(24 * time.Hour)
-		}
-		close(c.loading)
-		c.loading = nil
-		c.mu.Unlock()
-		return &value, nil
 	}
 }
 func (s *Server) v1Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +99,10 @@ func (s *Server) v1Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	value, err := s.dashboard.get(r.Context(), time.Now().UTC(), s.readDashboard)
 	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			v1Fail(w, r, statusClientClosedRequest, "request_canceled", "请求已取消", false)
+			return
+		}
 		v1Fail(w, r, 503, "dashboard_unavailable", "仪表盘暂未刷新", true)
 		return
 	}

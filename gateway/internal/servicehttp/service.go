@@ -52,6 +52,9 @@ func New(c Config) (*Client, error) {
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
+	transport.MaxIdleConns = 32
+	transport.MaxIdleConnsPerHost = 16
+	transport.IdleConnTimeout = 90 * time.Second
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: c.ServerName}
 	if c.CAFile != "" {
 		pem, err := os.ReadFile(c.CAFile)

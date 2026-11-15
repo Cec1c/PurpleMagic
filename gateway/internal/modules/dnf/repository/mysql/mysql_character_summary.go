@@ -49,14 +49,11 @@ func (s *mysqlCharStore) SummariesForAccounts(ctx context.Context, ids []string)
 		}
 	}
 	marks := strings.TrimSuffix(strings.Repeat("?,", len(args)), ",")
-	bound := len(args) * repository.DefaultCharacterSlotLimit
 	args = append(args, args...)
-	args = append(args, bound+1)
-	counts := map[string]int{}
 	seen := map[string]bool{}
 	for _, database := range s.router.readDBs {
 		table := mysqlTable(database, s.router.tablePrefix, mysqlCharTable)
-		rows, err := diagnosticQuery(ctx, s.router.db, "characters.summary", "SELECT "+summaryColumns+" FROM "+table+" WHERE delete_flag=0 AND account_id IN ("+marks+") AND BINARY account_id IN ("+marks+") ORDER BY BINARY account_id,slot,BINARY character_id LIMIT ?", args...)
+		rows, err := diagnosticQuery(ctx, s.router.db, "characters.summary", "SELECT "+summaryColumns+" FROM "+table+" WHERE delete_flag=0 AND account_id IN ("+marks+") AND BINARY account_id IN ("+marks+") ORDER BY account_id,slot,character_id", args...)
 		if err != nil {
 			return nil, err
 		}
@@ -67,8 +64,7 @@ func (s *mysqlCharStore) SummariesForAccounts(ctx context.Context, ids []string)
 				return nil, e
 			}
 			expected, e := s.router.readTable(mysqlCharTable, c.CharacterID)
-			counts[c.AccountID]++
-			if e != nil || expected != table || !allowed[c.AccountID] || seen[c.CharacterID] || counts[c.AccountID] > repository.DefaultCharacterSlotLimit || len(out) >= bound {
+			if e != nil || expected != table || !allowed[c.AccountID] || seen[c.CharacterID] {
 				rows.Close()
 				return nil, repository.ErrCharacterSummaryRange
 			}
@@ -121,17 +117,31 @@ func (s *mysqlCharStore) searchSummaries(ctx context.Context, query, after strin
 	if limit < 1 || limit > 101 || len(query) > 128 || len(after) > 128 || !utf8.ValidString(query) || !utf8.ValidString(after) {
 		return nil, repository.ErrCharacterSummaryRange
 	}
-	pattern := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(query) + "%"
+	pattern := ""
+	if query != "" {
+		pattern = "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(query) + "%"
+	}
 	out := []repository.CharacterSummary{}
 	seen := map[string]bool{}
 	for _, database := range s.router.readDBs {
 		table := mysqlTable(database, s.router.tablePrefix, mysqlCharTable)
-		args := []any{after, pattern, query}
+		where := "delete_flag=0"
+		args := make([]any, 0, 8+len(ids))
+		shardLimit := limit
+		if after != "" {
+			where += " AND character_id >= ?"
+			args = append(args, after)
+			shardLimit = limit + 8
+		}
+		if query != "" {
+			where += " AND (name LIKE ? ESCAPE '!' OR (character_id=? AND BINARY character_id=?) OR (account_id=? AND BINARY account_id=?))"
+			args = append(args, pattern, query, query, query, query)
+		}
 		for _, id := range ids {
 			args = append(args, id)
 		}
-		args = append(args, limit)
-		rows, err := s.router.db.QueryContext(ctx, "SELECT "+summaryColumns+" FROM "+table+" WHERE delete_flag=0 AND BINARY character_id > ? AND (name LIKE ? ESCAPE '!' OR BINARY character_id=?)"+presenceClause+" ORDER BY BINARY character_id LIMIT ?", args...)
+		args = append(args, shardLimit)
+		rows, err := s.router.db.QueryContext(ctx, "SELECT "+summaryColumns+" FROM "+table+" WHERE "+where+presenceClause+" ORDER BY character_id LIMIT ?", args...)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +156,9 @@ func (s *mysqlCharStore) searchSummaries(ctx context.Context, query, after strin
 				rows.Close()
 				return nil, repository.ErrCharacterSummaryRange
 			}
+			if after != "" && c.CharacterID <= after {
+				continue
+			}
 			seen[c.CharacterID] = true
 			out = append(out, c)
 		}
@@ -159,6 +172,56 @@ func (s *mysqlCharStore) searchSummaries(ctx context.Context, query, after strin
 	if len(out) > limit {
 		out = out[:limit]
 	}
+	return out, nil
+}
+
+// AccountIDsByCharacterQuery finds distinct owning account IDs whose active
+// characters match query by character name (literal LIKE) or exact character ID.
+func (s *mysqlCharStore) AccountIDsByCharacterQuery(ctx context.Context, query string, limit int) ([]string, error) {
+	query = strings.TrimSpace(query)
+	if query == "" || len(query) > 128 || !utf8.ValidString(query) || limit < 1 {
+		return nil, nil
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	pattern := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(query) + "%"
+	seen := map[string]bool{}
+	out := []string{}
+	for _, database := range s.router.readDBs {
+		table := mysqlTable(database, s.router.tablePrefix, mysqlCharTable)
+		rows, err := s.router.db.QueryContext(ctx, "SELECT character_id,account_id FROM "+table+" WHERE delete_flag=0 AND (name LIKE ? ESCAPE '!' OR (character_id=? AND BINARY character_id=?)) LIMIT ?", pattern, query, query, limit)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var charID, accountID string
+			if e := rows.Scan(&charID, &accountID); e != nil {
+				rows.Close()
+				return nil, e
+			}
+			expected, e := s.router.readTable(mysqlCharTable, charID)
+			if e != nil || expected != table || accountID == "" || len(accountID) > 128 || !utf8.ValidString(accountID) {
+				continue
+			}
+			if !seen[accountID] {
+				seen[accountID] = true
+				out = append(out, accountID)
+				if len(out) >= limit {
+					break
+				}
+			}
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	sort.Strings(out)
 	return out, nil
 }
 

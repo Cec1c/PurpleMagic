@@ -21,6 +21,7 @@ import {
 import { useLive } from "../api/context";
 import { LoadMore } from "../api/controls";
 import type { Item, InventoryTab } from "../domain";
+import { readInventoryTabMemory, writeInventoryTabMemory } from "../navigation-state";
 import { bagTabs } from "../fixtures";
 import {
   SearchField,
@@ -309,12 +310,20 @@ function ItemEditor({
 }
 export function Inventory({ state, character, request, notify }: PageProps) {
   const live = useLive();
-  const [tab, setTab] = useState<InventoryTab>("bag"),
+  const remoteTab = state.api?.inventory.tab as InventoryTab | undefined;
+  const [tab, setTab] = useState<InventoryTab>(() => remoteTab || readInventoryTabMemory(live)),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState("全部"),
     [selected, setSelected] = useState(""),
     [checked, setChecked] = useState<string[]>([]),
     [reverse, setReverse] = useState(false);
+  useEffect(() => {
+    if (remoteTab && remoteTab !== tab) setTab(remoteTab);
+  }, [remoteTab]);
+  useEffect(() => {
+    setChecked([]);
+    setSelected("");
+  }, [character.id]);
   const all = state.items.filter(
     (i) =>
       i.tab === tab &&
@@ -342,6 +351,7 @@ export function Inventory({ state, character, request, notify }: PageProps) {
   const ids = rows.map((i) => i.key);
   const visibleChecked = checked.filter((id) => all.some((i) => i.key === id));
   function changeTab(v: InventoryTab) {
+    writeInventoryTabMemory(live, v);
     setTab(v);
     setCategory("全部");
     setSelected("");

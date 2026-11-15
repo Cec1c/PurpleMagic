@@ -122,6 +122,7 @@ func (s *Server) v1Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/characters", s.v1Characters)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}", s.v1Character)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory", s.v1Inventory)
+	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory-batch", s.v1InventoryBatch)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/inventory/{container}/{slot}", s.v1InventoryDetail)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/mailbox-operations", s.v1MailboxOperationLog)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/mailbox-cleanups", s.v1MailboxCleanups)
@@ -201,15 +202,12 @@ func (s *Server) v1Routes() http.Handler {
 }
 
 func v1ReadTimeout(pattern, path string) time.Duration {
-	if pattern == "GET /api/v1/characters/{characterId}/profession" {
-		return 8 * time.Second
-	}
 	// Statistics aggregate history across shards. The outer request must allow
 	// the same budget as the local query; WithTimeout preserves caller limits.
 	if pattern == "GET /api/v1/anti-cheat/{resource}" && (path == "/api/v1/anti-cheat/clears" || path == "/api/v1/anti-cheat/account-stats") {
 		return moderationStatsReadTimeout
 	}
-	return 3 * time.Second
+	return 15 * time.Second
 }
 
 type v1Query struct {
@@ -315,8 +313,16 @@ func (s *Server) v1SummaryReader() (repository.CharacterSummaryReader, error) {
 	return reader, nil
 }
 func (s *Server) v1Unavailable(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(r.Context().Err(), context.Canceled) {
+		v1Fail(w, r, statusClientClosedRequest, "request_canceled", "请求已取消", false)
+		return
+	}
 	if s.cfg.Logger != nil {
 		diagnostics.Log(s.cfg.Logger, r.Context(), "gm-v1-read-unavailable", err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		v1Fail(w, r, 503, "query_timeout", "查询超时，请缩小范围或稍后重试", true)
+		return
 	}
 	v1Fail(w, r, 503, "dependency_unavailable", "数据暂时无法读取，请稍后重试", true)
 }
@@ -381,6 +387,7 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	features["skillPoints.write"] = available && pointWrite && s.deps.Runtime != nil
 	_, resources := group.Character.(repository.CharacterResourceReader)
 	features["inventory.read"] = available && resources && items
+	features["inventory.batch"] = features["inventory.read"]
 	features["mailbox.read"] = available && resources
 	_, mailboxWrite := group.Character.(repository.MailboxManagementUnitOfWork)
 	features["mailbox.write"] = available && mailboxWrite && s.deps.Runtime != nil

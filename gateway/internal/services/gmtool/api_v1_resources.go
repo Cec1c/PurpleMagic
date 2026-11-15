@@ -148,6 +148,127 @@ func (s *Server) v1Inventory(w http.ResponseWriter, r *http.Request) {
 	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"characterId": c.CharacterID, "accountId": c.AccountID, "container": container, "containers": repository.ResourceContainers(), "items": data, "pvfChecksum": checksum}, Page: &page})
 }
 
+func (s *Server) v1InventoryBatch(w http.ResponseWriter, r *http.Request) {
+	q, err := v1ParseQuery(r, "containers")
+	if err != nil || q.Q != "" || q.Cursor != "" {
+		v1Fail(w, r, 400, "invalid_query", "批量背包查询参数无效", false)
+		return
+	}
+	if _, explicit := q.Values["limit"]; !explicit {
+		q.Limit = 100
+	}
+	rawContainers := strings.TrimSpace(q.Values.Get("containers"))
+	if rawContainers == "" {
+		rawContainers = "equipment,consumables,materials,quest-items,profession,quickbar"
+	}
+	parts := strings.Split(rawContainers, ",")
+	if len(parts) > 16 {
+		v1Fail(w, r, 400, "invalid_container", "单次批量读取容器数量超限", false)
+		return
+	}
+	containerList := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		name := strings.TrimSpace(part)
+		if name == "" {
+			v1Fail(w, r, 400, "invalid_container", "请选择有效的物品容器", false)
+			return
+		}
+		if _, ok := repository.ResourceContainer(name); !ok {
+			v1Fail(w, r, 400, "invalid_container", "请选择有效的物品容器", false)
+			return
+		}
+		if !seen[name] {
+			seen[name] = true
+			containerList = append(containerList, name)
+		}
+	}
+	c, reader, ok := s.v1ResourceCharacter(w, r)
+	if !ok {
+		return
+	}
+	if !s.v1RequireItemIndex(w, r) {
+		return
+	}
+	var batchRows map[string][]repository.InventorySlot
+	if batchReader, ok := reader.(repository.CharacterBatchInventoryReader); ok {
+		batchRows, err = batchReader.InventoryBatch(r.Context(), c, containerList, q.Limit+1)
+	} else {
+		batchRows = make(map[string][]repository.InventorySlot, len(containerList))
+		for _, name := range containerList {
+			var rows []repository.InventorySlot
+			rows, err = reader.InventoryPage(r.Context(), c, name, -1, q.Limit+1, false)
+			if err != nil {
+				break
+			}
+			batchRows[name] = rows
+		}
+	}
+	if err != nil {
+		s.v1Unavailable(w, r, err)
+		return
+	}
+	checksum := s.v1PVFChecksum()
+	type preparedContainer struct {
+		rows    []repository.InventorySlot
+		present map[int]bool
+		page    v1Page
+	}
+	prepared := make(map[string]preparedContainer, len(containerList))
+	var preloadIDs []uint32
+	for _, name := range containerList {
+		rows := batchRows[name]
+		var present map[int]bool
+		if name == "shared" {
+			rows, present = v1SharedResourcePage(rows, -1, q.Limit+1)
+		}
+		page := v1Page{Limit: q.Limit}
+		if len(rows) > q.Limit {
+			rows = rows[:q.Limit]
+			filter := v1Filter(q, c.CharacterID+"\x00"+c.AccountID+"\x00"+name+"\x00"+checksum)
+			page.NextCursor = s.v1CursorToken("inventory", filter, strconv.Itoa(rows[len(rows)-1].Slot))
+		}
+		for _, row := range rows {
+			if row.Stack.ItemID > 0 && row.Stack.ItemID <= math.MaxUint32 {
+				preloadIDs = append(preloadIDs, uint32(row.Stack.ItemID))
+			}
+		}
+		prepared[name] = preparedContainer{rows: rows, present: present, page: page}
+	}
+	if s.deps.Catalog != nil && len(preloadIDs) > 0 {
+		if e := s.deps.Catalog.preload(r.Context(), preloadIDs); e != nil {
+			s.v1Unavailable(w, r, e)
+			return
+		}
+	}
+	resultContainers := make(map[string]any, len(containerList))
+	for _, name := range containerList {
+		p := prepared[name]
+		items := make([]map[string]any, 0, len(p.rows))
+		for _, row := range p.rows {
+			item := s.v1InventoryRow(name, row, true)
+			item["revision"] = adminops.InventorySlotRevision(c.AccountID, c.CharacterID, name, row.Slot, row.Stack, name != "shared" || p.present[row.Slot])
+			item["revisionScope"] = "summary"
+			if name == "shared" {
+				item["present"] = p.present[row.Slot]
+			}
+			items = append(items, item)
+		}
+		resultContainers[name] = map[string]any{
+			"container": name,
+			"items":     items,
+			"page":      p.page,
+		}
+	}
+	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{
+		"characterId":   c.CharacterID,
+		"accountId":     c.AccountID,
+		"pvfChecksum":   checksum,
+		"containers":    resultContainers,
+		"allContainers": repository.ResourceContainers(),
+	}})
+}
+
 func (s *Server) v1InventoryDetail(w http.ResponseWriter, r *http.Request) {
 	container := r.PathValue("container")
 	spec, valid := repository.ResourceContainer(container)

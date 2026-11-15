@@ -142,13 +142,14 @@ func TestV1ModerationStatsReadBudgets(t *testing.T) {
 		pattern, path string
 		want          time.Duration
 	}{
-		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/clears", 8 * time.Second},
-		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/account-stats", 8 * time.Second},
-		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/bans", 3 * time.Second},
-		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/accounts", 3 * time.Second},
-		{"GET /api/v1/anti-cheat/qq/settings", "/api/v1/anti-cheat/qq/settings", 3 * time.Second},
-		{"GET /api/v1/accounts", "/api/v1/accounts", 3 * time.Second},
-		{"GET /api/v1/characters/{characterId}/profession", "/api/v1/characters/1/profession", 8 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/clears", 25 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/account-stats", 25 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/bans", 15 * time.Second},
+		{"GET /api/v1/anti-cheat/{resource}", "/api/v1/anti-cheat/accounts", 15 * time.Second},
+		{"GET /api/v1/anti-cheat/qq/settings", "/api/v1/anti-cheat/qq/settings", 15 * time.Second},
+		{"GET /api/v1/accounts", "/api/v1/accounts", 15 * time.Second},
+		{"GET /api/v1/characters/{characterId}/profession", "/api/v1/characters/1/profession", 15 * time.Second},
+		{"GET /api/v1/characters/{characterId}/inventory-batch", "/api/v1/characters/1/inventory-batch", 15 * time.Second},
 	} {
 		if got := v1ReadTimeout(tc.pattern, tc.path); got != tc.want {
 			t.Errorf("%s: got %v want %v", tc.path, got, tc.want)
@@ -195,7 +196,7 @@ func TestV1ModerationStatsSlowReadAndCancellationMySQL(t *testing.T) {
 			if status, out := v1TestCall(t, s, token, "GET", path); status != 200 {
 				t.Fatal("query exceeding three seconds was cancelled", status, out)
 			}
-			if reader.budget < 7*time.Second || reader.budget > 8*time.Second {
+			if reader.budget < 24*time.Second || reader.budget > 25*time.Second {
 				t.Fatal("outer deadline overrides stats budget", reader.budget)
 			}
 			// A shorter caller deadline still cancels an in-flight stats query.

@@ -84,9 +84,10 @@ func (a SQLDBAdapter) BeginTx(ctx context.Context, options *sql.TxOptions) (*sql
 
 // MySQLGroupOptions 描述 DNF MySQL 仓储的区服数据库计划和表名前缀。
 type MySQLGroupOptions struct {
-	DatabasePlan repository.DatabasePlan
-	TablePrefix  string
-	Now          func() time.Time
+	DatabasePlan    repository.DatabasePlan
+	TablePrefix     string
+	Now             func() time.Time
+	ClearProjection *ClearProjectionConfig
 }
 
 // NewMySQLGroup 使用注入的 SQLDB 创建 DNF MySQL 仓储聚合。
@@ -96,7 +97,13 @@ func NewMySQLGroup(db SQLDB, options MySQLGroupOptions) (repository.Group, error
 	if err != nil {
 		return repository.Group{}, err
 	}
-	return newMySQLGroupFromRouter(router, true), nil
+	group := newMySQLGroupFromRouter(router, true)
+	if options.ClearProjection != nil {
+		if charStore, ok := group.Character.(*mysqlCharStore); ok {
+			charStore.clearProjection = newClearHistoryProjection(router, *options.ClearProjection)
+		}
+	}
+	return group, nil
 }
 
 func newMySQLGroupFromRouter(router mysqlRouter, includeTransactions bool) repository.Group {

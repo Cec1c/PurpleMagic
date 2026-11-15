@@ -58,20 +58,6 @@ func (s *mysqlCharStore) loadProfessionManagement(ctx context.Context, id string
 		return v, nil
 	}
 	r := s.router
-	// Bound full learned-skill rows before using the existing authoritative codec.
-	for _, kind := range []string{mysqlSkillStatesTable, mysqlSkillLayoutsTable, mysqlSkillCooldownsTable} {
-		t, e := r.readTable(kind, id)
-		if e != nil {
-			return v, e
-		}
-		var count int
-		if e = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+t+" WHERE character_id=?", id).Scan(&count); e != nil {
-			return v, e
-		}
-		if count > 4096 {
-			return v, repository.ErrResourceRange
-		}
-	}
 	k := mysqlSkillStore{mysqlStoreBase: mysqlStoreBase{router: r}}
 	v.Growth.Skill, v.Growth.Found, e = k.Load(ctx, id)
 	if e != nil {

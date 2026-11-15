@@ -29,7 +29,12 @@ import {
 } from "../ui";
 import { PlayerPicker } from "./Players";
 import { ItemPicker } from "../ItemPicker";
-import { appendAttachments } from "../item-picker";
+import {
+  appendAttachments,
+  canEnhanceAttachment,
+  canForgeAttachment,
+  isSingleCountEquipment,
+} from "../item-picker";
 
 export function MailPage({
   state,
@@ -37,6 +42,8 @@ export function MailPage({
   selection,
   setSelection,
   request,
+  openCharacterPicker,
+  mailComposeTick,
 }: PageProps) {
   const live = useLive();
   const [taskId, setTaskId] = useState("");
@@ -49,7 +56,15 @@ export function MailPage({
     [checked, setChecked] = useState<string[]>([]),
     [viewMail, setViewMail] = useState("");
   useEffect(() => {
+    if (mailComposeTick) setTab("compose");
+  }, [mailComposeTick]);
+  useEffect(() => {
+    setChecked([]);
+    setViewMail("");
+  }, [character.id]);
+  useEffect(() => {
     if (!live || tab === "compose") return;
+    if (tab === "inbox" && !character.id) return;
     void live.guard(() => tab === "inbox" ? live.mailbox() : live.tasks());
     return () => live.cancelScope(tab === "inbox" ? "mailbox" : "tasks");
   }, [live, tab, character.id]);
@@ -98,13 +113,35 @@ export function MailPage({
                     .join("、") || "尚未选择收件角色"}
                 </span>
               </div>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setPicker(true)}
-              >
-                选择收件人
-              </button>
+              <div className="recipient-strip-actions">
+                {!recipients.length && character.id && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      setSelection({ accounts: [], characters: [character.id] })
+                    }
+                  >
+                    仅发给 {character.name}
+                  </button>
+                )}
+                {recipients.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setSelection({ accounts: [], characters: [] })}
+                  >
+                    清空
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setPicker(true)}
+                >
+                  选择收件人
+                </button>
+              </div>
             </div>
             <Field label="邮件标题">
               <input
@@ -130,42 +167,106 @@ export function MailPage({
             </div>
             {!items.length && <p className="attachment-empty">从物品列表添加附件，可一次勾选多种物品。</p>}
             <div className="attachment-list">
-              {items.map((i) => (
-                <div key={i.id}>
-                  <Package size={19} />
-                  <span>
-                    <strong>{i.name}</strong>
-                    <small>ID {i.id} · {itemExpirationLabel(i.expiration)}</small>
-                  </span>
-                  <label>
-                    数量
-                    <input
-                      aria-label={`${i.name} 数量`}
-                      type="number"
-                      min={1}
-                      max={99999}
-                      value={i.count}
-                      onChange={(e) =>
-                        setItems(
-                          items.map((x) =>
-                            x.id === i.id
-                              ? { ...x, count: Number(e.target.value) }
-                              : x,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`移除 ${i.name}`}
-                    onClick={() => setItems(items.filter((x) => x.id !== i.id))}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
+              {items.map((i) => {
+                const singleEquip = isSingleCountEquipment(i);
+                const showEnhance = canEnhanceAttachment(i);
+                const showForge = canForgeAttachment(i);
+                return (
+                  <div key={i.id} className="attachment-row">
+                    <Package size={19} />
+                    <span>
+                      <strong>{i.name}</strong>
+                      <small>
+                        ID {i.id} · {itemExpirationLabel(i.expiration)}
+                      </small>
+                    </span>
+                    <div className="attachment-controls">
+                      {showEnhance && (
+                        <label className="attachment-stat-field">
+                          强化
+                          <input
+                            aria-label={`${i.name} 强化等级`}
+                            type="number"
+                            min={0}
+                            max={31}
+                            value={i.enhance || 0}
+                            onChange={(e) =>
+                              setItems(
+                                items.map((x) =>
+                                  x.id === i.id
+                                    ? {
+                                        ...x,
+                                        enhance: Math.max(
+                                          0,
+                                          Math.min(31, Number(e.target.value) || 0),
+                                        ),
+                                      }
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                      )}
+                      {showForge && (
+                        <label className="attachment-stat-field">
+                          锻造
+                          <input
+                            aria-label={`${i.name} 锻造等级`}
+                            type="number"
+                            min={0}
+                            max={8}
+                            value={i.forge || 0}
+                            onChange={(e) =>
+                              setItems(
+                                items.map((x) =>
+                                  x.id === i.id
+                                    ? {
+                                        ...x,
+                                        forge: Math.max(
+                                          0,
+                                          Math.min(8, Number(e.target.value) || 0),
+                                        ),
+                                      }
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                      )}
+                      <label>
+                        数量
+                        <input
+                          aria-label={`${i.name} 数量`}
+                          type="number"
+                          min={1}
+                          max={singleEquip ? 1 : 99999}
+                          disabled={singleEquip}
+                          value={singleEquip ? 1 : i.count}
+                          onChange={(e) =>
+                            setItems(
+                              items.map((x) =>
+                                x.id === i.id
+                                  ? { ...x, count: Number(e.target.value) }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={`移除 ${i.name}`}
+                        onClick={() => setItems(items.filter((x) => x.id !== i.id))}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <Field label="每个角色获得的金币">
               <input
@@ -236,6 +337,21 @@ export function MailPage({
           </aside>
         </div>
       ) : tab === "inbox" ? (
+        !character.id ? (
+          <div className="glass content-panel empty-character-panel">
+            <Empty
+              title="选择一位角色查看邮箱"
+              detail="发送系统邮件无需预选单角色；查看角色收件箱请先选择目标角色"
+            />
+            {openCharacterPicker && (
+              <div className="empty-character-actions">
+                <button className="primary" onClick={openCharacterPicker}>
+                  搜索并选择角色 (Ctrl+K)
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="table-panel glass">
           <div className="panel-heading">
             <h2>{character.name} 的邮箱</h2>
@@ -311,6 +427,7 @@ export function MailPage({
           </div>
           {!mails.length && <Empty title="邮箱暂无邮件" />}
         </div>
+        )
       ) : (
         <div className="glass content-panel">
           <h2>

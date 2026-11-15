@@ -2,6 +2,7 @@ package gmtool
 
 import (
 	"context"
+	"dnf90.local/gateway/internal/diagnostics"
 	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	"dnf90.local/gateway/internal/modules/dnf/profession"
 	"dnf90.local/gateway/internal/modules/dnf/repository"
@@ -228,8 +229,8 @@ func (s *Server) v1ProfessionLog(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		v, e := adminops.DecodeProfessionReceipt(row.Payload)
 		if e != nil {
-			s.v1Unavailable(w, r, e)
-			return
+			diagnostics.Log(s.cfg.Logger, r.Context(), "gm-profession-receipt-skipped", e, "sequence", row.Sequence)
+			continue
 		}
 		items = append(items, v)
 	}

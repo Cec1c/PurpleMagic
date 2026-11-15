@@ -26,7 +26,9 @@ import {
   heatmapCells,
   visibleMetrics,
   type DashboardSnapshot,
+  type MetricDefinition,
 } from "../dashboard/model";
+import { writeAntiCheatMemory, writeDirectoryMemory } from "../navigation-state";
 import "../dashboard/dashboard.css";
 
 const icons = {
@@ -162,6 +164,68 @@ export function Dashboard(props: PageProps) {
   const snapshot = data.snapshot,
     metrics = visibleMetrics(snapshot),
     days = snapshot?.registrations;
+  function jumpMetric(m: MetricDefinition) {
+    if (m.id === "online") {
+      writeDirectoryMemory(live, {
+        mode: "characters",
+        q: "",
+        next: "",
+        ids: [],
+        accountIds: [],
+        online: "online",
+        accountId: "",
+      });
+      props.go("accounts");
+      return;
+    }
+    if (m.id === "characters") {
+      writeDirectoryMemory(live, {
+        mode: "characters",
+        q: "",
+        next: "",
+        ids: [],
+        accountIds: [],
+        online: "all",
+        accountId: "",
+      });
+      props.go("accounts");
+      return;
+    }
+    if (m.section === "accounts") {
+      writeDirectoryMemory(live, {
+        mode: "accounts",
+        q: "",
+        next: "",
+        ids: [],
+        accountIds: [],
+        online: "all",
+        accountId: "",
+      });
+      props.go("accounts");
+      return;
+    }
+    if (m.id === "fastClearsToday") {
+      writeAntiCheatMemory(live, {
+        tab: "clears",
+        filter: "fast",
+        accountFocus: "",
+        q: "",
+        offset: 0,
+        forceReload: Date.now(),
+      });
+      props.go("anti-cheat");
+      return;
+    }
+    writeAntiCheatMemory(live, {
+      tab: "clears",
+      filter: "all",
+      accountFocus: "",
+      q: "",
+      offset: 0,
+      forceReload: Date.now(),
+    });
+    props.go("anti-cheat");
+  }
   const widgets = {
     overview: (
       <div className="dash-overview">
@@ -172,12 +236,24 @@ export function Dashboard(props: PageProps) {
           <h2>今天的冒险，一眼掌握</h2>
           <p>从账号增长到副本表现，关注正在发生的变化。</p>
           <div className="dash-shortcuts">
-            <a href="#accounts">
+            <a
+              href="#accounts"
+              onClick={(e) => {
+                e.preventDefault();
+                props.go("accounts");
+              }}
+            >
               <Users size={16} />
               账号与角色
               <ArrowUpRight size={14} />
             </a>
-            <a href="#anti-cheat">
+            <a
+              href="#anti-cheat"
+              onClick={(e) => {
+                e.preventDefault();
+                props.go("anti-cheat");
+              }}
+            >
               <ShieldCheck size={16} />
               反作弊
               <ArrowUpRight size={14} />
@@ -196,7 +272,13 @@ export function Dashboard(props: PageProps) {
             <h2>运营工作区</h2>
             <span>常用入口</span>
           </div>
-          <a href="#benefits">
+          <a
+            href="#benefits"
+            onClick={(e) => {
+              e.preventDefault();
+              props.go("benefits");
+            }}
+          >
             <span className="dash-link-icon">
               <Gift size={21} />
             </span>
@@ -206,7 +288,13 @@ export function Dashboard(props: PageProps) {
             </span>
             <ArrowUpRight size={17} />
           </a>
-          <a href="#activities">
+          <a
+            href="#activities"
+            onClick={(e) => {
+              e.preventDefault();
+              props.go("activities");
+            }}
+          >
             <span className="dash-link-icon">
               <CalendarDays size={21} />
             </span>
@@ -241,6 +329,10 @@ export function Dashboard(props: PageProps) {
                 className={`glass dash-metric dash-metric-${m.icon}`}
                 href={`#${m.section}`}
                 key={m.id}
+                onClick={(e) => {
+                  e.preventDefault();
+                  jumpMetric(m);
+                }}
               >
                 <div className="dash-metric-label">
                   <span>{m.label}</span>
@@ -283,7 +375,13 @@ export function Dashboard(props: PageProps) {
             <Megaphone size={18} />
             最新公告
           </h2>
-          <a href="#settings">
+          <a
+            href="#settings"
+            onClick={(e) => {
+              e.preventDefault();
+              props.go("settings");
+            }}
+          >
             管理公告
             <ArrowUpRight size={14} />
           </a>

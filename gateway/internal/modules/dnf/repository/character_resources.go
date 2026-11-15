@@ -16,6 +16,12 @@ type CharacterResourceReader interface {
 	QuestPage(context.Context, string, string, int64, int) ([]CharacterQuest, error)
 }
 
+// CharacterBatchInventoryReader reads multiple inventory containers in merged
+// shard queries without loading raw bytes or extra fields.
+type CharacterBatchInventoryReader interface {
+	InventoryBatch(ctx context.Context, c CharacterSummary, containers []string, limit int) (map[string][]InventorySlot, error)
+}
+
 type InventorySlot struct {
 	Key   string
 	Slot  int

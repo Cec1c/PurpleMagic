@@ -129,6 +129,15 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               {busy ? "正在执行…" : p.confirmed ? "继续并查询回执" : "确认执行"}
             </button>
           )}
+          {api.canEnableCarbonAndRetry() && (
+            <button
+              className="amber-action-button"
+              disabled={busy}
+              onClick={() => void api.guard(() => api.enableCarbonAndRetry())}
+            >
+              ⚡ 开启在线写入并重试预览
+            </button>
+          )}
           {api.canRepreviewQuests() && (
             <button className="primary" disabled={busy} onClick={() => void api.guard(() => api.repreviewQuests(p.id))}>
               重新预览未完成项
@@ -150,7 +159,17 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
       <p className="confirm-target">{p.target}</p>
       <p>{p.summary}</p>
       {p.steps.some(s => /\/(inventory|quest|rename|adventure-rename|level|profession|skill-point|gold|mailbox|container|vault|expert-job|dungeon-quota)-operations$/.test(s.path)) && (
-        <p className="muted">{api.meta.systemSettings?.carbonMode ? "碳铀模式已开启 · 允许在线写入" : <>到<a href="#system" onClick={() => api.dismissPending()}>系统设置</a>里打开“碳铀模式”来强制数据写入。</>}</p>
+        <p className="muted">
+          {api.meta.systemSettings?.carbonMode ? (
+            "⚡ 在线写入已开启 · 允许对在线角色执行写入"
+          ) : (
+            <>
+              当前要求角色离线；若需直接写入在线角色，可在
+              <a href="#system" onClick={() => api.dismissPending()}>系统设置</a>
+              或拦截提示中开启在线写入。
+            </>
+          )}
+        </p>
       )}
       {p.completed && p.steps.some(s => s.result?.schedule === "active") && (
         <p className="muted">已提交后台发放，可关闭页面，进度见发放记录。</p>

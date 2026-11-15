@@ -119,9 +119,10 @@ type Deps struct {
 
 // Server 是 GM 面板的 HTTP 服务。
 type Server struct {
-	dashboard dashboardCache
-	cfg       Config
-	deps      Deps
+	dashboard   dashboardCache
+	modAccounts moderationAccountCache
+	cfg         Config
+	deps        Deps
 
 	db  *sql.DB
 	www http.Handler
@@ -179,9 +180,10 @@ func newServer(cfg Config, deps Deps, managed bool) (*Server, error) {
 		if err != nil {
 			return nil, errors.New("GM database configuration invalid")
 		}
-		db.SetMaxOpenConns(8)
-		db.SetMaxIdleConns(2)
-		db.SetConnMaxLifetime(5 * time.Minute)
+		db.SetMaxOpenConns(16)
+		db.SetMaxIdleConns(16)
+		db.SetConnMaxLifetime(15 * time.Minute)
+		db.SetConnMaxIdleTime(5 * time.Minute)
 	}
 
 	www, err := newStaticHandler(cfg.WWWRoot)

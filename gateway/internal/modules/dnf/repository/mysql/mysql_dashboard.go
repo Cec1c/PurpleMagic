@@ -17,6 +17,17 @@ func (s *mysqlCharStore) DashboardCounts(ctx context.Context, from, to time.Time
 	}
 	var characters, clears, fatigue, samples, fast int64
 	var charErr, clearErr error
+	projectionUsed := false
+	if s.clearProjection != nil {
+		c, f, sm, fa, used, err := s.clearProjection.dashboardClearCounts(ctx, from, to, threshold)
+		if err != nil {
+			clearErr = err
+			projectionUsed = true
+		} else if used {
+			clears, fatigue, samples, fast = c, f, sm, fa
+			projectionUsed = true
+		}
+	}
 	for _, database := range s.router.writeDBs {
 		var count int64
 		err := s.router.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+mysqlTable(database, s.router.tablePrefix, mysqlCharTable)+" WHERE delete_flag=0").Scan(&count)
@@ -24,6 +35,9 @@ func (s *mysqlCharStore) DashboardCounts(ctx context.Context, from, to time.Time
 			charErr = err
 		} else {
 			characters += count
+		}
+		if projectionUsed {
+			continue
 		}
 		var runs, coverage, quick int64
 		var spent sql.NullInt64

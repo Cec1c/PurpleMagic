@@ -25,6 +25,12 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
   for (const a of command.items) {
     if (!/^[1-9][0-9]*$/.test(a.id) || !Number.isSafeInteger(a.count) || a.count < 1 || a.count > 2147483647)
       throw new Error("请核对物品 ID 与数量");
+    const reinforce = a.enhance ?? 0;
+    const forge = a.forge ?? 0;
+    if (!Number.isInteger(reinforce) || reinforce < 0 || reinforce > 31)
+      throw new Error("强化等级须为 0–31 的整数");
+    if (!Number.isInteger(forge) || forge < 0 || forge > 8)
+      throw new Error("锻造等级须为 0–8 的整数");
   }
   const recipients = await api.resolveSelection(selection);
   if (!recipients.length) throw new Error("请先选择收件人");
@@ -38,8 +44,10 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
   const attachments = command.items.length ? command.items : [null];
   const prepared = await mapMailBatch(attachments, async (a, i) => {
     const reward: DTO = { title: command.title, body: command.body, gold: i === 0 ? command.gold : 0, recipients: targets };
+    const reinforce = a?.enhance || 0;
+    const forgingLevel = a?.forge || 0;
     if (a) Object.assign(reward, { itemId: a.id, count: a.count, pvfChecksum: options.pvfChecksum,
-      options: { reinforce: a.enhance, amplifyType: 0, forgingLevel: 0, expireDays: 0, equipmentQuality: "default" } });
+      options: { reinforce, amplifyType: 0, forgingLevel, expireDays: 0, equipmentQuality: "default" } });
     const job = await api.http.post("/api/v1/mail/preview", reward, `${p.id}-preview-${i}`);
     const { data } = await api.http.get(`/api/v1/tasks/${job.id}/confirmation`);
     const names = (data.recipients || []).map((v: DTO) => ({ id: v.characterId, name: v.name, accountId: v.accountId }));
@@ -51,7 +59,8 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
       const timestamp = actual.expiresAt ? Date.parse(actual.expiresAt) / 1000 : 0;
       if (Number.isFinite(timestamp)) expiry = { known: true, absoluteExpireTime: timestamp, usablePeriodDays: 0 };
     } else if (i === 0 && options.expiration) expiry = { known: true, absoluteExpireTime: options.expiration.defaultExpireTime || 0, usablePeriodDays: options.expiration.usablePeriodDays || 0 };
-    const step: Step = { id: `${p.id}-${i}`, label: `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count} · ${itemExpirationLabel(expiry)}` : ""}`,
+    const upgradeSuffix = `${reinforce > 0 ? ` · +${reinforce}` : ""}${forgingLevel > 0 ? ` · 锻造 ${forgingLevel}` : ""}`;
+    const step: Step = { id: `${p.id}-${i}`, label: `邮件 ${i + 1} / ${attachments.length}${a ? ` · ${a.name}（ID ${a.id}）× ${a.count}${upgradeSuffix} · ${itemExpirationLabel(expiry)}` : ""}`,
       path: `/api/v1/tasks/${job.id}/run`, body: { revision: job.revision, confirm: true, retry: false }, kind: "task", result: job };
     return { step, names };
   });

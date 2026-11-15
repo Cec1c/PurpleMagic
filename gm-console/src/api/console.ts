@@ -151,10 +151,15 @@ export class ConsoleAPI {
   current = "";
   sectionId: Section = "query";
   http: HttpClient;
+  onToast?: (message: string) => void;
   private epoch = 0;
   private retries = new Set<() => Promise<void>>();
   private controllers = new Map<string, AbortController>();
   private selected: Selection = { accounts: [], characters: [] };
+  private restoredCharacterId = "";
+  private resolvedAccountNames = new Set<string>();
+  private lastBlockedPreview?: { command: Command; selection: Selection };
+  private lastPrepared?: { id: string; command: Command; selection: Selection };
   constructor(
     private emit: (s: State) => void,
     http = new HttpClient(),
@@ -173,9 +178,11 @@ export class ConsoleAPI {
   }
   error(e: unknown) {
     if ((e as Error).name === "AbortError") return;
-    if (e instanceof ApiError && e.status === 401)
+    if (e instanceof ApiError && e.status === 401) {
       this.meta.authenticated = false;
+    }
     this.meta.error = (e as Error).message;
+    this.meta.errorCode = e instanceof ApiError ? e.code : undefined;
     this.publish();
   }
   navigate(section: Section, force = false) {
@@ -189,6 +196,7 @@ export class ConsoleAPI {
     this.meta.inventory.loading = false;
     this.meta.catalogLoading = false;
     this.meta.error = "";
+    this.meta.errorCode = undefined;
     this.publish();
   }
   cancelScope(scope: string) {
@@ -246,9 +254,20 @@ export class ConsoleAPI {
       };
       this.meta.authenticated = true;
       this.meta.error = "";
+      this.meta.errorCode = undefined;
       this.restore();
       this.publish();
       if (cap.features["system.settings"]) await this.guard(() => this.systemSettings());
+      if (!this.current && this.restoredCharacterId) {
+        const savedId = this.restoredCharacterId;
+        this.restoredCharacterId = "";
+        try {
+          await this.select(savedId);
+        } catch {
+          this.current = "";
+          this.persistCharacterContext();
+        }
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         this.meta.authenticated = false;
@@ -269,18 +288,101 @@ export class ConsoleAPI {
     this.meta.authenticated = true;
     this.meta.authReady = true;
     this.meta.error = "";
+    this.meta.errorCode = undefined;
     this.restore();
     this.publish();
     if (cap.features["system.settings"]) await this.guard(() => this.systemSettings());
+    if (!this.current && this.restoredCharacterId) {
+      const savedId = this.restoredCharacterId;
+      this.restoredCharacterId = "";
+      try {
+        await this.select(savedId);
+      } catch {
+        this.current = "";
+        this.persistCharacterContext();
+      }
+    }
   }
   async logout() {
     await this.http.raw("/api/auth/logout", "POST", {});
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.removeItem("purplemagic-character-context-v1");
+      }
+    } catch {}
+    this.restoredCharacterId = "";
+    this.resolvedAccountNames.clear();
+    this.lastBlockedPreview = undefined;
+    this.lastPrepared = undefined;
     this.navigate("query", true);
     this.http.clearCache();
     this.state = emptyState();
     this.meta.authReady = true;
     this.http.csrf = "";
     this.current = "";
+    this.publish();
+  }
+  private hasResolvedAccountName(a?: Account) {
+    return !!a && (this.resolvedAccountNames.has(a.id) || a.name !== a.id);
+  }
+  private ingestAccountDTO(v: DTO, previous?: Account): Account {
+    if (v?.accountId && typeof v.name === "string" && v.name !== "") {
+      this.resolvedAccountNames.add(v.accountId);
+    }
+    return accountDTO(v, previous);
+  }
+  private ingestCharacterAccount(v: DTO, previous?: Account): Account | undefined {
+    if (!v?.accountId || typeof v.accountName !== "string" || v.accountName === "") {
+      return undefined;
+    }
+    this.resolvedAccountNames.add(v.accountId);
+    return accountDTO(
+      {
+        accountId: v.accountId,
+        name: v.accountName,
+        disabled:
+          typeof v.accountBanned === "boolean"
+            ? v.accountBanned
+            : previous?.status === "限制登录",
+        characterCount: previous?.characterCount,
+      },
+      previous,
+    );
+  }
+  private persistCharacterContext() {
+    try {
+      if (typeof sessionStorage === "undefined") return;
+      sessionStorage.setItem("purplemagic-character-context-v1", JSON.stringify({
+        currentId: this.current,
+        recent: this.meta.recentCharacters.slice(0, 8),
+      }));
+    } catch {}
+  }
+  recordRecentCharacter(id = this.current) {
+    if (!id) return;
+    const c = this.state.characters.find(x => x.id === id);
+    if (!c) return;
+    const a = this.state.accounts.find(x => x.id === c.accountId);
+    const entry: import("./model").RecentCharacter = {
+      id: c.id,
+      accountId: c.accountId,
+      accountName: this.hasResolvedAccountName(a) ? a!.name : undefined,
+      name: c.name,
+      job: c.job,
+      level: c.level,
+    };
+    this.meta.recentCharacters = [
+      entry,
+      ...this.meta.recentCharacters.filter(r => r.id !== c.id),
+    ].slice(0, 8);
+    this.persistCharacterContext();
+    this.publish();
+  }
+  syncRecentCharacter(id: string, patch: Partial<import("./model").RecentCharacter>) {
+    const idx = this.meta.recentCharacters.findIndex(r => r.id === id);
+    if (idx < 0) return;
+    this.meta.recentCharacters = this.meta.recentCharacters.map((r, i) => i === idx ? { ...r, ...patch } : r);
+    this.persistCharacterContext();
     this.publish();
   }
   restore() {
@@ -297,6 +399,16 @@ export class ConsoleAPI {
         if (legacy) {
           const p = JSON.parse(legacy);
           if (p.id && Array.isArray(p.steps)) this.meta.pending = p;
+        }
+      }
+      const ctxRaw = sessionStorage.getItem("purplemagic-character-context-v1");
+      if (ctxRaw) {
+        const ctx = JSON.parse(ctxRaw);
+        if (typeof ctx?.currentId === "string" && ctx.currentId) this.restoredCharacterId = ctx.currentId;
+        if (Array.isArray(ctx?.recent)) {
+          this.meta.recentCharacters = ctx.recent
+            .filter((r: any) => r && typeof r.id === "string" && typeof r.name === "string")
+            .slice(0, 8);
         }
       }
     } catch {}
@@ -372,28 +484,37 @@ export class ConsoleAPI {
       let chars: Character[] = [],
         acc: Account[] = [];
       if (mode === "characters") {
-        chars = (r.data || [])
-          .filter(
-            (v) =>
-              !accountId ||
-              `${v.name} ${v.characterId}`
-                .toLowerCase()
-                .includes(q.toLowerCase()),
-          )
-          .map((v) =>
-            characterDTO(
-              v,
-              this.state.characters.find((c) => c.id === String(v.characterId)),
-            ),
+        const filteredRows = (r.data || []).filter(
+          (v) =>
+            !accountId ||
+            `${v.name} ${v.characterId}`
+              .toLowerCase()
+              .includes(q.toLowerCase()),
+        );
+        chars = filteredRows.map((v) =>
+          characterDTO(
+            v,
+            this.state.characters.find((c) => c.id === String(v.characterId)),
+          ),
+        );
+        const byAccount = new Map<string, Account>();
+        for (const v of filteredRows) {
+          if (!v?.accountId || byAccount.has(v.accountId)) continue;
+          const fromSummary = this.ingestCharacterAccount(
+            v,
+            this.state.accounts.find((a) => a.id === v.accountId),
           );
+          if (fromSummary) byAccount.set(v.accountId, fromSummary);
+        }
         acc = [...new Set(chars.map((c) => c.accountId))].map(
           (id) =>
+            byAccount.get(id) ||
             this.state.accounts.find((a) => a.id === id) ||
             accountDTO({ accountId: id, name: id }),
         );
       } else {
         acc = (r.data || []).map((v) => ({
-          ...accountDTO(v, this.state.accounts.find(a => a.id === v.accountId)),
+          ...this.ingestAccountDTO(v, this.state.accounts.find(a => a.id === v.accountId)),
           ...(v.currency ? { points: safeNumber(v.currency.balance), rawPoints: v.currency.balance } : {}),
         }));
       }
@@ -416,6 +537,7 @@ export class ConsoleAPI {
           allChars.some((c) => c.accountId === a.id),
       );
       this.meta.directory = {
+        initialized: true,
         mode,
         q,
         online,
@@ -446,7 +568,7 @@ export class ConsoleAPI {
       await this.partial([
         ...(mode === "characters"
           ? acc
-              .filter((a) => a.name === a.id)
+              .filter((a) => !this.hasResolvedAccountName(a))
               .map((a) => async () => {
                 const { data } = await this.http.get(
                   `/api/v1/accounts/${segment(a.id)}`,
@@ -456,7 +578,7 @@ export class ConsoleAPI {
                 this.patch({
                   accounts: merge(
                     this.state.accounts,
-                    [accountDTO(data, a)],
+                    [this.ingestAccountDTO(data, a)],
                     (x) => x.id,
                   ),
                 });
@@ -490,10 +612,18 @@ export class ConsoleAPI {
   async resolveSelection(selection: Selection) {
     this.selected = selection;
     let chars = this.state.characters;
+    let accs = this.state.accounts;
     for (const id of selection.accounts) {
       const { data } = await this.http.get<DTO[]>(
         `/api/v1/accounts/${segment(id)}/characters`,
       );
+      for (const v of data || []) {
+        const fromSummary = this.ingestCharacterAccount(
+          v,
+          accs.find((a) => a.id === v.accountId),
+        );
+        if (fromSummary) accs = merge(accs, [fromSummary], (a) => a.id);
+      }
       chars = merge(
         chars,
         (data || []).map((v) =>
@@ -510,12 +640,18 @@ export class ConsoleAPI {
         const { data } = await this.http.get(
           `/api/v1/characters/${segment(id)}`,
         );
+        const fromSummary = this.ingestCharacterAccount(
+          data.character,
+          accs.find((a) => a.id === data.character?.accountId),
+        );
+        if (fromSummary) accs = merge(accs, [fromSummary], (a) => a.id);
         chars.push(characterDTO(data.character));
       }
     }
     if (this.selected === selection)
       this.patch({
         characters: merge(this.state.characters, chars, (c) => c.id),
+        accounts: merge(this.state.accounts, accs, (a) => a.id),
       });
     return chars.filter(
       (c) =>
@@ -540,20 +676,237 @@ export class ConsoleAPI {
       });
     }
   }
+  setInventoryTab(tab: InventoryTab) {
+    this.meta.inventory = { ...this.meta.inventory, tab };
+    this.publish();
+  }
+  setGmTab(tab: NonNullable<import("./model").LiveData["gmTab"]>) {
+    this.meta.gmTab = tab;
+    this.publish();
+  }
+  setAntiCheatState(patch: DTO) {
+    this.meta.antiCheatState = { ...(this.meta.antiCheatState || {}), ...patch };
+  }
+  async accountCharacters(accountId: string, signal?: AbortSignal): Promise<Character[]> {
+    if (!accountId) return [];
+    const { data } = await this.http.get<DTO[]>(
+      `/api/v1/accounts/${segment(accountId)}/characters`,
+      signal,
+    );
+    let onlineIds: Set<string> | null = null;
+    try {
+      const pres = await this.http.get("/api/v1/presence", signal);
+      onlineIds = new Set(pres.data.characterIds || []);
+    } catch (e) {
+      if ((e as Error).name === "AbortError") throw e;
+    }
+    let accs = this.state.accounts;
+    const chars = (data || []).map((v) => {
+      const fromSummary = this.ingestCharacterAccount(
+        v,
+        accs.find((a) => a.id === v.accountId),
+      );
+      if (fromSummary) accs = merge(accs, [fromSummary], (a) => a.id);
+      const base = characterDTO(
+        v,
+        this.state.characters.find((c) => c.id === String(v.characterId)),
+      );
+      return onlineIds ? { ...base, online: onlineIds.has(base.id) } : base;
+    });
+    if (!signal?.aborted) {
+      this.patch({
+        characters: merge(this.state.characters, chars, (c) => c.id),
+        accounts: merge(this.state.accounts, accs, (a) => a.id),
+      });
+    }
+    return chars;
+  }
+  async quickSearch(q: string, signal?: AbortSignal): Promise<{
+    characters: Character[];
+    accounts: Account[];
+    qqMatches: { qq: string; accountId: string; accountName: string }[];
+    accountRoles: Record<string, Character[]>;
+  }> {
+    const keyword = q.trim();
+    if (!keyword) {
+      return { characters: [], accounts: [], qqMatches: [], accountRoles: {} };
+    }
+    const isNumericQQ = /^\d{5,12}$/.test(keyword) && this.meta.features["qqBinding.read"] !== false;
+    const [charRes, accRes, presRes, qqRes] = await Promise.all([
+      this.http.get<DTO[]>(query("/api/v1/characters", { q: keyword, limit: 12 }), signal),
+      this.http.get<DTO[]>(query("/api/v1/accounts", { q: keyword, limit: 8 }), signal),
+      this.http.get("/api/v1/presence", signal).catch(() => null),
+      isNumericQQ ? this.http.get<DTO>(query("/api/v1/anti-cheat/qq/bindings", { search: keyword, offset: 0 }), signal).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (signal?.aborted) return { characters: [], accounts: [], qqMatches: [], accountRoles: {} };
+    const onlineSet = presRes?.data?.characterIds ? new Set<string>(presRes.data.characterIds) : null;
+    const chars = (charRes.data || []).map((v) => {
+      const c = characterDTO(v, this.state.characters.find((x) => x.id === String(v.characterId)));
+      return onlineSet ? { ...c, online: onlineSet.has(c.id) } : c;
+    });
+    const accMap = new Map<string, Account>();
+    for (const v of accRes.data || []) {
+      const a: Account = {
+        ...this.ingestAccountDTO(v, this.state.accounts.find((x) => x.id === v.accountId)),
+        ...(v.currency ? { points: safeNumber(v.currency.balance), rawPoints: v.currency.balance } : {}),
+      };
+      accMap.set(a.id, a);
+    }
+    const qqMatches: { qq: string; accountId: string; accountName: string }[] = [];
+    for (const row of qqRes?.data?.rows || []) {
+      if (!row?.accountId) continue;
+      qqMatches.push({ qq: String(row.qq || ""), accountId: String(row.accountId), accountName: String(row.account || row.accountId) });
+      if (!accMap.has(row.accountId)) {
+        const existing = this.state.accounts.find((x) => x.id === row.accountId);
+        accMap.set(
+          row.accountId,
+          row.account
+            ? this.ingestAccountDTO({ accountId: row.accountId, name: String(row.account) }, existing)
+            : existing || accountDTO({ accountId: row.accountId, name: row.accountId }),
+        );
+      }
+    }
+    const accounts = [...accMap.values()];
+    const accountRoles: Record<string, Character[]> = {};
+    const expandTargets = accounts
+      .filter((a) => a.characterCount === undefined || a.characterCount > 0)
+      .slice(0, 4);
+    await Promise.all(
+      expandTargets.map(async (a) => {
+        try {
+          const { data } = await this.http.get<DTO[]>(`/api/v1/accounts/${segment(a.id)}/characters`, signal);
+          if (signal?.aborted) return;
+          accountRoles[a.id] = (data || []).map((v) => {
+            const c = characterDTO(v, this.state.characters.find((x) => x.id === String(v.characterId)));
+            return onlineSet ? { ...c, online: onlineSet.has(c.id) } : c;
+          });
+        } catch {}
+      }),
+    );
+    for (const v of charRes.data || []) {
+      if (!v?.accountId || accMap.has(v.accountId)) continue;
+      const fromSummary = this.ingestCharacterAccount(
+        v,
+        this.state.accounts.find((x) => x.id === v.accountId),
+      );
+      if (fromSummary) accMap.set(v.accountId, fromSummary);
+    }
+    const missingAccountIds = [...new Set(chars.map((c) => c.accountId))].filter(
+      (id) => !accMap.has(id) && !this.hasResolvedAccountName(this.state.accounts.find((a) => a.id === id)),
+    ).slice(0, 6);
+    await Promise.all(
+      missingAccountIds.map(async (id) => {
+        try {
+          const { data } = await this.http.get(`/api/v1/accounts/${segment(id)}`, signal);
+          if (signal?.aborted) return;
+          accMap.set(id, this.ingestAccountDTO(data, this.state.accounts.find((x) => x.id === id)));
+        } catch {}
+      }),
+    );
+    if (!signal?.aborted) {
+      const allDiscoveredChars = merge(chars, Object.values(accountRoles).flat(), (c) => c.id);
+      this.patch({
+        characters: merge(this.state.characters, allDiscoveredChars, (c) => c.id),
+        accounts: merge(this.state.accounts, [...accMap.values()], (a) => a.id),
+      });
+    }
+    return { characters: chars, accounts: [...accMap.values()], qqMatches, accountRoles };
+  }
+  async openAccountPanel(accountId: string) {
+    if (!accountId) return;
+    const signal = this.signal("accountPanel");
+    const existing = this.state.accounts.find((a) => a.id === accountId);
+    this.meta.accountPanel = {
+      accountId,
+      loading: true,
+      error: "",
+      account: existing,
+    };
+    this.publish();
+    try {
+      const { data: accData } = await this.http.fresh(`/api/v1/accounts/${segment(accountId)}`, signal);
+      if (signal.aborted || this.meta.accountPanel?.accountId !== accountId) return;
+      let account = this.ingestAccountDTO(accData, existing);
+      let currency: DTO | undefined;
+      let premium: DTO | undefined;
+      let adventureName: DTO | undefined;
+      await Promise.all([
+        (async () => {
+          if (!this.meta.features["currency.read"]) return;
+          const { data } = await this.http.fresh(`/api/v1/accounts/${segment(accountId)}/currency`, signal);
+          if (signal.aborted) return;
+          currency = data;
+          account = { ...account, points: safeNumber(data.balance), rawPoints: data.balance };
+        })(),
+        (async () => {
+          if (!this.meta.features["premium.read"]) return;
+          const { data } = await this.http.fresh(`/api/v1/accounts/${segment(accountId)}/premium`, signal);
+          if (signal.aborted) return;
+          premium = data;
+        })(),
+        (async () => {
+          if (!this.meta.features["adventure.read"]) return;
+          const { data } = await this.http.fresh(`/api/v1/accounts/${segment(accountId)}/adventure-name`, signal);
+          if (signal.aborted) return;
+          adventureName = data;
+          if (data?.name) account = { ...account, adventureName: data.name };
+        })(),
+      ]);
+      if (signal.aborted || this.meta.accountPanel?.accountId !== accountId) return;
+      this.meta.accountPanel = {
+        accountId,
+        loading: false,
+        error: "",
+        account,
+        currency,
+        premium,
+        adventureName,
+      };
+      const curChar = this.state.characters.find((c) => c.id === this.current);
+      if (curChar?.accountId === accountId) {
+        if (currency) this.meta.resources.currency = currency;
+        if (premium) this.meta.resources.premium = premium;
+        if (adventureName) this.meta.resources.adventureName = adventureName;
+      }
+      this.patch({
+        accounts: merge(this.state.accounts, [account], (a) => a.id),
+      });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      if (this.meta.accountPanel?.accountId === accountId) {
+        this.meta.accountPanel = {
+          ...this.meta.accountPanel,
+          loading: false,
+          error: (e as Error).message,
+        };
+        this.publish();
+      }
+    }
+  }
+  closeAccountPanel() {
+    this.controllers.get("accountPanel")?.abort();
+    this.meta.accountPanel = undefined;
+    this.publish();
+  }
   async select(id: string) {
     this.http.cancelReads();
     this.controllers.forEach((c) => c.abort());
     const signal = this.signal("selection");
+    const keptTab = (this.meta.inventory?.tab || "bag") as InventoryTab;
     this.current = id;
     this.state.items = [];
     this.state.mails = [];
     this.meta.resources = {};
-    this.meta.inventory = { tab: "bag", next: {}, pvf: "", loading: false };
+    this.meta.inventory = { tab: keptTab, next: {}, pvf: "", loading: false };
     this.meta.quests = [];
     this.meta.error = "";
+    this.meta.errorCode = undefined;
     this.publish();
     await this.character(id, false);
-    if (!signal.aborted && this.current === id) await this.presence(signal);
+    if (!signal.aborted && this.current === id) {
+      this.recordRecentCharacter(id);
+      await this.presence(signal);
+    }
   }
   async character(id = this.current, withBalances = true) {
     if (!id) return;
@@ -568,9 +921,12 @@ export class ConsoleAPI {
     );
     if (data.online !== "unknown")
       c.online = data.online === true || data.online === "online";
+    const existingAcc = this.state.accounts.find((x) => x.id === c.accountId);
+    const summaryAcc = this.ingestCharacterAccount(data.character, existingAcc);
     let a =
-      this.state.accounts.find((x) => x.id === c.accountId) ||
-      accountDTO(
+      summaryAcc ||
+      existingAcc ||
+      this.ingestAccountDTO(
         (
           await this.http.get(
             `/api/v1/accounts/${segment(c.accountId)}`,
@@ -664,22 +1020,52 @@ export class ConsoleAPI {
     const next: Record<string, string> = {};
     let pvf = "";
     try {
-      await this.partial(containers[tab].map(container => async () => {
-        if (more && !cursors[container]) return;
-        await this.http.observe(query(`/api/v1/characters/${segment(id)}/inventory`, {
-          container, limit: 100, cursor: cursors[container],
-        }), signal, ({data, page}) => {
-          if (signal.aborted || id !== this.current) return;
-          if (pvf && pvf !== data.pvfChecksum) throw new Error("PVF 已更新，请刷新背包");
-          pvf = data.pvfChecksum;
-          const rows = (data.items || []).filter((v: DTO) => tab !== "emblems" || /emblem/i.test(v.tag || "") || v.category === "徽章");
-          chunks.set(container, rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)));
-          if (page?.nextCursor) next[container] = page.nextCursor; else delete next[container];
-          // Replace each completed container, including deletions; never mix old pages.
-          const waiting = !more && same ? this.state.items.filter(i => !chunks.has(i.remote?.container || "")) : [];
-          this.patch({ items: merge([...previous, ...waiting], [...chunks.values()].flat(), i => i.key) });
-        });
-      }), () => this.inventory(tab));
+      if (tab === "bag" && !more && this.meta.features["inventory.batch"]) {
+        await this.partial([async () => {
+          await this.http.observe(
+            query(`/api/v1/characters/${segment(id)}/inventory-batch`, {
+              containers: containers.bag.join(","),
+            }),
+            signal,
+            ({ data }) => {
+              if (signal.aborted || id !== this.current) return;
+              pvf = data.pvfChecksum || "";
+              const byContainer = data.containers || {};
+              const batchItems: Item[] = [];
+              for (const container of containers.bag) {
+                const section = byContainer[container];
+                const rows: DTO[] = section?.items || [];
+                for (const v of rows) {
+                  batchItems.push(
+                    itemDTO({ ...v, container: v.container || container, pvfChecksum: pvf }, c, tab),
+                  );
+                }
+                const cursor = section?.page?.nextCursor || section?.nextCursor || "";
+                if (cursor) next[container] = cursor;
+                else delete next[container];
+              }
+              this.patch({ items: batchItems });
+            },
+          );
+        }], () => this.inventory(tab));
+      } else {
+        await this.partial(containers[tab].map(container => async () => {
+          if (more && !cursors[container]) return;
+          await this.http.observe(query(`/api/v1/characters/${segment(id)}/inventory`, {
+            container, limit: 100, cursor: cursors[container],
+          }), signal, ({data, page}) => {
+            if (signal.aborted || id !== this.current) return;
+            if (pvf && pvf !== data.pvfChecksum) throw new Error("PVF 已更新，请刷新背包");
+            pvf = data.pvfChecksum;
+            const rows = (data.items || []).filter((v: DTO) => tab !== "emblems" || /emblem/i.test(v.tag || "") || v.category === "徽章");
+            chunks.set(container, rows.map((v: DTO) => itemDTO({ ...v, pvfChecksum: pvf }, c, tab)));
+            if (page?.nextCursor) next[container] = page.nextCursor; else delete next[container];
+            // Replace each completed container, including deletions; never mix old pages.
+            const waiting = !more && same ? this.state.items.filter(i => !chunks.has(i.remote?.container || "")) : [];
+            this.patch({ items: merge([...previous, ...waiting], [...chunks.values()].flat(), i => i.key) });
+          });
+        }), () => this.inventory(tab));
+      }
       if (signal.aborted || id !== this.current) return;
       this.meta.inventory = { tab, owner: id, next, pvf, loading: false };
       this.publish();
@@ -1054,7 +1440,7 @@ export class ConsoleAPI {
       }),
       () => this.growth(names),
     );
-    if (!signal.aborted && id === this.current)
+    if (!signal.aborted && id === this.current) {
       this.patch({
         characters: this.state.characters.map((x) =>
           x.id === id
@@ -1070,6 +1456,8 @@ export class ConsoleAPI {
             : x,
         ),
       });
+      this.syncRecentCharacter(id, { level: c.level, job: c.job });
+    }
   }
   async benefits(more = false) {
     const signal = this.signal("benefits");
@@ -1263,19 +1651,75 @@ export class ConsoleAPI {
       ...page.rows.map((n:DTO)=>({...n,format:n.format || "text",sourceRevision:page.revision,published:true})),
     ]});
   }
-  async prepare(command: Command, selection: Selection) {
+  async prepare(command: Command, selection: Selection, hidden = false) {
     if (this.meta.busy) return;
     this.archivePending();
     this.persistPending();
     this.meta.busy = true;
     this.meta.error = "";
+    this.meta.errorCode = undefined;
+    this.lastBlockedPreview = undefined;
     this.publish();
     try {
-      this.meta.pending = await prepareOperation(this, command, selection);
+      const p = await prepareOperation(this, command, selection);
+      if (hidden) p.hidden = true;
+      this.meta.pending = p;
+      this.lastPrepared = { id: p.id, command, selection };
       this.persistPending();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "character_online") {
+        this.lastBlockedPreview = { command, selection };
+      }
+      throw e;
     } finally {
       this.meta.busy = false;
       this.publish();
+    }
+  }
+  async runDirect(command: Command, selection: Selection) {
+    await this.prepare(command, selection, true);
+    const id = this.meta.pending?.id;
+    if (id) await this.confirm(id);
+  }
+  canEnableCarbonAndRetry() {
+    if (this.meta.features["system.settings"] === false || this.meta.systemSettings?.carbonMode) return false;
+    const p = this.meta.pending;
+    if (p && !p.hidden && p.rejected && p.errorCode === "character_online") return true;
+    if (!p && this.meta.error && this.meta.errorCode === "character_online" && this.lastBlockedPreview) return true;
+    return false;
+  }
+  async enableCarbonAndRetry() {
+    if (this.meta.busy) return;
+    await this.systemSettings(true);
+    this.meta.error = "";
+    this.meta.errorCode = undefined;
+    this.retries.clear();
+    this.onToast?.("已开启在线写入（碳铀模式），正在重新预览");
+    const p = this.meta.pending;
+    if (p && p.rejected && p.errorCode === "character_online") {
+      if (this.canRepreviewInventory()) {
+        await this.repreviewInventory(p.id);
+        return;
+      }
+      if (this.canRepreviewDungeonQuotas(p)) {
+        await this.repreviewDungeonQuotas(p.id);
+        return;
+      }
+      if (this.canRepreviewQuests()) {
+        await this.repreviewQuests(p.id);
+        return;
+      }
+      if (this.lastPrepared?.id === p.id) {
+        const { command, selection } = this.lastPrepared;
+        this.deleteReceipt(p.id);
+        await this.prepare(command, selection);
+        return;
+      }
+    }
+    if (this.lastBlockedPreview) {
+      const { command, selection } = this.lastBlockedPreview;
+      this.lastBlockedPreview = undefined;
+      await this.prepare(command, selection);
     }
   }
   cancel() {
@@ -1473,5 +1917,13 @@ export class ConsoleAPI {
       this.publish();
     }
     await refreshOperation(this, p);
+    const isAsyncTask = p.steps.some((s) => s.kind === "task" || s.path.endsWith("/redelivery"));
+    if (p.completed && !p.rejected && !p.error && !this.meta.error && !isAsyncTask) {
+      const wasHidden = p.hidden;
+      p.hidden = true;
+      this.persistPending();
+      const label = p.summary || p.title;
+      this.onToast?.(wasHidden ? label : `${p.target ? `${p.target} · ` : ""}${label}`);
+    }
   }
 }

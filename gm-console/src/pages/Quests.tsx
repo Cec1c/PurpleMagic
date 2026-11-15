@@ -17,7 +17,7 @@ import {
   toggle,
   type PageProps,
 } from "../ui";
-export function QuestPage({ state, character, request, selection, setSelection }: PageProps) {
+export function QuestPage({ state, character, request, selection, setSelection, openCharacterPicker }: PageProps) {
   const live = useLive();
   const [picker, setPicker] = useState(false);
   const targets = resolveRecipients(state, selection);
@@ -29,6 +29,12 @@ export function QuestPage({ state, character, request, selection, setSelection }
     [q, setQ] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [focus, setFocus] = useState("");
+  useEffect(() => {
+    setSelected([]);
+    setFocus("");
+    if (character.id && status === "catalog") setStatus("active");
+    else if (!character.id && status !== "catalog" && live) setStatus("catalog");
+  }, [character.id]);
   useEffect(() => {
     if (!live) return;
     const timer = setTimeout(() => void live.guard(() => live.quests(status, q)), status === "catalog" ? 250 : 0);
@@ -53,6 +59,14 @@ export function QuestPage({ state, character, request, selection, setSelection }
   const motion = useEnterMotion(status);
   return (
     <>
+      {!character.id && openCharacterPicker && (
+        <div className="glass quest-pick-banner">
+          <span className="muted">当前浏览全服任务库；选择角色后可查看其任务进度或单独操作</span>
+          <button type="button" className="secondary" onClick={openCharacterPicker}>
+            搜索并选择角色 (Ctrl+K)
+          </button>
+        </div>
+      )}
       <div className="section-tabs">
         <Tabs
           label="任务状态"

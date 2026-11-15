@@ -1,12 +1,15 @@
 package gmtool
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,22 +24,36 @@ import (
 	"dnf90.local/gateway/internal/servicehttp"
 )
 
+const (
+	defaultRemoteItemCacheMax  = 65536
+	defaultRemoteQuestCacheMax = 65536
+	remoteCatalogChunkSize     = 200
+)
+
 // RemoteCatalog carries typed definitions, never archive paths or SQL. Each
 // instance is immutable and pinned to the gateway's approved full PVF hash.
 type RemoteCatalog struct {
-	peer            *servicehttp.Client
-	mu              sync.Mutex
-	items           map[uint32]catalogItem
-	itemUsed        map[uint32]uint64
-	itemClock       uint64
-	metadataMu      sync.Mutex
-	manifestHash    string
-	professionMu    sync.Mutex
-	professionCache map[byte]*professionManagementCache
-	professionUsed  map[byte]uint64
-	professionClock uint64
-	quotaMu         sync.Mutex
-	dungeonQuotas   *adminops.DungeonQuotaCatalog
+	peer             *servicehttp.Client
+	generationMu     sync.Mutex
+	cachedGeneration string
+	mu               sync.Mutex
+	maxItems         int
+	items            map[uint32]catalogItem
+	itemUsed         map[uint32]uint64
+	itemClock        uint64
+	metadataMu       sync.Mutex
+	manifestHash     string
+	professionMu     sync.Mutex
+	professionCache  map[byte]*professionManagementCache
+	professionUsed   map[byte]uint64
+	professionClock  uint64
+	quotaMu          sync.Mutex
+	dungeonQuotas    *adminops.DungeonQuotaCatalog
+	questMu          sync.Mutex
+	quests           map[int64]catalogQuest
+	staticMu         sync.Mutex
+	staticRaw        map[string]json.RawMessage
+	staticInflight   map[string]chan struct{}
 }
 type catalogItem struct {
 	Entry              itemEntry
@@ -88,7 +105,75 @@ func NewRemoteCatalog(config servicehttp.Config) (*RemoteCatalog, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &RemoteCatalog{peer: p, items: make(map[uint32]catalogItem)}, nil
+	return &RemoteCatalog{
+		peer:             p,
+		cachedGeneration: p.Hash(),
+		maxItems:         defaultRemoteItemCacheMax,
+		items:            make(map[uint32]catalogItem),
+		quests:           make(map[int64]catalogQuest),
+		staticRaw:        make(map[string]json.RawMessage),
+		staticInflight:   make(map[string]chan struct{}),
+	}, nil
+}
+func (c *RemoteCatalog) syncGeneration() string {
+	hash := c.peer.Hash()
+	c.generationMu.Lock()
+	prev := c.cachedGeneration
+	if prev == hash {
+		c.generationMu.Unlock()
+		return hash
+	}
+	c.cachedGeneration = hash
+	c.generationMu.Unlock()
+	if prev == "" {
+		return hash
+	}
+	c.mu.Lock()
+	clear(c.items)
+	clear(c.itemUsed)
+	c.itemClock = 0
+	c.mu.Unlock()
+
+	c.metadataMu.Lock()
+	c.manifestHash = ""
+	c.metadataMu.Unlock()
+
+	c.professionMu.Lock()
+	clear(c.professionCache)
+	clear(c.professionUsed)
+	c.professionClock = 0
+	c.professionMu.Unlock()
+
+	c.quotaMu.Lock()
+	c.dungeonQuotas = nil
+	c.quotaMu.Unlock()
+
+	c.questMu.Lock()
+	clear(c.quests)
+	c.questMu.Unlock()
+
+	c.staticMu.Lock()
+	for k := range c.staticRaw {
+		if !strings.HasPrefix(k, hash+"\x00") {
+			delete(c.staticRaw, k)
+		}
+	}
+	c.staticMu.Unlock()
+	return hash
+}
+func staticCatalogCacheKey(gen string, in catalogRequest) string {
+	switch in.Operation {
+	case "expert", "vault":
+		return gen + "\x00" + in.Operation
+	case "level":
+		return fmt.Sprintf("%s\x00level:%s:%d:%d", gen, in.CharacterJob, in.Grow, in.Level)
+	case "skill-points":
+		return fmt.Sprintf("%s\x00skill-points:%d", gen, in.Level)
+	case "cube":
+		return fmt.Sprintf("%s\x00cube:%d", gen, in.ItemID)
+	default:
+		return ""
+	}
 }
 func (c *RemoteCatalog) Snapshot() platformpvf.ArchiveSnapshot {
 	return platformpvf.ArchiveSnapshot{Checksum: c.peer.Hash()}
@@ -96,21 +181,92 @@ func (c *RemoteCatalog) Snapshot() platformpvf.ArchiveSnapshot {
 func (c *RemoteCatalog) ReadText(string) (string, error) {
 	return "", errors.New("raw PVF reads are not available on the game gateway")
 }
-func (c *RemoteCatalog) call(ctx context.Context, in catalogRequest, out any) error {
+func (c *RemoteCatalog) callRaw(ctx context.Context, in catalogRequest) (json.RawMessage, error) {
 	var res catalogResult
 	if e := c.peer.JSON(ctx, "/internal/catalog/v1/resolve", in, &res); e != nil {
-		return e
+		return nil, e
 	}
 	if res.Error != "" {
 		if res.Code == "not_found" {
-			return os.ErrNotExist
+			return nil, os.ErrNotExist
 		}
 		if res.Status != 0 {
-			return &v1MailInputError{res.Status, res.Code, res.Error}
+			return nil, &v1MailInputError{res.Status, res.Code, res.Error}
 		}
-		return errors.New(res.Error)
+		return nil, errors.New(res.Error)
 	}
-	return json.Unmarshal(res.Value, out)
+	return res.Value, nil
+}
+func (c *RemoteCatalog) call(ctx context.Context, in catalogRequest, out any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	gen := c.syncGeneration()
+	key := staticCatalogCacheKey(gen, in)
+	if key == "" {
+		raw, err := c.callRaw(ctx, in)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(raw, out)
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		c.staticMu.Lock()
+		if c.staticRaw == nil {
+			c.staticRaw = make(map[string]json.RawMessage)
+		}
+		if c.staticInflight == nil {
+			c.staticInflight = make(map[string]chan struct{})
+		}
+		if cached, ok := c.staticRaw[key]; ok {
+			c.staticMu.Unlock()
+			return json.Unmarshal(cached, out)
+		}
+		if wait, ok := c.staticInflight[key]; ok {
+			c.staticMu.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-wait:
+				continue
+			}
+		}
+		done := make(chan struct{})
+		c.staticInflight[key] = done
+		c.staticMu.Unlock()
+
+		type rawOutcome struct {
+			raw json.RawMessage
+			err error
+		}
+		resCh := make(chan rawOutcome, 1)
+		go func() {
+			loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancel()
+			raw, err := c.callRaw(loadCtx, in)
+			c.staticMu.Lock()
+			delete(c.staticInflight, key)
+			if err == nil && len(raw) > 0 && c.peer.Hash() == gen {
+				c.staticRaw[key] = bytes.Clone(raw)
+			}
+			close(done)
+			c.staticMu.Unlock()
+			resCh <- rawOutcome{raw: raw, err: err}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case res := <-resCh:
+			if res.err != nil {
+				return res.err
+			}
+			return json.Unmarshal(res.raw, out)
+		}
+	}
 }
 func (c *RemoteCatalog) background(in catalogRequest, out any) error {
 	ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -118,6 +274,7 @@ func (c *RemoteCatalog) background(in catalogRequest, out any) error {
 	return c.call(ctx, in, out)
 }
 func (c *RemoteCatalog) item(id uint32) (itemEntry, bool, error) {
+	c.syncGeneration()
 	c.mu.Lock()
 	v, ok := c.items[id]
 	if ok {
@@ -147,7 +304,11 @@ func (c *RemoteCatalog) touchItemLocked(id uint32) {
 	c.itemUsed[id] = c.itemClock
 }
 func (c *RemoteCatalog) rememberItemLocked(id uint32, v catalogItem) {
-	if _, exists := c.items[id]; !exists && len(c.items) >= 512 {
+	capLimit := c.maxItems
+	if capLimit <= 0 {
+		capLimit = defaultRemoteItemCacheMax
+	}
+	if _, exists := c.items[id]; !exists && len(c.items) >= capLimit {
 		var victim uint32
 		oldest := ^uint64(0)
 		for key := range c.items {
@@ -164,6 +325,10 @@ func (c *RemoteCatalog) rememberItemLocked(id uint32, v catalogItem) {
 }
 
 func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c.syncGeneration()
 	missing := []uint32{}
 	seen := map[uint32]bool{}
 	c.mu.Lock()
@@ -179,30 +344,35 @@ func (c *RemoteCatalog) preload(ctx context.Context, ids []uint32) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	if len(missing) > 200 {
-		return errors.New("item page exceeds catalog limit")
-	}
-	var rows []catalogItem
-	if e := c.call(ctx, catalogRequest{Operation: "items", ItemIDs: missing}, &rows); e != nil {
-		return e
-	}
-	if len(rows) != len(missing) {
-		return errors.New("catalog item response mismatch")
-	}
-	for i, v := range rows {
-		if v.Entry.ID != missing[i] {
-			return errors.New("catalog item identity mismatch")
+	for start := 0; start < len(missing); start += remoteCatalogChunkSize {
+		end := start + remoteCatalogChunkSize
+		if end > len(missing) {
+			end = len(missing)
 		}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, v := range rows {
-		v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
-		c.rememberItemLocked(v.Entry.ID, v)
+		chunk := missing[start:end]
+		var rows []catalogItem
+		if e := c.call(ctx, catalogRequest{Operation: "items", ItemIDs: chunk}, &rows); e != nil {
+			return e
+		}
+		if len(rows) != len(chunk) {
+			return errors.New("catalog item response mismatch")
+		}
+		for i, v := range rows {
+			if v.Entry.ID != chunk[i] {
+				return errors.New("catalog item identity mismatch")
+			}
+		}
+		c.mu.Lock()
+		for _, v := range rows {
+			v.Entry.SlotStart, v.Entry.SlotEnd = v.SlotStart, v.SlotEnd
+			c.rememberItemLocked(v.Entry.ID, v)
+		}
+		c.mu.Unlock()
 	}
 	return nil
 }
 func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDiskIndex, professionJobResources, *quest.Catalog, error) {
+	c.syncGeneration()
 	c.professionMu.Lock()
 	defer c.professionMu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -240,7 +410,7 @@ func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDi
 		c.professionCache = map[byte]*professionManagementCache{}
 		c.professionUsed = map[byte]uint64{}
 	}
-	if len(c.professionCache) >= 16 {
+	if len(c.professionCache) >= 32 {
 		var victim byte
 		oldest := ^uint64(0)
 		for k, at := range c.professionUsed {
@@ -261,6 +431,7 @@ func (c *RemoteCatalog) profession(ctx context.Context, job byte) (*professionDi
 // The catalog client and its authenticated peer are pinned to one full PVF hash.
 // Static metadata is immutable for this generation; failures are never cached.
 func (c *RemoteCatalog) metadata(ctx context.Context) (string, error) {
+	c.syncGeneration()
 	c.metadataMu.Lock()
 	defer c.metadataMu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -280,6 +451,7 @@ func (c *RemoteCatalog) metadata(ctx context.Context) (string, error) {
 	return c.manifestHash, nil
 }
 func (c *RemoteCatalog) dungeonQuotaCatalog(ctx context.Context) (adminops.DungeonQuotaCatalog, error) {
+	c.syncGeneration()
 	c.quotaMu.Lock()
 	defer c.quotaMu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -307,21 +479,54 @@ func (c *RemoteCatalog) questIndex(ctx context.Context) (*questDiskIndex, error)
 	return &questDiskIndex{Checksum: c.peer.Hash(), ManifestHash: hash, remote: c, remoteRows: make(map[int64]catalogQuest)}, nil
 }
 func (ix *questDiskIndex) remoteLoad(ctx context.Context, ids []int64) error {
-	if ix.remote == nil {
+	if ix.remote == nil || len(ids) == 0 {
 		return nil
 	}
-	var rows []catalogQuest
-	if e := ix.remote.call(ctx, catalogRequest{Operation: "quests", QuestIDs: ids}, &rows); e != nil {
-		return e
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if len(rows) != len(ids) {
-		return errors.New("catalog quest response mismatch")
+	ix.remote.syncGeneration()
+	missing := []int64{}
+	seen := map[int64]bool{}
+	ix.remote.questMu.Lock()
+	if ix.remote.quests == nil {
+		ix.remote.quests = make(map[int64]catalogQuest)
 	}
-	for i, v := range rows {
-		if v.Row.ID != ids[i] || (v.Found && v.Definition.ID != ids[i]) {
-			return errors.New("catalog quest identity mismatch")
+	for _, id := range ids {
+		if v, ok := ix.remote.quests[id]; ok {
+			ix.remoteRows[id] = v
+		} else if !seen[id] {
+			seen[id] = true
+			missing = append(missing, id)
 		}
-		ix.remoteRows[ids[i]] = v
+	}
+	ix.remote.questMu.Unlock()
+	for start := 0; start < len(missing); start += remoteCatalogChunkSize {
+		end := start + remoteCatalogChunkSize
+		if end > len(missing) {
+			end = len(missing)
+		}
+		chunk := missing[start:end]
+		var rows []catalogQuest
+		if e := ix.remote.call(ctx, catalogRequest{Operation: "quests", QuestIDs: chunk}, &rows); e != nil {
+			return e
+		}
+		if len(rows) != len(chunk) {
+			return errors.New("catalog quest response mismatch")
+		}
+		for i, v := range rows {
+			if v.Row.ID != chunk[i] || (v.Found && v.Definition.ID != chunk[i]) {
+				return errors.New("catalog quest identity mismatch")
+			}
+			ix.remoteRows[chunk[i]] = v
+		}
+		ix.remote.questMu.Lock()
+		if len(ix.remote.quests)+len(rows) <= defaultRemoteQuestCacheMax {
+			for i, v := range rows {
+				ix.remote.quests[chunk[i]] = v
+			}
+		}
+		ix.remote.questMu.Unlock()
 	}
 	return nil
 }

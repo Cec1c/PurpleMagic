@@ -55,6 +55,78 @@ func (s *Server) v1LoadAccount(ctx context.Context, id string) (v1AccountRow, er
 	}
 	return scanV1Account(s.db.QueryRowContext(ctx, s.v1AccountSelect()+" WHERE a.account_id=? AND BINARY a.account_id=?", id, id))
 }
+func (s *Server) v1AttachAccountNames(ctx context.Context, chars []repository.CharacterSummary) {
+	if s.db == nil || len(chars) == 0 {
+		return
+	}
+	seen := make(map[string]bool, len(chars))
+	args := make([]any, 0, len(chars)*2)
+	ids := make([]string, 0, len(chars))
+	for _, c := range chars {
+		if c.AccountID != "" && !seen[c.AccountID] {
+			seen[c.AccountID] = true
+			ids = append(ids, c.AccountID)
+			args = append(args, c.AccountID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args = append(args, args...)
+	query := "SELECT a.account_id,a.account,COALESCE(p.disabled,0) FROM " + quoteIdentifier(s.cfg.Table) + " a LEFT JOIN " + quoteIdentifier(s.cfg.Table+"_player_accounts") + " p ON p.account_id=BINARY a.account_id WHERE a.account_id IN (" + marks + ") AND BINARY a.account_id IN (" + marks + ")"
+	rows, err := diagnostics.Query(ctx, s.db, "characters.account_names", query, args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	type accMeta struct {
+		name   string
+		banned bool
+	}
+	meta := make(map[string]accMeta, len(ids))
+	for rows.Next() {
+		var id, name string
+		var disabled bool
+		if rows.Scan(&id, &name, &disabled) != nil {
+			return
+		}
+		meta[id] = accMeta{name: name, banned: disabled}
+	}
+	if rows.Err() != nil {
+		return
+	}
+	s.modAccounts.mu.Lock()
+	now := time.Now()
+	if s.modAccounts.bans.entries != nil && s.modAccounts.bans.gen == s.modAccounts.gen && now.Before(s.modAccounts.bans.until) {
+		for _, e := range s.modAccounts.bans.entries {
+			if e.Banned {
+				if cur, ok := meta[e.AccountID]; ok {
+					cur.banned = true
+					meta[e.AccountID] = cur
+				}
+			}
+		}
+	} else if s.modAccounts.review.entries != nil && s.modAccounts.review.gen == s.modAccounts.gen && now.Before(s.modAccounts.review.until) {
+		for _, e := range s.modAccounts.review.entries {
+			if e.Banned {
+				if cur, ok := meta[e.AccountID]; ok {
+					cur.banned = true
+					meta[e.AccountID] = cur
+				}
+			}
+		}
+	}
+	s.modAccounts.mu.Unlock()
+	for i := range chars {
+		if m, ok := meta[chars[i].AccountID]; ok {
+			chars[i].AccountName = m.name
+			b := m.banned
+			chars[i].AccountBanned = &b
+		}
+	}
+}
+
 func (s *Server) v1Accounts(w http.ResponseWriter, r *http.Request) {
 	q, err := v1ParseQuery(r, "state")
 	if err != nil {
@@ -85,9 +157,29 @@ func (s *Server) v1Accounts(w http.ResponseWriter, r *http.Request) {
 	args := []any{id}
 	if q.Q != "" {
 		pattern := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q.Q) + "%"
-		query += " AND (a.account LIKE ? ESCAPE '!' OR a.account_id LIKE ? ESCAPE '!' OR a.id=?)"
 		panel, _ := strconv.ParseInt(q.Q, 10, 64)
-		args = append(args, pattern, pattern, panel)
+		var charAccounts []string
+		if matcher, ok := reader.(interface {
+			AccountIDsByCharacterQuery(context.Context, string, int) ([]string, error)
+		}); ok {
+			if matched, e := matcher.AccountIDsByCharacterQuery(r.Context(), q.Q, 100); e == nil {
+				charAccounts = matched
+			}
+		}
+		if len(charAccounts) > 0 {
+			marks := strings.TrimSuffix(strings.Repeat("?,", len(charAccounts)), ",")
+			query += " AND (a.account LIKE ? ESCAPE '!' OR a.account_id LIKE ? ESCAPE '!' OR a.id=? OR (a.account_id IN (" + marks + ") AND BINARY a.account_id IN (" + marks + ")))"
+			args = append(args, pattern, pattern, panel)
+			for _, accID := range charAccounts {
+				args = append(args, accID)
+			}
+			for _, accID := range charAccounts {
+				args = append(args, accID)
+			}
+		} else {
+			query += " AND (a.account LIKE ? ESCAPE '!' OR a.account_id LIKE ? ESCAPE '!' OR a.id=?)"
+			args = append(args, pattern, pattern, panel)
+		}
 	}
 	if state != "" {
 		query += " AND COALESCE(p.disabled,0)=?"
@@ -186,6 +278,11 @@ func (s *Server) v1AccountData(w http.ResponseWriter, r *http.Request) (v1Accoun
 		s.v1Unavailable(w, r, err)
 		return a, nil, false
 	}
+	for i := range characters {
+		characters[i].AccountName = a.Name
+		banned := a.Disabled
+		characters[i].AccountBanned = &banned
+	}
 	a.CharacterCount = len(characters)
 	return a, characters, true
 }
@@ -256,6 +353,7 @@ func (s *Server) v1Characters(w http.ResponseWriter, r *http.Request) {
 		characters = characters[:q.Limit]
 		page.NextCursor = s.v1CursorToken("characters", filter, characters[len(characters)-1].CharacterID)
 	}
+	s.v1AttachAccountNames(r.Context(), characters)
 	v1Reply(w, r, 200, v1Envelope{Data: characters, Page: &page})
 }
 func (s *Server) v1Character(w http.ResponseWriter, r *http.Request) {
@@ -278,6 +376,9 @@ func (s *Server) v1Character(w http.ResponseWriter, r *http.Request) {
 		v1Fail(w, r, 404, "character_not_found", "角色不存在或已删除", false)
 		return
 	}
+	single := []repository.CharacterSummary{c}
+	s.v1AttachAccountNames(r.Context(), single)
+	c = single[0]
 	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"character": c, "online": "unknown"}})
 }
 func (s *Server) v1Items(w http.ResponseWriter, r *http.Request) {

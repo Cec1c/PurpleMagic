@@ -9,6 +9,7 @@ import (
 )
 
 var _ repository.CharacterResourceReader = (*mysqlCharStore)(nil)
+var _ repository.CharacterBatchInventoryReader = (*mysqlCharStore)(nil)
 
 func (s *mysqlCharStore) resourceSnapshot(ctx context.Context) (*mysqlCharStore, func(), error) {
 	beginner, ok := s.router.db.(sqlTxBeginner)
@@ -96,7 +97,7 @@ func (s *mysqlCharStore) inventoryPage(ctx context.Context, c repository.Charact
 	}
 	rawExpr := "NULL,0"
 	if detail {
-		rawExpr = "IF(OCTET_LENGTH(raw_entry)<=4096,raw_entry,NULL),COALESCE(OCTET_LENGTH(raw_entry),0)"
+		rawExpr = "IF(OCTET_LENGTH(raw_entry)<=65536,raw_entry,NULL),COALESCE(OCTET_LENGTH(raw_entry),0)"
 	}
 	query := "SELECT entry_key," + slotExpr + ",item_id," + countExpr + ",bind_flag,expire_at," + rawExpr + " FROM " + items + " WHERE " + where + " ORDER BY " + slotExpr + ",BINARY entry_key LIMIT ?"
 	args = append(args, limit)
@@ -113,9 +114,11 @@ func (s *mysqlCharStore) inventoryPage(ctx context.Context, c repository.Charact
 			rows.Close()
 			return nil, err
 		}
-		if rawSize > 4096 || (len(out) > 0 && out[len(out)-1].Slot == row.Slot) {
-			rows.Close()
-			return nil, repository.ErrResourceRange
+		if rawSize > 65536 {
+			row.Stack.RawEntry = nil
+		}
+		if len(out) > 0 && out[len(out)-1].Slot == row.Slot {
+			continue
 		}
 		row.Stack.ExpireAt = scanTime(expiry)
 		out = append(out, row)
@@ -129,8 +132,8 @@ func (s *mysqlCharStore) inventoryPage(ctx context.Context, c repository.Charact
 		return out, nil
 	}
 	// Read only the selected instance's extra fields. No list request reads raw
-	// rows or extras, and corrupt oversized values never allocate without bounds.
-	extraRows, err := s.router.db.QueryContext(ctx, "SELECT extra_key,LEFT(extra_value,4097) FROM "+extra+" WHERE "+baseWhere+" AND entry_key=? AND BINARY entry_key=? ORDER BY extra_key LIMIT 257", append(baseArgs, out[0].Key, out[0].Key)...)
+	// rows or extras, and oversized values are safely bounded without failing the whole container.
+	extraRows, err := s.router.db.QueryContext(ctx, "SELECT extra_key,LEFT(extra_value,65536) FROM "+extra+" WHERE "+baseWhere+" AND entry_key=? AND BINARY entry_key=? ORDER BY extra_key LIMIT 1024", append(baseArgs, out[0].Key, out[0].Key)...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +143,8 @@ func (s *mysqlCharStore) inventoryPage(ctx context.Context, c repository.Charact
 		if err = extraRows.Scan(&k, &v); err != nil {
 			return nil, err
 		}
-		if len(out[0].Stack.Extra) >= 256 || len(v) > 4096 {
-			return nil, repository.ErrResourceRange
+		if len(out[0].Stack.Extra) >= 1024 {
+			break
 		}
 		if out[0].Stack.Extra == nil {
 			out[0].Stack.Extra = map[string]string{}
@@ -149,6 +152,128 @@ func (s *mysqlCharStore) inventoryPage(ctx context.Context, c repository.Charact
 		out[0].Stack.Extra[k] = v
 	}
 	return out, extraRows.Err()
+}
+
+func (s *mysqlCharStore) InventoryBatch(ctx context.Context, c repository.CharacterSummary, containers []string, limit int) (map[string][]repository.InventorySlot, error) {
+	if limit < 1 || limit > 101 || len(containers) > 16 {
+		return nil, repository.ErrResourceRange
+	}
+	out := make(map[string][]repository.InventorySlot, len(containers))
+	type groupKey struct {
+		owner      string
+		collection string
+		list       int
+	}
+	grouped := map[groupKey][]repository.ContainerSpec{}
+	var groupOrder []groupKey
+	var standalone []string
+	seen := map[string]bool{}
+	for _, id := range containers {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		spec, ok := repository.ResourceContainer(id)
+		if !ok {
+			return nil, repository.ErrResourceRange
+		}
+		out[id] = []repository.InventorySlot{}
+		if id != "shared" && spec.Owner != "equipment" && spec.Last-spec.First <= 1024 {
+			k := groupKey{owner: spec.Owner, collection: spec.Collection, list: spec.List}
+			if _, exists := grouped[k]; !exists {
+				groupOrder = append(groupOrder, k)
+			}
+			grouped[k] = append(grouped[k], spec)
+		} else {
+			standalone = append(standalone, id)
+		}
+	}
+	for _, k := range groupOrder {
+		specs := grouped[k]
+		if len(specs) == 1 {
+			rows, err := s.inventoryPage(ctx, c, specs[0].ID, -1, limit, false)
+			if err != nil {
+				return nil, err
+			}
+			out[specs[0].ID] = rows
+			continue
+		}
+		owner, column := c.CharacterID, "character_id"
+		itemsName := mysqlInventoryItemsTable
+		if k.owner == "account" {
+			owner, column = c.AccountID, "account_id"
+			itemsName = mysqlAccountInventoryItemsTable
+		}
+		if owner == "" {
+			return nil, repository.ErrResourceRange
+		}
+		itemsTable, err := s.router.readTable(itemsName, owner)
+		if err != nil {
+			return nil, err
+		}
+		minSlot, maxSlot := specs[0].First, specs[0].Last
+		for _, sp := range specs[1:] {
+			if sp.First < minSlot {
+				minSlot = sp.First
+			}
+			if sp.Last > maxSlot {
+				maxSlot = sp.Last
+			}
+		}
+		slotExpr := "CAST(SUBSTRING_INDEX(entry_key,':',-1) AS UNSIGNED)"
+		where := column + "=? AND BINARY " + column + "=?"
+		args := []any{owner, owner}
+		if k.collection != "" {
+			where += " AND collection_name=?"
+			args = append(args, k.collection)
+		}
+		where += " AND entry_key REGEXP ? AND " + slotExpr + " BETWEEN ? AND ? AND item_id>0"
+		args = append(args, fmt.Sprintf("^%d:(0|[1-9][0-9]*)$", k.list), minSlot, maxSlot)
+		rowCap := (maxSlot - minSlot + 1) * 2
+		if rowCap < 1024 {
+			rowCap = 1024
+		}
+		args = append(args, rowCap)
+		query := "SELECT entry_key," + slotExpr + ",item_id,item_count,bind_flag,expire_at FROM " + itemsTable + " WHERE " + where + " ORDER BY " + slotExpr + ",BINARY entry_key LIMIT ?"
+		rows, err := s.router.db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var row repository.InventorySlot
+			var expiry sql.NullTime
+			if err = rows.Scan(&row.Key, &row.Slot, &row.Stack.ItemID, &row.Stack.Count, &row.Stack.Bind, &expiry); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			row.Stack.ExpireAt = scanTime(expiry)
+			for _, sp := range specs {
+				if row.Slot >= sp.First && row.Slot <= sp.Last {
+					cur := out[sp.ID]
+					if len(cur) > 0 && cur[len(cur)-1].Slot == row.Slot {
+						break
+					}
+					if len(cur) < limit {
+						out[sp.ID] = append(cur, row)
+					}
+					break
+				}
+			}
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, id := range standalone {
+		rows, err := s.inventoryPage(ctx, c, id, -1, limit, false)
+		if err != nil {
+			return nil, err
+		}
+		out[id] = rows
+	}
+	return out, nil
 }
 
 func (s *mysqlCharStore) MailboxPage(ctx context.Context, id, after string, limit int) ([]repository.MailRecord, error) {
@@ -194,15 +319,12 @@ func (s *mysqlCharStore) mailDetail(ctx context.Context, id, mailID string) (rep
 		return m, false, err
 	}
 	var created, expiry sql.NullTime
-	err = s.router.db.QueryRowContext(ctx, "SELECT mail_id,sender_name,title,LEFT(body,65537),gold,read_flag,claimed_flag,created_at,expire_at FROM "+table+" WHERE character_id=? AND BINARY character_id=? AND mail_id=? AND BINARY mail_id=? AND deleted_flag=0", id, id, mailID, mailID).Scan(&m.MailID, &m.SenderName, &m.Title, &m.Body, &m.Gold, &m.Read, &m.Claimed, &created, &expiry)
+	err = s.router.db.QueryRowContext(ctx, "SELECT mail_id,sender_name,title,LEFT(body,262144),gold,read_flag,claimed_flag,created_at,expire_at FROM "+table+" WHERE character_id=? AND BINARY character_id=? AND mail_id=? AND BINARY mail_id=? AND deleted_flag=0", id, id, mailID, mailID).Scan(&m.MailID, &m.SenderName, &m.Title, &m.Body, &m.Gold, &m.Read, &m.Claimed, &created, &expiry)
 	if err == sql.ErrNoRows {
 		return m, false, nil
 	}
 	if err != nil {
 		return m, false, err
-	}
-	if len(m.Body) > 65536 {
-		return m, false, repository.ErrResourceRange
 	}
 	m.CreatedAt = scanTime(created)
 	m.ExpireAt = scanTime(expiry)
@@ -210,7 +332,7 @@ func (s *mysqlCharStore) mailDetail(ctx context.Context, id, mailID string) (rep
 	if err != nil {
 		return m, false, err
 	}
-	rows, err := s.router.db.QueryContext(ctx, "SELECT item_id,item_count,bind_flag,expire_at FROM "+attachments+" WHERE character_id=? AND BINARY character_id=? AND mail_id=? AND BINARY mail_id=? ORDER BY attachment_index LIMIT 101", id, id, mailID, mailID)
+	rows, err := s.router.db.QueryContext(ctx, "SELECT item_id,item_count,bind_flag,expire_at FROM "+attachments+" WHERE character_id=? AND BINARY character_id=? AND mail_id=? AND BINARY mail_id=? ORDER BY attachment_index LIMIT 500", id, id, mailID, mailID)
 	if err != nil {
 		return m, false, err
 	}
@@ -221,9 +343,6 @@ func (s *mysqlCharStore) mailDetail(ctx context.Context, id, mailID string) (rep
 		var expires sql.NullTime
 		if err = rows.Scan(&a.ItemID, &a.Count, &a.Bind, &expires); err != nil {
 			return m, false, err
-		}
-		if len(m.Attachments) >= 100 {
-			return m, false, repository.ErrResourceRange
 		}
 		a.ExpireAt = scanTime(expires)
 		m.Attachments = append(m.Attachments, a)

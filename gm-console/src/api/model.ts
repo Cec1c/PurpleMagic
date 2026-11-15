@@ -1,5 +1,22 @@
-import type { State, Quest, Item } from "../domain";
+import type { State, Quest, Item, Account } from "../domain";
 export type DTO = Record<string, any>;
+export type RecentCharacter = {
+  id: string;
+  accountId: string;
+  accountName?: string;
+  name: string;
+  job: string;
+  level: number;
+};
+export type AccountPanelState = {
+  accountId: string;
+  loading: boolean;
+  error: string;
+  account?: Account;
+  currency?: DTO;
+  premium?: DTO;
+  adventureName?: DTO;
+};
 export type LiveData = {
   authenticated: boolean;
   authReady: boolean;
@@ -8,7 +25,13 @@ export type LiveData = {
   busy: boolean;
   reading: number;
   error: string;
+  errorCode?: string;
+  gmTab?: "growth" | "quotas" | "currency" | "premium" | "history";
+  recentCharacters: RecentCharacter[];
+  accountPanel?: AccountPanelState;
+  antiCheatState?: DTO;
   directory: {
+    initialized?: boolean;
     mode: "accounts" | "characters";
     q: string;
     next: string;
@@ -97,6 +120,7 @@ export const emptyState = (): State => ({
     busy: false,
     reading: 0,
     error: "",
+    recentCharacters: [],
     directory: { mode: "characters", q: "", next: "", ids: [], accountIds: [] },
     inventory: { tab: "bag", next: {}, pvf: "", loading: false },
     quests: [],

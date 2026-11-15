@@ -15,8 +15,10 @@ export function queryPolicy(path: string): QueryPolicy | undefined {
     const [, kind, id, tail] = owner;
     const tag = `${kind}:${id}`;
     if (!tail || tail === "/characters") return policy(15000, [tag, "directory", "players"]);
-    if (/^\/(inventory(?:\/[^/]+\/\d+(?:\/options)?)?|mailbox(?:\/[^/]+)?|quests|level|skill-points|profession|adventure-name|gold|currency|premium|dungeon-quotas)$/.test(tail))
-      return policy(3000, [tag, "players", `${tag}:${tail.split('/')[1]}`]);
+    if (/^\/(inventory(?:-batch|\/[^/]+\/\d+(?:\/options)?)?|mailbox(?:\/[^/]+)?|quests|level|skill-points|profession|adventure-name|gold|currency|premium|dungeon-quotas)$/.test(tail)) {
+      const resource = tail.split('/')[1] === "inventory-batch" ? "inventory" : tail.split('/')[1];
+      return policy(3000, [tag, "players", `${tag}:${resource}`]);
+    }
   }
   if (base === "/api/v1/presence") return policy(3000, ["presence"] , 3000);
   if (base === "/api/v1/benefits") return policy(30000, ["benefits"]);

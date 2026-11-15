@@ -74,6 +74,10 @@ func TestRemoteCatalogCachesSuccessfulGeneration(t *testing.T) {
 	if _, _, _, err = catalog.profession(ctx, 0); err != nil {
 		t.Fatal(err)
 	}
+	if catalog.maxItems != defaultRemoteItemCacheMax || defaultRemoteItemCacheMax != 65536 {
+		t.Fatalf("unexpected default item cache cap: %d", catalog.maxItems)
+	}
+	catalog.maxItems = 512
 	for id := uint32(1); id <= 512; id++ {
 		catalog.items[id] = catalogItem{Entry: itemEntry{ID: id}, Found: true}
 	}
