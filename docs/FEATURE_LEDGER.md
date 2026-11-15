@@ -1,3 +1,5 @@
+2026-11-15：GM 管理新增「副本额度」页签，支持单角色读取与重置魔界裂缝、艾肯（遗落的神殿与试炼）、安徒恩攻坚战、卢克攻坚战与超时空之战次数，带 0 次数拦截、离线保护／碳铀模式、签名预览与持久操作回执（GM-42）。
+
 2026-11-08：新增[GM 查询缓存与加载过渡](GM_QUERY_CACHE.md)：会话 LRU、请求合并与定点失效，账号列表批量点券投影，职业读取去重，编辑草稿保留。
 
 2026-11-06：新增[公告模板与 API 发布工具](GM_ANNOUNCEMENT_PUBLISHING.md)，通过现有 GM 会话发布 Markdown，保存操作编号及回读结果。
@@ -112,7 +114,7 @@
 | **GM-39** 账号导出/恢复、服务数据备份 | 旧版实现；账号导出/恢复待迁 | 旧版导出恢复；服务备份归部署工具。<br>后续：v1预览与版本核对、恢复验收 | [F03](FOUNDATIONS.md#f03) / [F04](FOUNDATIONS.md#f04) / [F12](FOUNDATIONS.md#f12) / [F15](FOUNDATIONS.md#f15)<br>`旧 /api/accounts/{id}/backup; /api/accounts/restore` |
 | **GM-40** 操作审计与查询 | 部分完成；各功能历史与回执 | 资产/成长/任务/邮箱独立历史，邮件福利持久回执。<br>后续：跨功能审计、管理员身份和统一筛选 | [F05](FOUNDATIONS.md#f05) / [F12](FOUNDATIONS.md#f12)<br>`*-operations; currency-adjustments; tasks/{id}/recipients` |
 | **GM-41** 决斗胜点、等级与段位 | 待接入；决斗成长 | 胜点、等级、段位目标已收录。<br>后续：PVF选项、事务和页面 | [F03](FOUNDATIONS.md#f03) / [F04](FOUNDATIONS.md#f04) / [F06](FOUNDATIONS.md#f06)<br>`无当前v1决斗管理路由` |
-| **GM-42** 副本进入次数与额度 | 待接入；副本额度 | 基础/额外/已用、账号/角色/日期目标。<br>后续：与游戏进入校验一致的额度管理 | [F03](FOUNDATIONS.md#f03) / [F04](FOUNDATIONS.md#f04) / [F09](FOUNDATIONS.md#f09)<br>`无当前v1额度管理路由` |
+| **GM-42** 副本进入次数与额度 | 已接入；GM 副本额度页签 | 单角色读取与清零魔界裂缝、艾肯（遗落的神殿与试炼）、安徒恩攻坚战、卢克攻坚战与超时空之战已用次数；0 次数拦截、离线锁／碳铀模式、签名预览与持久操作回执。<br>后续：账号级单日入场上限与绝望之塔等其他副本按需扩展 | [F03](FOUNDATIONS.md#f03) / [F04](FOUNDATIONS.md#f04) / [F05](FOUNDATIONS.md#f05) / [F06](FOUNDATIONS.md#f06) / [F09](FOUNDATIONS.md#f09)<br>`characters/{c}/dungeon-quotas; dungeon-quota-operations` |
 | **GM-43** 异常统计白名单 | 待实现；异常白名单 | 加入/移除/原因/操作者及原始记录目标。<br>后续：规则生效和复查过滤 | [F12](FOUNDATIONS.md#f12) / [F13](FOUNDATIONS.md#f13)<br>`无当前v1白名单路由` |
 | **GM-44** IP 注册额度 | 待接入；IP注册额度 | 设置和恢复默认目标。<br>后续：接实际注册准入与读回 | [F04](FOUNDATIONS.md#f04) / [F09](FOUNDATIONS.md#f09) / [F12](FOUNDATIONS.md#f12)<br>`无当前v1注册额度路由` |
 | **GM-45** 释放卡住的角色会话 | 待接入；释放卡住会话 | 卡角色会话释放目标。<br>后续：游戏权威执行与返回结果 | [F09](FOUNDATIONS.md#f09) / [F12](FOUNDATIONS.md#f12)<br>`无当前v1释放会话路由` |

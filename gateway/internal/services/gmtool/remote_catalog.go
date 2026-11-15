@@ -35,6 +35,8 @@ type RemoteCatalog struct {
 	professionCache map[byte]*professionManagementCache
 	professionUsed  map[byte]uint64
 	professionClock uint64
+	quotaMu         sync.Mutex
+	dungeonQuotas   *adminops.DungeonQuotaCatalog
 }
 type catalogItem struct {
 	Entry              itemEntry
@@ -277,6 +279,26 @@ func (c *RemoteCatalog) metadata(ctx context.Context) (string, error) {
 	c.manifestHash = v.ManifestHash
 	return c.manifestHash, nil
 }
+func (c *RemoteCatalog) dungeonQuotaCatalog(ctx context.Context) (adminops.DungeonQuotaCatalog, error) {
+	c.quotaMu.Lock()
+	defer c.quotaMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return adminops.DungeonQuotaCatalog{}, err
+	}
+	if c.dungeonQuotas != nil {
+		return cloneDungeonQuotaCatalog(*c.dungeonQuotas), nil
+	}
+	var v adminops.DungeonQuotaCatalog
+	if err := c.call(ctx, catalogRequest{Operation: "dungeon-quotas"}, &v); err != nil {
+		return adminops.DungeonQuotaCatalog{}, err
+	}
+	if v.PVFChecksum != c.peer.Hash() || v.Validate() != nil {
+		return adminops.DungeonQuotaCatalog{}, adminops.ErrDungeonQuotaDefinition
+	}
+	cached := cloneDungeonQuotaCatalog(v)
+	c.dungeonQuotas = &cached
+	return cloneDungeonQuotaCatalog(v), nil
+}
 func (c *RemoteCatalog) questIndex(ctx context.Context) (*questDiskIndex, error) {
 	hash, err := c.metadata(ctx)
 	if err != nil {
@@ -444,6 +466,8 @@ func (s *Server) resolveCatalog(ctx context.Context, in catalogRequest) (any, er
 		return v, e
 	case "expert":
 		return s.expertJobDefinitions(ctx)
+	case "dungeon-quotas":
+		return s.dungeonQuotaCatalog(ctx)
 	case "level":
 		return s.levelDefinition(ctx, repository.CharacterRecord{Job: in.CharacterJob, Stats: map[string]int64{"grow_type": in.Grow}}, in.Level)
 	case "skill-points":

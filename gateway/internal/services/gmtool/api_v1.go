@@ -98,6 +98,10 @@ func (s *Server) v1Routes() http.Handler {
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/expert-job-operations/preview", s.v1ExpertJobOperation)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/expert-job-operations", s.v1ExpertJobOperation)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/expert-job-operations", s.v1ExpertJobLog)
+	mux.HandleFunc("GET /api/v1/characters/{characterId}/dungeon-quotas", s.v1DungeonQuotas)
+	writes.HandleFunc("POST /api/v1/characters/{characterId}/dungeon-quota-operations/preview", s.v1DungeonQuotaOperation)
+	writes.HandleFunc("POST /api/v1/characters/{characterId}/dungeon-quota-operations", s.v1DungeonQuotaOperation)
+	mux.HandleFunc("GET /api/v1/characters/{characterId}/dungeon-quota-operations", s.v1DungeonQuotaLog)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/level-operations/preview", s.v1LevelOperation)
 	writes.HandleFunc("POST /api/v1/characters/{characterId}/level-operations", s.v1LevelOperation)
 	mux.HandleFunc("GET /api/v1/characters/{characterId}/level-operations", s.v1LevelLog)
@@ -370,6 +374,10 @@ func (s *Server) v1Capabilities(w http.ResponseWriter, r *http.Request) {
 	_, expertJobWrite := group.Character.(repository.ExpertJobManagementUnitOfWork)
 	features["expert-job.read"] = available && expertJobRead
 	features["expert-job.write"] = available && expertJobWrite && s.deps.Runtime != nil
+	_, quotaRead := group.Character.(repository.DungeonQuotaManagementReader)
+	_, quotaWrite := group.Character.(repository.DungeonQuotaManagementUnitOfWork)
+	features["dungeonQuotas.read"] = available && quotaRead
+	features["dungeonQuotas.write"] = available && quotaWrite && s.deps.Runtime != nil
 	features["skillPoints.write"] = available && pointWrite && s.deps.Runtime != nil
 	_, resources := group.Character.(repository.CharacterResourceReader)
 	features["inventory.read"] = available && resources && items

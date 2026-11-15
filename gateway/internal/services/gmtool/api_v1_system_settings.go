@@ -80,7 +80,7 @@ func (s *Server) v1SystemSettings(w http.ResponseWriter, r *http.Request) {
 // Read the policy once, before taking asset locks. Every offline check in the
 // transaction observes the same mode; no runtime call or kick occurs in carbon mode.
 func systemPolicyRoute(path string) bool {
-	for _, family := range []string{"inventory-operations", "quest-operations", "rename-operations", "adventure-rename-operations", "container-operations", "expert-job-operations", "gold-operations", "level-operations", "mailbox-cleanups", "mailbox-operations", "profession-operations", "skill-point-operations", "vault-operations"} {
+	for _, family := range []string{"inventory-operations", "quest-operations", "rename-operations", "adventure-rename-operations", "container-operations", "dungeon-quota-operations", "expert-job-operations", "gold-operations", "level-operations", "mailbox-cleanups", "mailbox-operations", "profession-operations", "skill-point-operations", "vault-operations"} {
 		if strings.Contains(path, "/"+family+"/") || strings.HasSuffix(path, "/"+family) {
 			return true
 		}

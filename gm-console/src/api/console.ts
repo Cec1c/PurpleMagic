@@ -633,6 +633,7 @@ export class ConsoleAPI {
     else if (refresh && section === "gm")
       await this.partial([
         () => this.growth(),
+        () => this.dungeonQuotas(),
         () => this.tasks(), () => this.history(),
       ]);
     else if (refresh && section === "benefits") await this.benefits();
@@ -943,6 +944,16 @@ export class ConsoleAPI {
     this.meta.resources.premium = data;
     this.publish();
   }
+  async dungeonQuotas() {
+    const id = this.current, c = this.state.characters.find(c => c.id === id);
+    if (!c || !this.meta.features["dungeonQuotas.read"]) return;
+    const signal = this.signal("quotas");
+    await this.http.observe(`/api/v1/characters/${segment(id)}/dungeon-quotas`, signal, ({data}) => {
+      if (signal.aborted || this.current !== id) return;
+      this.meta.resources.dungeonQuotas = data;
+      this.publish();
+    });
+  }
   async balances(names = ["gold", "currency"]) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
     if (!c) return;
@@ -1126,6 +1137,7 @@ export class ConsoleAPI {
       ["adventure.read", `${account}/adventure-rename-operations`, "冒险团改名"],
       ["profession.write", `${base}/profession-operations`, "职业"],
       ["skillPoints.write", `${base}/skill-point-operations`, "SP / TP"],
+      ["dungeonQuotas.write", `${base}/dungeon-quota-operations`, "副本额度"],
       ["quests.write", `${base}/quest-operations`, "任务"],
       ["mailbox.write", `${base}/mailbox-operations`, "邮箱"],
     ];
@@ -1151,7 +1163,7 @@ export class ConsoleAPI {
             id: `${label}:${v.requestId}`,
             kind: v.kind || label,
             target: label,
-            summary: `${label} · ${v.reason || "管理操作"}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : ""}`,
+            summary: `${label} · ${v.reason || "管理操作"}${typeof v.before === "string" ? ` · ${v.before} → ${v.after}` : v.quotaName && v.before && v.after ? ` · ${v.quotaName} ${v.before.used}/${v.before.limit} → ${v.after.used}/${v.after.limit}` : ""}`,
             at: v.createdAt,
             details: v,
           });

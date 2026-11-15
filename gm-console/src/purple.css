@@ -111,3 +111,16 @@
 .operation-history-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .operation-history-toolbar > span { flex: 1; }
 .operation-history-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.quota-group-stack { display: grid; gap: 20px; min-width: 0; }
+.quota-list { display: grid; gap: 12px; margin-top: 14px; }
+.quota-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--border-1); border-radius: var(--radius-lg, 14px); background: color-mix(in srgb, var(--surface-2) 68%, transparent); transition: border-color 0.16s ease, background 0.16s ease; }
+.quota-row:hover { border-color: var(--border-2); background: color-mix(in srgb, var(--hover) 72%, transparent); }
+.quota-row-main { display: grid; gap: 6px; min-width: 0; }
+.quota-row-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.quota-row-title strong { font-size: 14px; color: var(--text-1); }
+.quota-row-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--text-3); }
+.quota-row button { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .quota-row { flex-direction: column; align-items: stretch; }
+  .quota-row button { width: 100%; justify-content: center; }
+}

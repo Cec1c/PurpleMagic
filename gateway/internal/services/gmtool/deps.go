@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"dnf90.local/gateway/internal/modules/dnf/adminops"
 	dnfcerashop "dnf90.local/gateway/internal/modules/dnf/cerashop"
 	dnfcharstat "dnf90.local/gateway/internal/modules/dnf/charstat"
 	dnfhonor "dnf90.local/gateway/internal/modules/dnf/honor"
@@ -38,6 +39,8 @@ type pvfCache struct {
 	levelChecksum        string
 	managementProfession *professionManagementCache
 	managementExpertJob  *expertJobIndex
+	dungeonQuotaCatalog  *adminops.DungeonQuotaCatalog
+	dungeonQuotaChecksum string
 
 	progression     *progression.Tables
 	progressionErr  error

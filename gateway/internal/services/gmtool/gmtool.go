@@ -137,6 +137,7 @@ type Server struct {
 
 	items        *itemIndex
 	pvf          *pvfCache
+	quotaNow     func() time.Time
 	questIndexMu sync.Mutex
 	questIndex   *questDiskIndex
 

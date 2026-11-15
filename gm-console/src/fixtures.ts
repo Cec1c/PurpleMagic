@@ -1,4 +1,70 @@
-import type { State, Item, Quest, InventoryTab } from "./domain";
+import type { State, Item, Quest, InventoryTab, DungeonQuotaItem } from "./domain";
+
+function defaultDemoQuotas(seed: number): DungeonQuotaItem[] {
+  const rift = seed % 4;
+  const temple = seed % 2 === 0 ? 3 : 1;
+  const trial = temple >= 3 ? 1 : 0;
+  const anton = seed % 3 === 0 ? 2 : 1;
+  const luke = seed % 2 === 0 ? 1 : 0;
+  return [
+    {
+      key: "pandemonium_rift",
+      name: "魔界裂缝",
+      category: "daily",
+      resetSchedule: "每日 06:00",
+      used: rift,
+      limit: 3,
+      canReset: rift > 0,
+      detail: rift >= 3 ? "今日入场次数已用尽" : `下次入场消耗 ${2 * (rift + 1)} 个精炼的时空石`,
+    },
+    {
+      key: "echon",
+      name: "艾肯（遗落的神殿 + 试炼）",
+      category: "daily",
+      resetSchedule: "每日 06:00",
+      used: temple + trial,
+      limit: 4,
+      canReset: temple + trial > 0,
+      detail: `遗落的神殿 ${temple}/3（已通关 ${temple}/3） · 试炼 ${trial}/1`,
+      templeEntries: temple,
+      templeClears: temple,
+      templeLimit: 3,
+      trialEntries: trial,
+      trialClears: trial,
+      trialLimit: 1,
+    },
+    {
+      key: "anton_raid",
+      name: "安徒恩攻坚战",
+      category: "weekly",
+      resetSchedule: "每周四 06:00",
+      used: anton,
+      limit: 2,
+      canReset: anton > 0,
+      detail: "团队与单人安徒恩共用角色每周攻坚次数",
+    },
+    {
+      key: "luke_raid",
+      name: "卢克攻坚战",
+      category: "weekly",
+      resetSchedule: "每周四 06:00",
+      used: luke,
+      limit: 2,
+      canReset: luke > 0,
+      detail: "团队与单人卢克共用角色每周攻坚次数",
+    },
+    {
+      key: "fiend_war",
+      name: "超时空之战",
+      category: "weekly",
+      resetSchedule: "每周四 06:00",
+      used: 0,
+      limit: 2,
+      canReset: false,
+      detail: "角色每周攻坚通关次数",
+    },
+  ];
+}
 
 export const quests: Quest[] = [
   {
@@ -487,6 +553,9 @@ export function initialState(): State {
           "180": "active",
         },
       ]),
+    ),
+    dungeonQuotas: Object.fromEntries(
+      characters.map((c, index) => [c.id, defaultDemoQuotas(index + 1)]),
     ),
     benefits: [
       {

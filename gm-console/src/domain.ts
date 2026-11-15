@@ -100,6 +100,22 @@ export type Receipt = {
   at: string;
   details?: Record<string, any>;
 };
+export type DungeonQuotaItem = {
+  key: string;
+  name: string;
+  category: "daily" | "weekly";
+  resetSchedule: string;
+  used: number;
+  limit: number;
+  canReset: boolean;
+  detail: string;
+  templeEntries?: number;
+  templeClears?: number;
+  templeLimit?: number;
+  trialEntries?: number;
+  trialClears?: number;
+  trialLimit?: number;
+};
 export type Benefit = {
   cera?: number;
   item?: Attachment;
@@ -136,6 +152,7 @@ export type State = {
   items: Item[];
   mails: Mail[];
   questStates: Record<string, Record<string, string>>;
+  dungeonQuotas?: Record<string, DungeonQuotaItem[]>;
   benefits: Benefit[];
   receipts: Receipt[];
   news: News[];
@@ -154,6 +171,7 @@ export type Command =
   | { kind: "delete-items"; keys: string[] }
   | { kind: "replace-item"; key: string; version: number; itemId: string }
   | { kind: "reset-skill-points"; characterId: string }
+  | { kind: "reset-dungeon-quota"; characterId: string; quotaKey: string }
   | { kind: "rename-character"; characterId: string; expectedName: string; newName: string }
   | { kind: "premium-grant"; accountId: string; days: number }
   | { kind: "rename-adventure"; accountId: string; expectedName: string; newName: string }
@@ -402,6 +420,28 @@ export function applyCommand(
       if (!account) throw new Error("账号不存在");
       if (!Number.isInteger(command.days) || command.days < 1 || command.days > 3650) throw new Error("请输入 1–3650 天");
       target = account.name; summary = `黑钻贵族续期 ${command.days} 天`;
+      break;
+    }
+    case "reset-dungeon-quota": {
+      const c = offline(s, command.characterId);
+      const list = s.dungeonQuotas?.[c.id] || [];
+      const entry = list.find((item) => item.key === command.quotaKey);
+      if (!entry) throw new Error("请选择有效的副本额度重置项");
+      if (!entry.canReset || entry.used <= 0) throw new Error("当前副本未消耗次数，无需重置");
+      const beforeUsed = entry.used;
+      entry.used = 0;
+      entry.canReset = false;
+      if (entry.key === "pandemonium_rift") {
+        entry.detail = "下次入场消耗 2 个精炼的时空石";
+      } else if (entry.key === "echon") {
+        entry.templeEntries = 0;
+        entry.templeClears = 0;
+        entry.trialEntries = 0;
+        entry.trialClears = 0;
+        entry.detail = `遗落的神殿 0/${entry.templeLimit ?? 3}（已通关 0/${entry.templeLimit ?? 3}） · 试炼 0/${entry.trialLimit ?? 1}`;
+      }
+      target = c.name;
+      summary = `重置「${entry.name}」已用次数：${beforeUsed}/${entry.limit} → 0/${entry.limit}`;
       break;
     }
     case "rename-character": {

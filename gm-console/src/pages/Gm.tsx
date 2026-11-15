@@ -12,7 +12,9 @@ import {
   TrendingUp,
   RotateCcw,
   PencilLine,
+  Swords,
 } from "lucide-react";
+import type { DungeonQuotaItem } from "../domain";
 import {
   Tabs,
   Field,
@@ -26,12 +28,13 @@ import {
 export function GmPage({ state, character, request }: PageProps) {
   const live = useLive();
   const [tab, setTab] = useState<
-    "growth" | "currency" | "premium" | "history"
+    "growth" | "quotas" | "currency" | "premium" | "history"
   >("growth");
   useEffect(() => {
     if (!live) return;
     void live.guard(async () => {
       if (tab === "growth") await live.growth();
+      else if (tab === "quotas") await live.dungeonQuotas();
       else if (tab === "currency") await live.balances();
       else if (tab === "premium") await live.premium();
       else await Promise.all([live.history(), live.tasks()]);
@@ -89,6 +92,19 @@ export function GmPage({ state, character, request }: PageProps) {
   const groups = live ? professionGroups(state.api?.jobsRaw || []) : demoProfessionGroups;
   const optionValue = (v: { value: string; label: string }) => live ? v.value : v.label;
   const root = groups.find(g => g.choices.some(v => optionValue(v) === job));
+  const showQuotas = !live || !!state.api?.features["dungeonQuotas.read"];
+  useEffect(() => {
+    if (!showQuotas && tab === "quotas") setTab("growth");
+  }, [showQuotas, tab]);
+  const quotaResource = state.api?.resources.dungeonQuotas;
+  const currentQuotas: DungeonQuotaItem[] | undefined = live
+    ? quotaResource?.characterId === character.id
+      ? quotaResource.quotas
+      : undefined
+    : state.dungeonQuotas?.[character.id] || [];
+  const canWriteQuotas = !live || !!state.api?.features["dungeonQuotas.write"];
+  const dailyQuotas = (currentQuotas || []).filter((item) => item.category === "daily");
+  const weeklyQuotas = (currentQuotas || []).filter((item) => item.category === "weekly");
   const motion = useEnterMotion(tab);
   return (
     <div ref={motion} className="motion-section">
@@ -97,6 +113,7 @@ export function GmPage({ state, character, request }: PageProps) {
           label="GM 管理"
           items={[
             { id: "growth", label: "成长与职业" },
+            ...(showQuotas ? [{ id: "quotas" as const, label: "副本额度" }] : []),
             { id: "currency", label: "金币与点券" },
             { id: "premium", label: "黑钻贵族" },
             { id: "history", label: "操作记录" },
@@ -243,6 +260,96 @@ export function GmPage({ state, character, request }: PageProps) {
               </div>
             </dl>
             {live && <button type="button" className="secondary reset-points" disabled={!balance || !!state.api?.busy} onClick={() => request({kind:"reset-skill-points", characterId:character.id})}><RotateCcw size={15} />恢复等级默认 SP / TP</button>}
+          </aside>
+        </div>
+      ) : tab === "quotas" ? (
+        <div className="form-layout">
+          <div className="quota-group-stack">
+            {currentQuotas === undefined ? (
+              <section className="glass content-panel">
+                <div className="panel-heading">
+                  <h2>
+                    <Swords size={20} />
+                    副本额度
+                  </h2>
+                  <Pill>{character.name}</Pill>
+                </div>
+                <Empty title={state.api?.reading ? "正在读取角色副本额度…" : "暂无副本额度数据"} />
+              </section>
+            ) : (
+              [
+                { title: "每日副本额度", schedule: "每日 06:00 刷新", items: dailyQuotas },
+                { title: "攻坚战每周次数", schedule: "每周四 06:00 刷新", items: weeklyQuotas },
+              ].map((group) => (
+                <section key={group.title} className="glass content-panel">
+                  <div className="panel-heading">
+                    <h2>
+                      <Swords size={20} />
+                      {group.title}
+                    </h2>
+                    <Pill>{group.schedule}</Pill>
+                  </div>
+                  <div className="quota-list">
+                    {group.items.map((item) => (
+                      <div key={item.key} className="quota-row">
+                        <div className="quota-row-main">
+                          <div className="quota-row-title">
+                            <strong>{item.name}</strong>
+                            <Pill tone={item.used >= item.limit ? "pink" : item.used > 0 ? "purple" : "neutral"}>
+                              {item.used > 0 ? `已用 ${item.used} / ${item.limit}` : `未消耗 0 / ${item.limit}`}
+                            </Pill>
+                          </div>
+                          <div className="quota-row-meta">
+                            <span>{item.detail}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={!!state.api?.busy || !canWriteQuotas || !item.canReset || item.used <= 0}
+                          onClick={() =>
+                            request({
+                              kind: "reset-dungeon-quota",
+                              characterId: character.id,
+                              quotaKey: item.key,
+                            })
+                          }
+                        >
+                          <RotateCcw size={15} />
+                          重置次数
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
+          </div>
+          <aside className="glass content-panel">
+            <h3>额度说明</h3>
+            <dl className="detail-list">
+              <div>
+                <dt>当前角色</dt>
+                <dd>{character.name} · Lv.{character.level}</dd>
+              </div>
+              <div>
+                <dt>角色状态</dt>
+                <dd>
+                  {character.online === null
+                    ? "状态未知"
+                    : character.online
+                      ? "在线"
+                      : "离线"}
+                </dd>
+              </div>
+              <div>
+                <dt>写入模式</dt>
+                <dd>{carbonMode ? "碳铀模式已开启" : "仅离线写入"}</dd>
+              </div>
+            </dl>
+            <p className="muted">
+              重置后立即清零角色对应副本已用次数（未消耗时不可重复重置）。若角色在线，切换频道或重新选择角色即可刷新客户端显示。攻坚战角色每周次数重置不会回退同账号当日 10 次入场上限。
+            </p>
           </aside>
         </div>
       ) : tab === "currency" ? (
