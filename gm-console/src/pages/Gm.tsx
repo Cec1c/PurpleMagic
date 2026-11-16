@@ -481,10 +481,19 @@ export function GmPage({ state, character, request, notify, openAccount }: PageP
                 live
                   ? String(
                       state.api?.resources.currency?.balance ??
-                        a.rawPoints ??
-                        0,
+                        (a.rawPoints && /^\d+$/.test(a.rawPoints)
+                          ? a.rawPoints
+                          : Number.isFinite(a.points)
+                            ? a.points
+                            : 0),
                     )
-                  : String(a.rawPoints ?? (Number.isFinite(a.points) ? a.points : 0))
+                  : String(
+                      a.rawPoints && /^\d+$/.test(a.rawPoints)
+                        ? a.rawPoints
+                        : Number.isFinite(a.points)
+                          ? a.points
+                          : 0,
+                    )
               }
               busy={!!state.api?.busy}
               disabled={
@@ -511,7 +520,7 @@ export function GmPage({ state, character, request, notify, openAccount }: PageP
               </div>
               <div>
                 <dt>账号点券</dt>
-                <dd>{number(a.rawPoints ?? a.points)}</dd>
+                <dd>{number(a.rawPoints || a.points)}</dd>
               </div>
               {!live && (
                 <div>

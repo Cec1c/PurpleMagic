@@ -166,7 +166,7 @@ function ItemEditor({
               "数量",
               Number(capability?.quantity?.max || 99999),
             )}
-            {equipmentFields && numeric("enhance", "强化等级", equipment?.maxUpgradeLevel ?? 31)}
+            {equipmentFields && numeric("enhance", "强化等级", Number.isFinite(equipment?.maxUpgradeLevel) ? equipment.maxUpgradeLevel : 31)}
             {equipmentFields && (live ? (
               <Field label="增幅属性">
                 <select
@@ -189,7 +189,7 @@ function ItemEditor({
             ) : (
               numeric("amplify", "增幅等级", 31)
             ))}
-            {equipmentFields && numeric("forge", "锻造等级", equipment?.maxForgingLevel ?? 8)}
+            {equipmentFields && numeric("forge", "锻造等级", Number.isFinite(equipment?.maxForgingLevel) ? equipment.maxForgingLevel : 8)}
           </div>
           {equipment?.canUpgrade && <p className="muted field-hint">强化可保存范围：0–{equipment.maxUpgradeLevel}</p>}
           {expiration?.canOverride && (
@@ -484,9 +484,9 @@ export function Inventory({ state, character, request, notify }: PageProps) {
                       </td>
                       <td className="numeric">{number(i.count)}</td>
                       <td>
-                        {i.enhance ? (
+                        {Number.isFinite(i.enhance) && i.enhance > 0 ? (
                           <span className="cyan-text">+{i.enhance}</span>
-                        ) : i.amplify ? (
+                        ) : Number.isFinite(i.amplify) && i.amplify > 0 ? (
                           <span className="purple-text">增幅 +{i.amplify}</span>
                         ) : (
                           <span className="muted">—</span>

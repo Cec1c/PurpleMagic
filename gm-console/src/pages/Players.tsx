@@ -185,7 +185,7 @@ export function PlayerPicker({
                 {qq && <Pill tone="cyan">QQ {qq}</Pill>}
                 {a.status === "限制登录" && <Pill tone="orange">限制登录</Pill>}
                 <small>
-                  {a.characterCount ?? accountChars.length} 个角色
+                  {Number.isFinite(a.characterCount) ? a.characterCount : accountChars.length} 个角色
                 </small>
                 {onManageAccount && (
                   <button
@@ -511,11 +511,11 @@ export function Players(props: PageProps & { accountMode?: boolean }) {
                       </td>
                       <td>
                         {
-                          (a.characterCount ?? state.characters.filter((c) => c.accountId === a.id).length)
+                          (Number.isFinite(a.characterCount) ? a.characterCount : state.characters.filter((c) => c.accountId === a.id).length)
                         }{" "}
                         个
                       </td>
-                      <td>{number(a.rawPoints ?? a.points)}</td>
+                      <td>{number(a.rawPoints || a.points)}</td>
                       <td>{live ? a.status : number(a.tokens)}</td>
                       <td>
                         <div className="inline-jump-actions">

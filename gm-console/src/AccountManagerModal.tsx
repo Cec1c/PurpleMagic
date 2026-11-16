@@ -252,9 +252,14 @@ export function AccountManagerModal({
   const acc = panel?.account || fallbackAcc;
   const displayName = acc?.name || accountName || accountId;
   const status = acc?.status || "正常";
+  const fallbackPoints = acc?.rawPoints && /^\d+$/.test(acc.rawPoints)
+    ? acc.rawPoints
+    : Number.isFinite(acc?.points)
+      ? String(acc!.points)
+      : "0";
   const currentRaw = live
-    ? String(panel?.currency?.balance ?? acc?.rawPoints ?? (Number.isFinite(acc?.points) ? acc!.points : 0))
-    : String(acc?.rawPoints ?? acc?.points ?? 0);
+    ? String(panel?.currency?.balance ?? fallbackPoints)
+    : fallbackPoints;
 
   const premium = live ? panel?.premium : undefined;
   const advResource = live

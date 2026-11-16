@@ -966,8 +966,8 @@ export class ConsoleAPI {
     const latest = this.state.characters.find((x) => x.id === id);
     c = {
       ...c,
-      sp: latest?.sp ?? c.sp,
-      tp: latest?.tp ?? c.tp,
+      sp: Number.isFinite(latest?.sp) ? latest!.sp : c.sp,
+      tp: Number.isFinite(latest?.tp) ? latest!.tp : c.tp,
       job:
         latest && latest.jobCode === c.jobCode && latest.growType === c.growType
           ? latest.job

@@ -296,6 +296,8 @@ small {
 .topbar-left {
   font-size: 12px;
   color: var(--text-3);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .topbar-left strong {
   color: var(--text-1);
@@ -383,6 +385,8 @@ small {
   color: var(--text-3);
 }
 main {
+  position: relative;
+  z-index: 1;
   padding: 24px 32px 0;
   max-width: 1580px;
   margin: 0 auto;

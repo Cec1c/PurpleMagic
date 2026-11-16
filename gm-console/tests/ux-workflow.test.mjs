@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -29,7 +30,7 @@ const apiBundle = await build({
   format: "esm",
   write: false,
 });
-const { ConsoleAPI } = await import(
+const { ConsoleAPI, itemDTO } = await import(
   "data:text/javascript;base64," +
     Buffer.from(apiBundle.outputFiles[0].text).toString("base64")
 );
@@ -850,4 +851,206 @@ test("SSR renders Identity quick actions, split Cera calculator, 0-role AccountM
   assert.match(acHtml, /第 3 页 · 当前 1 条/);
   assert.match(acHtml, /查穿戴/);
   assert.match(acHtml, /封禁账号/);
+});
+
+test("live catalog itemDTO items with NaN enhance/amplify/forge pass appendAttachments and prepareMail without forge error", async () => {
+  const emptyChar = { id: "", accountId: "" };
+  const material = itemDTO(
+    {
+      container: "catalog",
+      slot: 0,
+      itemId: "10095685",
+      name: "魔能吸食阻断装置",
+      kind: "stackable",
+      tag: "material",
+      count: "1",
+    },
+    emptyChar,
+    "bag",
+  );
+  const armor = itemDTO(
+    {
+      container: "catalog",
+      slot: 0,
+      itemId: "100050050",
+      name: "幽魂魅影长袍",
+      kind: "equipment",
+      tag: "coat",
+      count: "1",
+    },
+    emptyChar,
+    "bag",
+  );
+  const weapon = itemDTO(
+    {
+      container: "catalog",
+      slot: 0,
+      itemId: "1001",
+      name: "荒古遗尘巨剑",
+      kind: "equipment",
+      tag: "weapon",
+      count: "1",
+    },
+    emptyChar,
+    "bag",
+  );
+
+  for (const item of [material, armor, weapon]) {
+    assert.equal(Number.isNaN(item.enhance), true);
+    assert.equal(Number.isNaN(item.amplify), true);
+    assert.equal(Number.isNaN(item.forge), true);
+  }
+
+  const attached = appendAttachments([], [material, armor, weapon], 10);
+  assert.equal(attached.length, 3);
+
+  assert.equal(attached[0].id, "10095685");
+  assert.equal(attached[0].count, 10);
+  assert.equal(attached[0].enhance, 0);
+  assert.equal(Object.hasOwn(attached[0], "forge"), false);
+  assert.equal(Object.hasOwn(attached[0], "amplify"), false);
+  assert.equal(Object.hasOwn(attached[0], "slot"), false);
+
+  assert.equal(attached[1].id, "100050050");
+  assert.equal(attached[1].count, 1);
+  assert.equal(attached[1].enhance, 0);
+  assert.equal(Object.hasOwn(attached[1], "forge"), false);
+
+  assert.equal(attached[2].id, "1001");
+  assert.equal(attached[2].count, 1);
+  assert.equal(attached[2].enhance, 0);
+  assert.equal(attached[2].forge, 0);
+
+  attached[1].enhance = 12;
+  attached[2].enhance = 13;
+  attached[2].forge = 8;
+  const reattached = appendAttachments(attached, [material, armor, weapon], 5);
+  assert.equal(reattached[0].count, 15);
+  assert.equal(Object.hasOwn(reattached[0], "forge"), false);
+  assert.equal(reattached[1].enhance, 12);
+  assert.equal(Object.hasOwn(reattached[1], "forge"), false);
+  assert.equal(reattached[2].enhance, 13);
+  assert.equal(reattached[2].forge, 8);
+
+  storage.clear();
+  const api = new ConsoleAPI(() => {});
+  api.state.characters = [
+    { id: "10", accountId: "acc-1", name: "袜子不干", job: "鬼剑士", level: 90, online: true },
+  ];
+  const previewBodies = [];
+  api.http.fetcher = async (path, init = {}) => {
+    if (path.endsWith("/grant-options")) {
+      return ok({
+        itemId: "10095685",
+        name: "魔能吸食阻断装置",
+        kind: "stackable",
+        pvfChecksum: "a".repeat(64),
+      });
+    }
+    if (path === "/api/v1/mail/preview") {
+      const body = JSON.parse(init.body);
+      previewBodies.push(body);
+      return ok({ id: `task-${previewBodies.length}`, revision: 1 });
+    }
+    if (path.endsWith("/confirmation")) {
+      return ok({
+        recipients: [{ characterId: "10", name: "袜子不干", accountId: "acc-1" }],
+      });
+    }
+    throw new Error(`unexpected path: ${path}`);
+  };
+
+  await api.prepare(
+    {
+      kind: "mail",
+      recipients: ["10"],
+      title: "材料防具武器混合发放",
+      body: "测试",
+      gold: 0,
+      items: reattached,
+    },
+    { accounts: [], characters: ["10"] },
+  );
+  assert.equal(previewBodies.length, 3);
+  assert.deepEqual(previewBodies[0].options, {
+    reinforce: 0,
+    amplifyType: 0,
+    forgingLevel: 0,
+    expireDays: 0,
+    equipmentQuality: "default",
+  });
+  assert.deepEqual(previewBodies[1].options, {
+    reinforce: 12,
+    amplifyType: 0,
+    forgingLevel: 0,
+    expireDays: 0,
+    equipmentQuality: "default",
+  });
+  assert.deepEqual(previewBodies[2].options, {
+    reinforce: 13,
+    amplifyType: 0,
+    forgingLevel: 8,
+    expireDays: 0,
+    equipmentQuality: "default",
+  });
+  api.cancel();
+
+  previewBodies.length = 0;
+  await api.prepare(
+    {
+      kind: "mail",
+      recipients: ["10"],
+      title: "脏 NaN 兜底测试",
+      body: "测试",
+      gold: 0,
+      items: [
+        {
+          id: "10095685",
+          name: "魔能吸食阻断装置",
+          count: 1,
+          enhance: NaN,
+          forge: NaN,
+          category: "材料",
+          kind: "stackable",
+        },
+      ],
+    },
+    { accounts: [], characters: ["10"] },
+  );
+  assert.equal(previewBodies.length, 1);
+  assert.equal(previewBodies[0].options.reinforce, 0);
+  assert.equal(previewBodies[0].options.forgingLevel, 0);
+
+  const demoNanHtml = renderToStaticMarkup(
+    createElement(
+      uiMod.exports.LiveContext.Provider,
+      { value: null },
+      createElement(uiMod.exports.AccountManagerModal, {
+        accountId: "nan-acc",
+        state: {
+          ...api.state,
+          accounts: [
+            {
+              id: "nan-acc",
+              name: "未读点券账号",
+              points: NaN,
+              rawPoints: "",
+              tokens: NaN,
+              status: "正常",
+            },
+          ],
+        },
+        request() {},
+        onClose() {},
+      }),
+    ),
+  );
+  assert.doesNotMatch(demoNanHtml, /NaN/);
+
+  const appCss = readFileSync("src/app.css", "utf8");
+  const purpleCss = readFileSync("src/purple.css", "utf8");
+  assert.match(appCss, /main\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
+  assert.match(purpleCss, /\.topbar\s*\{[^}]*z-index:\s*40;/s);
+  assert.match(purpleCss, /\.identity\s*\{[^}]*z-index:\s*12;/s);
+  assert.doesNotMatch(purpleCss, /\.identity\s*\{[^}]*z-index:\s*22;/s);
 });

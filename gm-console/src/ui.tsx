@@ -416,7 +416,7 @@ export function Identity({
           金币 <b>{number(character.gold)}</b>
         </span>
         <span>
-          点券 <b>{number(a.rawPoints ?? a.points)}</b>
+          点券 <b>{number(a.rawPoints || a.points)}</b>
         </span>
       </div>
       <div className="identity-actions">

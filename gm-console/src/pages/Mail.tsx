@@ -189,22 +189,22 @@ export function MailPage({
                             type="number"
                             min={0}
                             max={31}
-                            value={i.enhance || 0}
-                            onChange={(e) =>
+                            value={Number.isFinite(i.enhance) ? i.enhance : 0}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
                               setItems(
                                 items.map((x) =>
                                   x.id === i.id
                                     ? {
                                         ...x,
-                                        enhance: Math.max(
-                                          0,
-                                          Math.min(31, Number(e.target.value) || 0),
-                                        ),
+                                        enhance: Number.isFinite(v)
+                                          ? Math.max(0, Math.min(31, Math.trunc(v)))
+                                          : 0,
                                       }
                                     : x,
                                 ),
-                              )
-                            }
+                              );
+                            }}
                           />
                         </label>
                       )}
@@ -216,22 +216,22 @@ export function MailPage({
                             type="number"
                             min={0}
                             max={8}
-                            value={i.forge || 0}
-                            onChange={(e) =>
+                            value={Number.isFinite(i.forge) ? i.forge : 0}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
                               setItems(
                                 items.map((x) =>
                                   x.id === i.id
                                     ? {
                                         ...x,
-                                        forge: Math.max(
-                                          0,
-                                          Math.min(8, Number(e.target.value) || 0),
-                                        ),
+                                        forge: Number.isFinite(v)
+                                          ? Math.max(0, Math.min(8, Math.trunc(v)))
+                                          : 0,
                                       }
                                     : x,
                                 ),
-                              )
-                            }
+                              );
+                            }}
                           />
                         </label>
                       )}

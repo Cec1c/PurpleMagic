@@ -44,28 +44,56 @@ export function canForgeAttachment(item: { kind?: string; category?: string; sub
   return item.category === "武器";
 }
 
+function clampInt(value: unknown, max: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? Math.min(max, value)
+    : 0;
+}
+
+function cleanAttachment(item: Attachment): Attachment {
+  const kind = item.kind;
+  const subtype = item.subtype;
+  const category = item.category;
+  const enhanceable = canEnhanceAttachment({ kind, category, subtype });
+  const forgeable = canForgeAttachment({ kind, category, subtype });
+  return {
+    id: item.id,
+    name: item.name,
+    ...(item.expiration ? { expiration: item.expiration } : {}),
+    ...(kind ? { kind } : {}),
+    ...(subtype ? { subtype } : {}),
+    ...(category ? { category } : {}),
+    count: item.count,
+    enhance: enhanceable ? clampInt(item.enhance, 31) : 0,
+    ...(forgeable ? { forge: clampInt(item.forge, 8) } : {}),
+  };
+}
+
 export function appendAttachments(current: Attachment[], selected: CatalogItem[], count: number): Attachment[] {
   if (!Number.isInteger(count) || count < 1 || count > 99999) throw new Error("数量须为 1–99999 的整数");
-  const result = new Map(current.map(item => [item.id, { ...item }]));
+  const result = new Map(current.map(item => [item.id, cleanAttachment(item)]));
   for (const item of new Map(selected.map(item => [item.id, item])).values()) {
     const previous = result.get(item.id);
     const single = isSingleCountEquipment(item);
-    const nextCount = single ? 1 : (previous?.count || 0) + count;
+    const prevCount = previous && Number.isInteger(previous.count) && previous.count > 0 ? previous.count : 0;
+    const nextCount = single ? 1 : prevCount + count;
     if (nextCount > 99999) throw new Error(`${item.name} 的附件总数量不能超过 99999`);
     const kind = item.kind || item.remote?.kind || previous?.kind;
     const subtype = item.subtype || item.remote?.subtype || previous?.subtype;
     const category = item.category || previous?.category;
-    const { remote: _remote, ...rest } = item;
+    const expiration = item.expiration ?? previous?.expiration;
+    const enhanceable = canEnhanceAttachment({ kind, category, subtype });
+    const forgeable = canForgeAttachment({ kind, category, subtype });
     result.set(item.id, {
-      ...rest,
+      id: item.id,
+      name: item.name,
+      ...(expiration ? { expiration } : {}),
       ...(kind ? { kind } : {}),
       ...(subtype ? { subtype } : {}),
       ...(category ? { category } : {}),
       count: nextCount,
-      enhance: previous?.enhance || 0,
-      ...(canForgeAttachment({ kind, category, subtype }) || previous?.forge !== undefined
-        ? { forge: previous?.forge || 0 }
-        : {}),
+      enhance: enhanceable ? clampInt(previous?.enhance, 31) : 0,
+      ...(forgeable ? { forge: clampInt(previous?.forge, 8) } : {}),
     });
   }
   return [...result.values()];

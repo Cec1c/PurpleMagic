@@ -358,8 +358,8 @@ export function applyCommand(
     if (recipients.length === 0) throw new Error("请先选择收件角色");
     for (const i of items) {
       integer(i.count, 1, 99999);
-      integer(i.enhance, 0, 31);
-      if (i.forge !== undefined) integer(i.forge, 0, 8);
+      if (i.enhance !== undefined && !Number.isNaN(i.enhance)) integer(i.enhance, 0, 31);
+      if (i.forge !== undefined && !Number.isNaN(i.forge)) integer(i.forge, 0, 8);
       if (!i.id) throw new Error("请选择附件物品");
     }
     for (const id of [...new Set(recipients)]) {
@@ -538,7 +538,9 @@ export function applyCommand(
     case "account-currency": {
       const a = s.accounts.find((a) => a.id === command.accountId);
       if (!a) throw new Error("账号不存在");
-      const currentRaw = a.rawPoints ?? String(Number.isFinite(a.points) ? a.points : 0);
+      const currentRaw = a.rawPoints && /^\d+$/.test(a.rawPoints)
+        ? a.rawPoints
+        : String(Number.isFinite(a.points) ? a.points : 0);
       const calc = computeCeraAdjustment(currentRaw, command.mode, command.amountText);
       if (!calc.valid) throw new Error(calc.error || "点券金额无效");
       a.rawPoints = calc.after.toString();

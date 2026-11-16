@@ -3,6 +3,7 @@ import type { Command, Selection } from "../domain";
 import type { DTO, Pending, Step } from "./model";
 import { ApiError, segment } from "./http";
 import { itemExpirationLabel } from "../item-expiration";
+import { canEnhanceAttachment, canForgeAttachment } from "../item-picker";
 
 // Stop starting work after an error, but drain already-started requests before
 // returning. Results keep attachment order regardless of response order.
@@ -25,12 +26,14 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
   for (const a of command.items) {
     if (!/^[1-9][0-9]*$/.test(a.id) || !Number.isSafeInteger(a.count) || a.count < 1 || a.count > 2147483647)
       throw new Error("请核对物品 ID 与数量");
-    const reinforce = a.enhance ?? 0;
-    const forge = a.forge ?? 0;
-    if (!Number.isInteger(reinforce) || reinforce < 0 || reinforce > 31)
-      throw new Error("强化等级须为 0–31 的整数");
-    if (!Number.isInteger(forge) || forge < 0 || forge > 8)
-      throw new Error("锻造等级须为 0–8 的整数");
+    if (canEnhanceAttachment(a) && a.enhance !== undefined && !Number.isNaN(a.enhance)) {
+      if (!Number.isInteger(a.enhance) || a.enhance < 0 || a.enhance > 31)
+        throw new Error("强化等级须为 0–31 的整数");
+    }
+    if (canForgeAttachment(a) && a.forge !== undefined && !Number.isNaN(a.forge)) {
+      if (!Number.isInteger(a.forge) || a.forge < 0 || a.forge > 8)
+        throw new Error("锻造等级须为 0–8 的整数");
+    }
   }
   const recipients = await api.resolveSelection(selection);
   if (!recipients.length) throw new Error("请先选择收件人");
@@ -44,8 +47,8 @@ export async function prepareMail(api: ConsoleAPI, command: Extract<Command, {ki
   const attachments = command.items.length ? command.items : [null];
   const prepared = await mapMailBatch(attachments, async (a, i) => {
     const reward: DTO = { title: command.title, body: command.body, gold: i === 0 ? command.gold : 0, recipients: targets };
-    const reinforce = a?.enhance || 0;
-    const forgingLevel = a?.forge || 0;
+    const reinforce = a && canEnhanceAttachment(a) && a.enhance !== undefined && !Number.isNaN(a.enhance) ? a.enhance : 0;
+    const forgingLevel = a && canForgeAttachment(a) && a.forge !== undefined && !Number.isNaN(a.forge) ? a.forge : 0;
     if (a) Object.assign(reward, { itemId: a.id, count: a.count, pvfChecksum: options.pvfChecksum,
       options: { reinforce, amplifyType: 0, forgingLevel, expireDays: 0, equipmentQuality: "default" } });
     const job = await api.http.post("/api/v1/mail/preview", reward, `${p.id}-preview-${i}`);

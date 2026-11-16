@@ -419,7 +419,7 @@ export async function prepareOperation(
         },
       );
     }
-    const pointsText = command.pointsText ?? String(command.points);
+    const pointsText = command.pointsText ?? (Number.isFinite(command.points) ? String(command.points) : "");
     if (
       pointsText !== a.rawPoints &&
       (command.pointsText !== undefined || changed(command.points, a.points))
@@ -737,7 +737,7 @@ export async function executeOperation(api: ConsoleAPI, p: Pending) {
         if (!change.after) return [];
         const after = change.after, a = after.attributes || {};
         return [{ ...item, id:after.itemId, name:after.name, count:Number(after.count), bound:after.bound,
-          enhance:a.reinforce ?? item.enhance, amplify:a.amplifyType ?? item.amplify, forge:a.forging ?? item.forge,
+          enhance:Number.isFinite(safeNumber(a.reinforce)) ? safeNumber(a.reinforce) : item.enhance, amplify:Number.isFinite(safeNumber(a.amplifyType)) ? safeNumber(a.amplifyType) : item.amplify, forge:Number.isFinite(safeNumber(a.forging)) ? safeNumber(a.forging) : item.forge,
           version:item.version + 1,
           remote: {...item.remote!, appliedRequestId:step.id, revision:change.revision, attributes:a, expiresAt:after.expiresAt, options:undefined} }];
       }) });
