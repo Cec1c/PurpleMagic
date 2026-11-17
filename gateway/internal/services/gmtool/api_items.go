@@ -12,6 +12,7 @@ import (
 	"time"
 
 	dnfrepo "dnf90.local/gateway/internal/modules/dnf/repository"
+	"dnf90.local/gateway/internal/modules/dnf/testbenefits"
 )
 
 // ---------------------------------------------------------------------------
@@ -441,6 +442,11 @@ func (s *Server) handleItemGrant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeFailure(w, "邮件发放失败: "+err.Error())
 		return
+	}
+	if s.deps.Runtime != nil {
+		s.notifyMailboxReceiptAfterCommit(ctx, testbenefits.DeliveryReceipt{
+			MailID: mailID, CharacterID: character.CharacterID, CreatedAt: character.CreatedAt,
+		})
 	}
 	s.rememberGrant(requestID, grantRecord{
 		fingerprint: fingerprint,

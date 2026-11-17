@@ -273,7 +273,15 @@ func (s *Store) Jobs(ctx context.Context) ([]Job, error) {
 // receipts cover the crash window between asset commit and progress commit.
 // Failed recipients are retried only by an explicit retry request.
 func (s *Store) Run(ctx context.Context, group repository.Group, id string, retry bool) (Job, error) {
-	return s.run(ctx, group, id, retry, nil)
+	return s.RunCommitted(ctx, group, id, retry, nil)
+}
+
+// RunCommitted processes a legacy, unversioned job and invokes afterCommit only
+// after the outer job transaction has committed. The callback receives the
+// receipts produced by this pass; it cannot roll back or rewrite committed
+// mail. Run remains the callback-free compatibility entry point.
+func (s *Store) RunCommitted(ctx context.Context, group repository.Group, id string, retry bool, afterCommit func(context.Context, []DeliveryReceipt)) (Job, error) {
+	return s.runProjected(ctx, group, id, retry, nil, nil, afterCommit)
 }
 
 // RunVersion advances exactly the reviewed revision; stale browser requests
@@ -283,14 +291,23 @@ func (s *Store) RunVersion(ctx context.Context, group repository.Group, id strin
 }
 
 func (s *Store) run(ctx context.Context, group repository.Group, id string, retry bool, revision *uint64) (Job, error) {
-	return s.runProjected(ctx, group, id, retry, revision, nil)
+	return s.runProjected(ctx, group, id, retry, revision, nil, nil)
 }
 
 func (s *Store) RunVersionProjected(ctx context.Context, group repository.Group, id string, retry bool, revision uint64, project RewardProjector) (Job, error) {
-	return s.runProjected(ctx, group, id, retry, &revision, project)
+	return s.RunVersionProjectedCommitted(ctx, group, id, retry, revision, project, nil)
 }
 
-func (s *Store) runProjected(ctx context.Context, group repository.Group, id string, retry bool, revision *uint64, project RewardProjector) (Job, error) {
+// RunVersionProjectedCommitted invokes afterCommit only after the outer job
+// transaction has committed. The callback contains receipts produced by this
+// pass, including receipts already persisted by an earlier response-loss retry.
+// It is a notification hook, not another delivery authority: failures in it
+// cannot undo or rewrite the committed mail.
+func (s *Store) RunVersionProjectedCommitted(ctx context.Context, group repository.Group, id string, retry bool, revision uint64, project RewardProjector, afterCommit func(context.Context, []DeliveryReceipt)) (Job, error) {
+	return s.runProjected(ctx, group, id, retry, &revision, project, afterCommit)
+}
+
+func (s *Store) runProjected(ctx context.Context, group repository.Group, id string, retry bool, revision *uint64, project RewardProjector, afterCommit func(context.Context, []DeliveryReceipt)) (Job, error) {
 	if len(id) != 32 {
 		return Job{}, errors.New("无效的发放编号")
 	}
@@ -336,6 +353,7 @@ func (s *Store) runProjected(ctx context.Context, group repository.Group, id str
 	j.Started = true
 	j.Revision++
 	count := 0
+	committed := make([]DeliveryReceipt, 0, 10)
 	for i := range j.Recipients {
 		r := &j.Recipients[i]
 		if r.MailID != "" || r.Error != "" {
@@ -347,6 +365,7 @@ func (s *Store) runProjected(ctx context.Context, group repository.Group, id str
 		} else {
 			r.MailID = receipt.MailID
 			r.DeliveredCharacterID = receipt.CharacterID
+			committed = append(committed, receipt)
 			if j.RewardPlan != nil || j.Cera > 0 {
 				r.Delivery = &receipt
 			}
@@ -366,6 +385,9 @@ func (s *Store) runProjected(ctx context.Context, group repository.Group, id str
 	}
 	if err = tx.Commit(); err != nil {
 		return Job{}, err
+	}
+	if len(committed) > 0 && afterCommit != nil {
+		afterCommit(ctx, committed)
 	}
 	return j, nil
 }

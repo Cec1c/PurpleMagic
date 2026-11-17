@@ -202,6 +202,14 @@ func (s *Store) DeliverNewCharacterProjected(ctx context.Context, group reposito
 }
 
 func (s *Store) DeliverCampaignToNewCharacter(ctx context.Context, group repository.Group, id string, character repository.CharacterRecord, project RewardProjector) error {
+	return s.DeliverCampaignToNewCharacterCommitted(ctx, group, id, character, project, nil)
+}
+
+// DeliverCampaignToNewCharacterCommitted invokes afterCommit only after its
+// campaign/mail transaction commits. The receipt, including a permanent replay
+// receipt for another character of an account-scoped rule, identifies the role
+// that actually owns the delivered mail.
+func (s *Store) DeliverCampaignToNewCharacterCommitted(ctx context.Context, group repository.Group, id string, character repository.CharacterRecord, project RewardProjector, afterCommit func(context.Context, DeliveryReceipt)) error {
 	if !validCampaignID(id) {
 		return errors.New("无效的福利规则编号")
 	}
@@ -214,11 +222,20 @@ func (s *Store) DeliverCampaignToNewCharacter(ctx context.Context, group reposit
 	if err != nil {
 		return err
 	}
+	var receipt DeliveryReceipt
+	delivered := false
 	if EligibleNewCharacter(c, character) {
-		_, err = DeliverProjectedWithReceipt(ctx, group, c.Reward, Recipient{AccountID: character.AccountID, CharacterID: character.CharacterID, Name: character.Name, CreatedAt: character.CreatedAt}, project)
+		receipt, err = DeliverProjectedWithReceipt(ctx, group, c.Reward, Recipient{AccountID: character.AccountID, CharacterID: character.CharacterID, Name: character.Name, CreatedAt: character.CreatedAt}, project)
 		if err != nil {
 			return err
 		}
+		delivered = true
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	if delivered && afterCommit != nil {
+		afterCommit(ctx, receipt)
+	}
+	return nil
 }

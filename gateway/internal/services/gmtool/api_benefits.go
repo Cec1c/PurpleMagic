@@ -212,7 +212,7 @@ func (s *Server) handleBenefitsRun(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
-	job, err := s.deps.Benefits.Run(ctx, group, r.PathValue("id"), req.Retry)
+	job, err := s.deps.Benefits.RunCommitted(ctx, group, r.PathValue("id"), req.Retry, s.notifyMailboxReceiptsAfterCommit)
 	if err != nil {
 		writeFailure(w, err.Error())
 		return

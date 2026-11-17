@@ -461,7 +461,7 @@ func (s *Server) v1RunTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err == nil {
-		j, err = s.deps.Benefits.RunVersionProjected(r.Context(), g, r.PathValue("id"), in.Retry, *in.Revision, s.v1ProjectCampaignDelivery)
+		j, err = s.deps.Benefits.RunVersionProjectedCommitted(r.Context(), g, r.PathValue("id"), in.Retry, *in.Revision, s.v1ProjectCampaignDelivery, s.notifyMailboxReceiptsAfterCommit)
 	}
 	if err != nil {
 		s.v1OperationError(w, r, err)
