@@ -89,14 +89,18 @@ test('lost commit response retries the same body and idempotency key',async()=>{
  await api.confirm();assert.equal(api.meta.pending.completed,true);assert.deepEqual(calls[0],calls[1]);api.cancel();
 });
 
-test('closing an in-flight operation keeps it running and exposes the persisted receipt after refresh',async()=>{
+test('closing an in-flight operation keeps it running, exposes in-flight state before completion, and prunes completed receipt on finish',async()=>{
  storage.clear();let release;
  const api=setup(()=>new Promise(r=>release=r));const pending=api.confirm();
  api.dismissPending();assert.equal(api.meta.pending.hidden,true);assert.equal(api.meta.busy,true);
- assert.throws(()=>api.cancel());release(response({requestId:'kept-receipt'}));await pending;
- const restored=new ConsoleAPI(()=>{});restored.restore();assert.equal(restored.meta.pending.completed,true);
- assert.equal(restored.meta.pending.hidden,true);restored.openPending();assert.equal(restored.meta.pending.hidden,false);
- assert.equal(restored.meta.pending.steps[0].result.requestId,'kept-receipt');restored.cancel();
+ assert.throws(()=>api.cancel());
+ const inFlight=new ConsoleAPI(()=>{});inFlight.restore();
+ assert.equal(inFlight.meta.pending.confirmed,true);assert.equal(Boolean(inFlight.meta.pending.completed),false);
+ assert.equal(inFlight.operationReceipts().length,1);
+ release(response({requestId:'kept-receipt'}));await pending;
+ assert.equal(api.meta.pending.completed,true);assert.equal(api.operationReceipts().length,0);
+ const restored=new ConsoleAPI(()=>{});restored.restore();
+ assert.equal(restored.meta.pending,undefined);assert.equal(restored.operationReceipts().length,0);
 });
 
 test('unknown response can be collapsed, navigated and restored without a new request identity',async()=>{

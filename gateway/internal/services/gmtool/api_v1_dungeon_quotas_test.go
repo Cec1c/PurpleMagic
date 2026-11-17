@@ -246,8 +246,39 @@ func TestV1DungeonQuotasInMemoryAndExternal(t *testing.T) {
 	}
 
 	var onlineFlag atomic.Bool
+	var snapshotEnabled atomic.Bool
+	snapshotEnabled.Store(true)
 	runtimeSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeAccountEditFixture(t, w, r, onlineFlag.Load())
+		var peek adminapi.Request
+		raw, _ := json.Marshal(struct{}{})
+		_ = raw
+		buf := new(bytes.Buffer)
+		_, _ = buf.ReadFrom(r.Body)
+		_ = json.Unmarshal(buf.Bytes(), &peek)
+		if peek.Action == "online_snapshot" {
+			if !snapshotEnabled.Load() {
+				_ = json.NewEncoder(w).Encode(adminapi.Response{Version: 1, OK: false})
+				return
+			}
+			members := []adminapi.OnlineMember{}
+			if onlineFlag.Load() {
+				members = append(members, adminapi.OnlineMember{CharacterID: 10, Generation: 1})
+			}
+			_ = json.NewEncoder(w).Encode(adminapi.Response{
+				Version: 1,
+				OK:      true,
+				OnlineSnapshot: &adminapi.OnlineSnapshot{
+					ID:         strings.Repeat("ab", 16),
+					ObservedAt: fixedNow,
+					Complete:   true,
+					Members:    members,
+				},
+			})
+			return
+		}
+		req2 := r.Clone(r.Context())
+		req2.Body = ioReadCloser(buf.Bytes())
+		writeAccountEditFixture(t, w, req2, onlineFlag.Load())
 	}))
 	defer runtimeSrv.Close()
 	rtClient, err := adminapi.NewClient(runtimeSrv.URL+adminapi.Path, strings.Repeat("r", 32))
@@ -367,12 +398,34 @@ func TestV1DungeonQuotasInMemoryAndExternal(t *testing.T) {
 		t.Fatalf("expected dungeonQuotas capabilities enabled, got %v", features)
 	}
 
-	// 2. GET dungeon-quotas
+	// 2. GET dungeon-quotas (includes real online boolean when OnlineSnapshot succeeds)
 	status, qBody := doExt(http.MethodGet, "/api/v1/characters/10/dungeon-quotas", nil, "")
 	if status != 200 {
 		t.Fatalf("get quotas status=%d body=%v", status, qBody)
 	}
 	qData := qBody["data"].(map[string]any)
+	if qData["online"] != false {
+		t.Fatalf("expected online=false when offline, got %v", qData["online"])
+	}
+	if stChar, charBody := doExt(http.MethodGet, "/api/v1/characters/10", nil, ""); stChar != 200 || charBody["data"].(map[string]any)["online"] != false {
+		t.Fatalf("expected v1Character online=false, got %d %v", stChar, charBody)
+	}
+	onlineFlag.Store(true)
+	if stOn, onBody := doExt(http.MethodGet, "/api/v1/characters/10/dungeon-quotas", nil, ""); stOn != 200 || onBody["data"].(map[string]any)["online"] != true {
+		t.Fatalf("expected online=true when online, got %d %v", stOn, onBody)
+	}
+	if stCharOn, charOnBody := doExt(http.MethodGet, "/api/v1/characters/10", nil, ""); stCharOn != 200 || charOnBody["data"].(map[string]any)["online"] != true {
+		t.Fatalf("expected v1Character online=true, got %d %v", stCharOn, charOnBody)
+	}
+	snapshotEnabled.Store(false)
+	if stUnk, unkBody := doExt(http.MethodGet, "/api/v1/characters/10/dungeon-quotas", nil, ""); stUnk != 200 || unkBody["data"].(map[string]any)["online"] != "unknown" {
+		t.Fatalf("expected online=unknown when snapshot fails, got %d %v", stUnk, unkBody)
+	}
+	snapshotEnabled.Store(true)
+	onlineFlag.Store(false)
+	if st404, _ := doExt(http.MethodGet, "/api/v1/characters/40404/dungeon-quotas", nil, ""); st404 != 404 {
+		t.Fatalf("expected 404 for missing character, got %d", st404)
+	}
 	quotasRaw := qData["quotas"].([]any)
 	if len(quotasRaw) != 5 {
 		t.Fatalf("expected 5 quotas, got %d", len(quotasRaw))
@@ -535,16 +588,82 @@ func TestV1DungeonQuotasInMemoryAndExternal(t *testing.T) {
 		t.Fatalf("expected 409 revision_conflict when managed quota stat changes, got %d %v", status, conflictErr)
 	}
 
-	// 6. RemoteCatalog cached the static quota catalog in 1 call!
+	// 6. One-hop direct: true commit (no preview / no planToken) + conflict & idempotent replay!
+	status, latestQBody := doExt(http.MethodGet, "/api/v1/characters/10/dungeon-quotas", nil, "")
+	if status != 200 {
+		t.Fatalf("latest quotas failed: %d %v", status, latestQBody)
+	}
+	latestQ := latestQBody["data"].(map[string]any)
+	// Without direct: true and without planToken -> must still reject with 409 plan_conflict!
+	status, missingPlanErr := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", map[string]any{
+		"accountId":          "dnf:1001",
+		"action":             "reset",
+		"quotaKey":           "luke_raid",
+		"revision":           latestQ["revision"],
+		"pvfChecksum":        latestQ["pvfChecksum"],
+		"definitionRevision": latestQ["definitionRevision"],
+		"reason":             "测试无planToken拦截",
+	}, "idem-missing-plan-0004")
+	if status != 409 || missingPlanErr["error"].(map[string]any)["code"] != "plan_conflict" {
+		t.Fatalf("expected 409 plan_conflict when direct=false without planToken, got %d %v", status, missingPlanErr)
+	}
+	// With direct: true and stale revision -> 409 revision_conflict
+	status, directStaleErr := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", map[string]any{
+		"accountId":          "dnf:1001",
+		"action":             "reset",
+		"quotaKey":           "luke_raid",
+		"revision":           receipt2["revision"],
+		"pvfChecksum":        latestQ["pvfChecksum"],
+		"definitionRevision": latestQ["definitionRevision"],
+		"reason":             "一跳重置卢克过期版本号",
+		"direct":             true,
+	}, "idem-direct-stale-0005")
+	if status != 409 || directStaleErr["error"].(map[string]any)["code"] != "revision_conflict" {
+		t.Fatalf("expected 409 revision_conflict on stale direct commit, got %d %v", status, directStaleErr)
+	}
+	// With direct: true and carbonMode=false while online -> 409 character_online
+	status, _ = doExt(http.MethodPost, "/api/v1/settings/system", map[string]any{"carbonMode": false}, "")
+	if status != 200 {
+		t.Fatalf("disable carbon mode failed: %d", status)
+	}
+	directLukeReq := map[string]any{
+		"accountId":          "dnf:1001",
+		"action":             "reset",
+		"quotaKey":           "luke_raid",
+		"revision":           latestQ["revision"],
+		"pvfChecksum":        latestQ["pvfChecksum"],
+		"definitionRevision": latestQ["definitionRevision"],
+		"reason":             "一跳重置卢克攻坚战",
+		"direct":             true,
+	}
+	status, directOnlineErr := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", directLukeReq, "idem-direct-luke-0006")
+	if status != 409 || directOnlineErr["error"].(map[string]any)["code"] != "character_online" {
+		t.Fatalf("expected 409 character_online on direct commit, got %d %v", status, directOnlineErr)
+	}
+	status, _ = doExt(http.MethodPost, "/api/v1/settings/system", map[string]any{"carbonMode": true}, "")
+	status, directLukeBody := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", directLukeReq, "idem-direct-luke-0006")
+	if status != 200 {
+		t.Fatalf("one-hop direct reset failed: %d %v", status, directLukeBody)
+	}
+	afterLuke := quotaByKey(directLukeBody["data"].(map[string]any)["quotas"].([]any))["luke_raid"]
+	if afterLuke["used"] != float64(0) || afterLuke["canReset"] != false {
+		t.Fatalf("luke_raid not reset cleanly via direct commit: %v", afterLuke)
+	}
+
+	// 7. RemoteCatalog cached the static quota catalog in 1 call!
 	if got := catalogQuotaCalls.Load(); got != 1 {
 		t.Fatalf("expected RemoteCatalog to fetch dungeon-quotas exactly once, got %d", got)
 	}
 
-	// 7. Lost-response replay works even after used == 0 and Runtime is nil!
+	// 8. Lost-response replay works even after used == 0 and Runtime is nil (both previewed and direct)!
 	gwSrv.deps.Runtime = nil
 	status, replayBody := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", antonCommit, "idem-anton-reset-0002")
 	if status != 200 || !reflect.DeepEqual(c2Body["data"], replayBody["data"]) {
 		t.Fatalf("replay mismatch: %d %v vs %v", status, replayBody, c2Body)
+	}
+	status, directReplayBody := doExt(http.MethodPost, "/api/v1/characters/10/dungeon-quota-operations", directLukeReq, "idem-direct-luke-0006")
+	if status != 200 || !reflect.DeepEqual(directLukeBody["data"], directReplayBody["data"]) {
+		t.Fatalf("direct replay mismatch: %d %v vs %v", status, directReplayBody, directLukeBody)
 	}
 }
 
@@ -668,10 +787,28 @@ func TestV1DungeonQuotasMySQL(t *testing.T) {
 				}))
 			}
 
+			check(g.Character.Save(ctx, repository.CharacterRecord{
+				CharacterID: "22",
+				AccountID:   "wallet:2",
+				Slot:        4,
+				Name:        "空统计22",
+				Job:         "0",
+				Level:       85,
+				Stats:       map[string]int64{},
+			}))
+
 			u := g.Character.(repository.DungeonQuotaManagementUnitOfWork)
 			reader := g.Character.(repository.DungeonQuotaManagementReader)
 			cat, e := s.dungeonQuotaCatalog(ctx)
 			check(e)
+			emptyState, e := reader.LoadDungeonQuotaManagement(ctx, "22")
+			check(e)
+			if emptyState.Character.Level != 85 || emptyState.Character.Stats["delete_flag"] != 0 || emptyState.Character.Stats["gm_dungeon_quota_sequence_v1"] != 0 {
+				t.Fatalf("unexpected empty-stats character load: %+v", emptyState)
+			}
+			if _, missingErr := reader.LoadDungeonQuotaManagement(ctx, "99999"); missingErr == nil {
+				t.Fatal("expected error for missing character")
+			}
 			read := func(id string) repository.DungeonQuotaManagementState {
 				v, err := reader.LoadDungeonQuotaManagement(ctx, id)
 				check(err)

@@ -135,7 +135,7 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
               disabled={busy}
               onClick={() => void api.guard(() => api.enableCarbonAndRetry())}
             >
-              ⚡ 开启在线写入并重试预览
+              ⚡ 开启在线写入并重试
             </button>
           )}
           {api.canRepreviewQuests() && (
@@ -198,7 +198,12 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
             {s.done && <CheckCircle2 size={14} />}
             <strong>{s.label}</strong>
             {s.result?.equipmentSlots && <span>{questSlotSummary(s.result.equipmentSlots, s.done)}</span>}
-            {s.done && <span>{s.kind === "activities" ? `配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}` : s.path.endsWith("/redelivery") ? "补发任务已保存，可在发放详情查看进度" : "已取得回执"}</span>}
+            {s.done && s.kind === "activities" && (
+              <span>{`配置版本 ${s.result?.revision} · ${s.result?.restartRequired ? "等待游戏服务重启" : "已生效"}`}</span>
+            )}
+            {s.done && s.path.endsWith("/redelivery") && (
+              <span>补发任务已保存，可在发放详情查看进度</span>
+            )}
             {s.kind === "task" && s.result && (
               <span>
                 {s.result.schedule === "active" ? "后台发放中 · " : ""}
@@ -214,7 +219,6 @@ export function LiveConfirmation({ pending: p }: { pending: Pending }) {
           {p.error}
         </p>
       )}
-      {p.confirmed && <p className="muted">请求编号：{p.id}</p>}
     </Modal>
   );
 }

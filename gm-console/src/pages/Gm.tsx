@@ -28,6 +28,8 @@ import {
 import { CeraCalculator } from "../AccountManagerModal";
 import { readGmTabMemory, writeGmTabMemory } from "../navigation-state";
 
+export const GM_AUTO_REFRESH_MS = 12_000;
+
 export function GmPage({ state, character, request, notify, openAccount }: PageProps) {
   const live = useLive();
   const remoteTab = state.api?.gmTab;
@@ -37,6 +39,9 @@ export function GmPage({ state, character, request, notify, openAccount }: PageP
   useEffect(() => {
     if (remoteTab && remoteTab !== tab) setTab(remoteTab);
   }, [remoteTab]);
+  useEffect(() => {
+    live?.setGmTab(tab);
+  }, [live, tab]);
   useEffect(() => {
     if (!live) return;
     void live.guard(async () => {
@@ -112,7 +117,22 @@ export function GmPage({ state, character, request, notify, openAccount }: PageP
   const dailyQuotas = (currentQuotas || []).filter((item) => item.category === "daily");
   const weeklyQuotas = (currentQuotas || []).filter((item) => item.category === "weekly");
   const [refreshing, setRefreshing] = useState(false);
-  const spinning = refreshing || !!state.api?.reading;
+  const spinning = refreshing;
+  const busyRef = useRef(false);
+  busyRef.current = refreshing || !!state.api?.busy;
+  useEffect(() => {
+    if (!live || !character.id || tab === "history") return;
+    if (tab === "quotas" && !showQuotas) return;
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (busyRef.current || live.meta.busy) return;
+      void live.silentRefreshGmTab(tab);
+    }, GM_AUTO_REFRESH_MS);
+    return () => {
+      clearInterval(timer);
+      live.cancelScope("silentGm");
+    };
+  }, [live, character.id, tab, showQuotas]);
   const refreshCurrent = async () => {
     if (refreshing || state.api?.busy) return;
     const message = tab === "quotas" ? "已刷新角色状态与副本额度" : "已刷新当前面板数据";
@@ -325,36 +345,40 @@ export function GmPage({ state, character, request, notify, openAccount }: PageP
                     <Pill>{group.schedule}</Pill>
                   </div>
                   <div className="quota-list">
-                    {group.items.map((item) => (
-                      <div key={item.key} className="quota-row">
-                        <div className="quota-row-main">
-                          <div className="quota-row-title">
-                            <strong>{item.name}</strong>
-                            <Pill tone={item.used >= item.limit ? "pink" : item.used > 0 ? "purple" : "neutral"}>
-                              {item.used > 0 ? `已用 ${item.used} / ${item.limit}` : `未消耗 0 / ${item.limit}`}
-                            </Pill>
+                    {group.items.map((item) => {
+                      const isResettingThis = state.api?.resettingQuotaKey === item.key;
+                      return (
+                        <div key={item.key} className="quota-row">
+                          <div className="quota-row-main">
+                            <div className="quota-row-title">
+                              <strong>{item.name}</strong>
+                              <Pill tone={item.used >= item.limit ? "pink" : item.used > 0 ? "purple" : "neutral"}>
+                                {item.used > 0 ? `已用 ${item.used} / ${item.limit}` : `未消耗 0 / ${item.limit}`}
+                              </Pill>
+                            </div>
+                            <div className="quota-row-meta">
+                              <span>{item.detail}</span>
+                            </div>
                           </div>
-                          <div className="quota-row-meta">
-                            <span>{item.detail}</span>
-                          </div>
+                          <button
+                            type="button"
+                            className="secondary"
+                            aria-busy={isResettingThis}
+                            disabled={!!state.api?.busy || !canWriteQuotas || !item.canReset || item.used <= 0}
+                            onClick={() =>
+                              request({
+                                kind: "reset-dungeon-quota",
+                                characterId: character.id,
+                                quotaKey: item.key,
+                              })
+                            }
+                          >
+                            {isResettingThis ? <RefreshCw className="is-spinning" size={15} /> : <RotateCcw size={15} />}
+                            {isResettingThis ? "重置中…" : "重置次数"}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          className="secondary"
-                          disabled={!!state.api?.busy || !canWriteQuotas || !item.canReset || item.used <= 0}
-                          onClick={() =>
-                            request({
-                              kind: "reset-dungeon-quota",
-                              characterId: character.id,
-                              quotaKey: item.key,
-                            })
-                          }
-                        >
-                          <RotateCcw size={15} />
-                          重置次数
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
               ))

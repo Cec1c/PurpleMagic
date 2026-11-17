@@ -12,20 +12,20 @@ function api() {
  const a = new ConsoleAPI(()=>{});a.character=async()=>{};a.enter=async()=>{};return a;
 }
 
-test('failed operation releases the workspace; reload and retry retain the original request and completed steps',async()=>{
+test('failed operation releases the workspace; completed operations are pruned while unfinished ones stay recoverable',async()=>{
  storage.clear();const a=api();const calls=[];
  a.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,id:init.headers['Idempotency-Key']});throw Error('queue unavailable');};
  await a.prepare(command('first'),selection);const first=a.meta.pending;
  first.steps.unshift({id:'finished-step',label:'finished',path:'/already-done',body:{},done:true,result:{requestId:'permanent'}});
  await assert.rejects(a.confirm());a.dismissPending();assert.equal(a.meta.pending,undefined);
- await a.prepare(command('second'),selection);const second=a.meta.pending;
+ await a.prepare(command('second'),selection);
  a.http.fetcher=async()=>response({id:'second-receipt'});await a.confirm();a.dismissPending();
- const restored=api();restored.restore();assert.equal(restored.operationReceipts().length,2);
- assert.equal(restored.meta.operationHistory.find(p=>p.id===second.id).completed,true);
+ const restored=api();restored.restore();assert.equal(restored.operationReceipts().length,1);
+ assert.equal(restored.operationReceipts()[0].id,first.id);
  restored.openPending(first.id);assert.equal(restored.meta.pending.steps[0].result.requestId,'permanent');
  restored.http.fetcher=async(path,init)=>{calls.push({path,body:init.body,id:init.headers['Idempotency-Key']});return response({id:'first-receipt'});};
  await restored.confirm(first.id);assert.deepEqual(calls[0],calls[1]);assert.equal(calls.length,2);
- assert.equal(restored.meta.pending.completed,true);assert.equal(restored.operationReceipts().length,2);
+ assert.equal(restored.meta.pending.completed,true);assert.equal(restored.operationReceipts().length,0);
 });
 
 test('old single-receipt storage migrates without blocking a new preparation',async()=>{
@@ -36,14 +36,14 @@ test('old single-receipt storage migrates without blocking a new preparation',as
  a.cancel();a.openPending(legacy.id);assert.equal(a.meta.pending.steps[0].id,'legacy-step');
 });
 
-test('in-flight execution stays serialized while closing and opening receipt details',async()=>{
+test('in-flight execution stays serialized while closing and opening receipt details and does not archive once completed',async()=>{
  storage.clear();const a=api();let release;
  await a.prepare(command('active'),selection);const active=a.meta.pending;
  a.http.fetcher=()=>new Promise(r=>release=r);const execution=a.confirm();a.dismissPending();
  await a.prepare(command('blocked only while running'),selection);assert.equal(a.meta.pending,active);
  a.openPending('another-id');assert.equal(a.meta.pending,active);assert.equal(a.meta.busy,true);
  release(response({id:'ok'}));await execution;await a.prepare(command('after'),selection);
- assert.notEqual(a.meta.pending.id,active.id);assert.equal(a.meta.operationHistory[0].completed,true);
+ assert.notEqual(a.meta.pending.id,active.id);assert.equal(a.meta.operationHistory.length,0);
 });
 
 test('an old generic retry cannot execute a different operation awaiting confirmation',async()=>{
@@ -76,15 +76,13 @@ test('deleting current and archived terminal receipts persists locally without b
  await a.prepare(command('next'),selection);assert.equal(a.meta.pending.confirmed,false);
 });
 
-test('bulk cleanup keeps successful receipts on failed-only cleanup and retains unknown/in-flight requests',async()=>{
+test('bulk cleanup removes rejected receipts while retaining unknown/in-flight requests and auto-pruning completed ones',async()=>{
  storage.clear();const a=api();let release;
  await a.prepare(command('running'),selection);const running=a.meta.pending;
  a.meta.operationHistory=[receipt('failed',{rejected:true}),receipt('success',{completed:true}),receipt('unknown',{error:'lost response'})];
  a.http.fetcher=()=>new Promise(r=>release=r);const execution=a.confirm();
  a.deleteReceipt(running.id);a.clearReceipts(true);
- assert.equal(a.meta.pending,running);assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['success','unknown']);
- a.clearReceipts();assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['unknown']);
- assert.equal(a.meta.operationHistory[0].steps[0].id,'unknown-0');
+ assert.equal(a.meta.pending,running);assert.deepEqual(a.meta.operationHistory.map(p=>p.id),['unknown']);
  release(response({id:'ok'}));await execution;a.clearReceipts();
  const restored=api();restored.restore();assert.deepEqual(restored.operationReceipts().map(p=>p.id),['unknown']);
 });

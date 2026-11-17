@@ -23,6 +23,7 @@ export type LiveData = {
   features: Record<string, boolean>;
   systemSettings?: { carbonMode: boolean };
   busy: boolean;
+  resettingQuotaKey?: string;
   reading: number;
   error: string;
   errorCode?: string;

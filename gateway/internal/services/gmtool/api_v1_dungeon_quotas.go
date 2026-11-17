@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,8 +63,9 @@ func (s *Server) v1DungeonQuotas(w http.ResponseWriter, r *http.Request) {
 		v1Fail(w, r, 400, "invalid_query", "此接口不接受查询参数", false)
 		return
 	}
-	c, _, ok := s.v1ResourceCharacter(w, r)
-	if !ok {
+	id := r.PathValue("characterId")
+	if !v1ValidID(id) {
+		v1Fail(w, r, 400, "invalid_query", "角色标识无效", false)
 		return
 	}
 	g, err := s.repositories()
@@ -86,12 +88,14 @@ func (s *Server) v1DungeonQuotas(w http.ResponseWriter, r *http.Request) {
 		s.v1Unavailable(w, r, err)
 		return
 	}
-	v, err := u.LoadDungeonQuotaManagement(r.Context(), c.CharacterID)
+	onlineCh := s.v1CharacterOnlineAsync(r.Context(), id)
+	v, err := u.LoadDungeonQuotaManagement(r.Context(), id)
+	online := <-onlineCh
 	if err != nil {
 		s.v1DungeonQuotaResult(w, r, adminops.DungeonQuotaReceipt{}, err)
 		return
 	}
-	if v.Character.AccountID != c.AccountID || v.Character.Stats["delete_flag"] != 0 {
+	if v.Character.CharacterID != id || v.Character.AccountID == "" || v.Character.Stats["delete_flag"] != 0 {
 		s.v1DungeonQuotaResult(w, r, adminops.DungeonQuotaReceipt{}, adminops.ErrAccount)
 		return
 	}
@@ -102,9 +106,10 @@ func (s *Server) v1DungeonQuotas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{
-		"accountId":          c.AccountID,
-		"characterId":        c.CharacterID,
+		"accountId":          v.Character.AccountID,
+		"characterId":        v.Character.CharacterID,
 		"characterLevel":     v.Character.Level,
+		"online":             online,
 		"quotas":             quotas,
 		"pvfChecksum":        d.PVFChecksum,
 		"definitionRevision": adminops.DungeonQuotaDefinitionRevision(d),
@@ -122,6 +127,7 @@ func (s *Server) v1DungeonQuotaOperation(w http.ResponseWriter, r *http.Request)
 		DefinitionRevision string `json:"definitionRevision"`
 		Reason             string `json:"reason"`
 		PlanToken          string `json:"planToken"`
+		Direct             bool   `json:"direct"`
 	}
 	if !v1Decode(w, r, &body) {
 		return
@@ -176,19 +182,21 @@ func (s *Server) v1DungeonQuotaOperation(w http.ResponseWriter, r *http.Request)
 		Key:                key,
 	}
 	if commit {
-		old, found, e := adminops.LookupDungeonQuotaOperation(r.Context(), u, command)
-		if found || e != nil {
-			s.v1DungeonQuotaResult(w, r, old, e)
-			return
-		}
-		identity := command
-		identity.PlanToken = ""
-		raw, e := s.v1CursorAfter(command.PlanToken, "dungeon-quotas-plan", adminops.DungeonQuotaIdentity(identity))
-		at, parseErr := strconv.ParseInt(raw, 10, 64)
-		age := time.Since(time.Unix(at, 0))
-		if e != nil || parseErr != nil || age < 0 || age > 10*time.Minute {
-			v1Fail(w, r, 409, "plan_conflict", "副本额度预览已过期或内容已变更，请重新预览", false)
-			return
+		if !(body.Direct && command.PlanToken == "") {
+			old, found, e := adminops.LookupDungeonQuotaOperation(r.Context(), u, command)
+			if found || e != nil {
+				s.v1DungeonQuotaResult(w, r, old, e)
+				return
+			}
+			identity := command
+			identity.PlanToken = ""
+			raw, e := s.v1CursorAfter(command.PlanToken, "dungeon-quotas-plan", adminops.DungeonQuotaIdentity(identity))
+			at, parseErr := strconv.ParseInt(raw, 10, 64)
+			age := time.Since(time.Unix(at, 0))
+			if e != nil || parseErr != nil || age < 0 || age > 10*time.Minute {
+				v1Fail(w, r, 409, "plan_conflict", "副本额度预览已过期或内容已变更，请重新预览", false)
+				return
+			}
 		}
 	} else {
 		command.PlanToken = ""
@@ -226,7 +234,7 @@ func (s *Server) v1DungeonQuotaResult(w http.ResponseWriter, r *http.Request, re
 		v1Fail(w, r, 409, "character_online", "角色在线；到系统设置里打开“碳铀模式”来强制数据写入", false)
 	case errors.Is(err, adminops.ErrRuntimeUnavailable):
 		v1Fail(w, r, 503, "runtime_unavailable", "暂时无法取得账号编辑状态", true)
-	case errors.Is(err, adminops.ErrAccount) || errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, adminops.ErrAccount) || errors.Is(err, sql.ErrNoRows) || errors.Is(err, os.ErrNotExist):
 		v1Fail(w, r, 404, "character_not_found", "角色不存在或归属已变更", false)
 	default:
 		s.v1Unavailable(w, r, err)

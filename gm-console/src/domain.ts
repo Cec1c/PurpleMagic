@@ -469,7 +469,6 @@ export function applyCommand(
       const entry = list.find((item) => item.key === command.quotaKey);
       if (!entry) throw new Error("请选择有效的副本额度重置项");
       if (!entry.canReset || entry.used <= 0) throw new Error("当前副本未消耗次数，无需重置");
-      const beforeUsed = entry.used;
       entry.used = 0;
       entry.canReset = false;
       if (entry.key === "pandemonium_rift") {
@@ -482,7 +481,7 @@ export function applyCommand(
         entry.detail = `遗落的神殿 0/${entry.templeLimit ?? 3}（已通关 0/${entry.templeLimit ?? 3}） · 试炼 0/${entry.trialLimit ?? 1}`;
       }
       target = c.name;
-      summary = `重置「${entry.name}」已用次数：${beforeUsed}/${entry.limit} → 0/${entry.limit}`;
+      summary = `已重置「${entry.name}」已用次数（0/${entry.limit}）`;
       break;
     }
     case "rename-character": {
@@ -699,12 +698,39 @@ export function applyCommand(
   return s;
 }
 
-export function isDirectCommand(command: Command, state: State): boolean {
-  if (command.kind === "news-move") return true;
-  if (command.kind === "news" && !command.published) return true;
-  if (command.kind === "news-delete") {
-    const target = state.news.find((n) => n.id === command.id);
-    if (target && !target.published) return true;
+export function isDirectCommand(
+  command: Command,
+  state?: Pick<State, "news">,
+  selection: Selection = { accounts: [], characters: [] },
+): boolean {
+  switch (command.kind) {
+    case "reset-dungeon-quota":
+    case "item":
+    case "growth":
+    case "reset-skill-points":
+    case "character-gold":
+    case "account-currency":
+    case "currency":
+    case "premium-grant":
+    case "activity-save":
+    case "benefit-toggle":
+    case "task-control":
+    case "news":
+    case "news-move":
+      return true;
+    case "quest":
+      return !command.selectedTargets;
+    case "mail":
+      return (
+        (selection?.accounts?.length || 0) === 0 &&
+        (selection?.characters?.length || 0) <= 1 &&
+        (command.recipients?.length || 0) <= 1
+      );
+    case "news-delete": {
+      const target = state?.news?.find((n) => n.id === command.id);
+      return !!(target && !target.published);
+    }
+    default:
+      return false;
   }
-  return false;
 }

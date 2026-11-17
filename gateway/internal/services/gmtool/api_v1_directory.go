@@ -367,7 +367,9 @@ func (s *Server) v1Character(w http.ResponseWriter, r *http.Request) {
 		s.v1Unavailable(w, r, err)
 		return
 	}
+	onlineCh := s.v1CharacterOnlineAsync(r.Context(), id)
 	c, found, err := reader.FindSummary(r.Context(), id)
+	online := <-onlineCh
 	if err != nil {
 		s.v1Unavailable(w, r, err)
 		return
@@ -379,7 +381,7 @@ func (s *Server) v1Character(w http.ResponseWriter, r *http.Request) {
 	single := []repository.CharacterSummary{c}
 	s.v1AttachAccountNames(r.Context(), single)
 	c = single[0]
-	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"character": c, "online": "unknown"}})
+	v1Reply(w, r, 200, v1Envelope{Data: map[string]any{"character": c, "online": online}})
 }
 func (s *Server) v1Items(w http.ResponseWriter, r *http.Request) {
 	q, err := v1ParseQuery(r, "kind")

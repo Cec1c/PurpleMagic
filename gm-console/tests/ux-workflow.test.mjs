@@ -236,7 +236,7 @@ test("standalone 0-character account panel executes Cera, Black Diamond and Adve
     "7000",
   );
   assert.equal(toasts.length, 1);
-  assert.equal(api.operationReceipts().length, 1);
+  assert.equal(api.operationReceipts().length, 0);
 
   await api.prepare(
     {
@@ -384,14 +384,16 @@ test("quickSearch queries characters, accounts and numeric QQ bindings in parall
   assert.ok(res.accounts.some((a) => a.id === "empty-2"));
 });
 
-test("character_online 409 enables carbonMode in place and retries preview without losing operation draft", async () => {
+test("character_online 409 on direct command leaves no half-open modal and enableCarbonAndRetry completes write directly", async () => {
   storage.clear();
   const api = new ConsoleAPI(() => {});
   api.current = "10";
   api.meta.authenticated = true;
   api.meta.features = {
     "system.settings": true,
+    "gold.read": true,
     "gold.write": true,
+    "characters.rename": true,
   };
   api.meta.systemSettings = { carbonMode: false };
   api.meta.resources.gold = {
@@ -406,6 +408,9 @@ test("character_online 409 enables carbonMode in place and retries preview witho
 
   let carbon = false;
   let previewCalls = 0;
+  let commitCalls = 0;
+  const toasts = [];
+  api.onToast = (msg) => toasts.push(msg);
   api.http.fetcher = async (path, init = {}) => {
     if (path === "/api/v1/settings/system" && init.method === "POST") {
       carbon = JSON.parse(init.body).carbonMode;
@@ -416,6 +421,7 @@ test("character_online 409 enables carbonMode in place and retries preview witho
       if (!carbon)
         return fail("character_online", "角色当前在线，请先开启碳铀模式", 409);
       return ok({
+        planToken: "gold-plan-1",
         receipt: {
           kind: "gold-operation",
           characterId: "10",
@@ -424,66 +430,108 @@ test("character_online 409 enables carbonMode in place and retries preview witho
         },
       });
     }
+    if (path === "/api/v1/characters/10/gold-operations") {
+      commitCalls++;
+      return ok({
+        kind: "gold-operation",
+        characterId: "10",
+        before: "1000",
+        after: "50000",
+      });
+    }
+    if (path === "/api/v1/characters/10/gold") {
+      return ok({ characterId: "10", balance: "50000", revision: "g-rev-2" });
+    }
+    if (path === "/api/v1/characters/10/rename-operations/preview") {
+      if (!carbon)
+        return fail("character_online", "角色当前在线，请先开启碳铀模式", 409);
+      return ok({
+        receipt: { kind: "rename-operation", before: "在线狂战", after: "新狂战" },
+      });
+    }
     throw new Error(`unexpected path: ${path}`);
   };
 
   await api.guard(() =>
-    api.prepare({ kind: "character-gold", characterId: "10", gold: 50000 }, emptySelection),
+    api.runDirect({ kind: "character-gold", characterId: "10", gold: 50000 }, emptySelection),
   );
+  assert.equal(api.meta.pending, undefined);
   assert.equal(api.meta.errorCode, "character_online");
   assert.equal(api.canEnableCarbonAndRetry(), true);
 
   await api.enableCarbonAndRetry();
   assert.equal(api.meta.systemSettings.carbonMode, true);
   assert.equal(previewCalls, 2);
+  assert.equal(commitCalls, 1);
+  assert.equal(api.state.characters[0].gold, 50000);
+  assert.equal(api.operationReceipts().length, 0);
+  assert.ok(toasts.some((t) => /50,000/.test(t)));
+
+  // Non-direct command (rename-character) still re-previews into confirmation modal
+  carbon = false;
+  api.meta.systemSettings = { carbonMode: false };
+  await api.guard(() =>
+    api.prepare(
+      { kind: "rename-character", characterId: "10", expectedName: "在线狂战", newName: "新狂战" },
+      emptySelection,
+    ),
+  );
+  assert.equal(api.canEnableCarbonAndRetry(), true);
+  await api.enableCarbonAndRetry();
   assert.ok(api.meta.pending);
   assert.equal(api.meta.pending.confirmed, false);
-  assert.match(api.meta.pending.summary, /50,000/);
 });
 
-test("tiered confirmation runs local drafts directly and keeps async task modal open while auto-closing sync writes", async () => {
+test("tiered confirmation runs single-target actions directly, retains modals only for destructive/batch/identity commands, and keeps topbar operationReceipts clean", async () => {
   const draftState = {
     news: [{ id: "d1", title: "草稿", published: false }],
   };
   const pubState = {
     news: [{ id: "p1", title: "已发布公告", published: true }],
   };
-  assert.equal(
-    isDirectCommand({ kind: "news-move", id: "d1", direction: "up" }, draftState),
-    true,
-  );
-  assert.equal(
-    isDirectCommand(
-      {
-        kind: "news",
-        id: "d1",
-        title: "草稿",
-        category: "更新",
-        date: "2026-11-16",
-        published: false,
-        body: "正文",
-      },
-      draftState,
-    ),
-    true,
-  );
-  assert.equal(
-    isDirectCommand(
-      {
-        kind: "news",
-        id: "p1",
-        title: "发布",
-        category: "更新",
-        date: "2026-11-16",
-        published: true,
-        body: "正文",
-      },
-      pubState,
-    ),
-    false,
-  );
+  // Direct commands
+  for (const [cmd, st, sel] of [
+    [{ kind: "reset-dungeon-quota", characterId: "10", quotaKey: "echon" }, pubState, emptySelection],
+    [{ kind: "item", key: "10/bag/1", version: 1, patch: { count: 1, enhance: 0, amplify: 0, forge: 0, bound: false } }, pubState, emptySelection],
+    [{ kind: "growth", characterId: "10", level: 90, job: "0:1", sp: 0, tp: 0 }, pubState, emptySelection],
+    [{ kind: "reset-skill-points", characterId: "10" }, pubState, emptySelection],
+    [{ kind: "character-gold", characterId: "10", gold: 100 }, pubState, emptySelection],
+    [{ kind: "account-currency", accountId: "a", mode: "add", amountText: "100" }, pubState, emptySelection],
+    [{ kind: "currency", characterId: "10", gold: 100, points: 100, tokens: 0 }, pubState, emptySelection],
+    [{ kind: "premium-grant", accountId: "a", days: 30 }, pubState, emptySelection],
+    [{ kind: "quest", characterId: "10", ids: ["1"], status: "completed" }, pubState, emptySelection],
+    [{ kind: "mail", recipients: ["10"], title: "单发", body: "", gold: 0, items: [] }, pubState, { accounts: [], characters: ["10"] }],
+    [{ kind: "activity-save", revision: 1, activities: [] }, pubState, emptySelection],
+    [{ kind: "benefit-toggle", id: "b1" }, pubState, emptySelection],
+    [{ kind: "task-control", id: "t1", action: "resume" }, pubState, emptySelection],
+    [{ kind: "news-move", id: "d1", direction: "up" }, draftState, emptySelection],
+    [{ kind: "news-delete", id: "d1" }, draftState, emptySelection],
+    [{ kind: "news", id: "d1", title: "草稿", published: false, body: "正文" }, draftState, emptySelection],
+    [{ kind: "news", id: "p1", title: "发布", published: true, body: "正文" }, pubState, emptySelection],
+  ]) {
+    assert.equal(isDirectCommand(cmd, st, sel), true, `expected direct: ${cmd.kind}`);
+  }
 
-  // Sync single-target write auto-closes modal (hidden = true) and emits toast while recording receipt
+  // Commands that MUST retain confirmation modal
+  for (const [cmd, st, sel] of [
+    [{ kind: "delete-items", keys: ["10/bag/1"] }, pubState, emptySelection],
+    [{ kind: "replace-item", key: "10/bag/1", version: 1, itemId: "2" }, pubState, emptySelection],
+    [{ kind: "delete-mail", ids: ["m1"] }, pubState, emptySelection],
+    [{ kind: "benefit-delete", id: "b1" }, pubState, emptySelection],
+    [{ kind: "news-delete", id: "p1" }, pubState, emptySelection],
+    [{ kind: "mail", recipients: ["10", "11"], title: "群发", body: "", gold: 0, items: [] }, pubState, { accounts: [], characters: ["10", "11"] }],
+    [{ kind: "mail", recipients: ["10"], title: "按账号发", body: "", gold: 0, items: [] }, pubState, { accounts: ["acc-1"], characters: [] }],
+    [{ kind: "quest", selectedTargets: true, characterId: "10", ids: ["1"], status: "completed" }, pubState, { accounts: [], characters: ["10", "11"] }],
+    [{ kind: "benefit-create", name: "福利", gold: 100, enabled: true, scope: "future" }, pubState, emptySelection],
+    [{ kind: "benefit-redeliver", id: "b1" }, pubState, emptySelection],
+    [{ kind: "rename-character", characterId: "10", expectedName: "a", newName: "b" }, pubState, emptySelection],
+    [{ kind: "rename-adventure", accountId: "a", expectedName: "x", newName: "y" }, pubState, emptySelection],
+    [{ kind: "sources", download: "https://example.com", gameHost: "1.2.3.4", gamePort: 7000 }, pubState, emptySelection],
+  ]) {
+    assert.equal(isDirectCommand(cmd, st, sel), false, `expected modal: ${cmd.kind}`);
+  }
+
+  // Sync single-target write auto-closes modal (hidden = true), emits toast, and does NOT clutter operationReceipts()
   storage.clear();
   const syncApi = new ConsoleAPI(() => {});
   syncApi.character = async () => {};
@@ -511,7 +559,7 @@ test("tiered confirmation runs local drafts directly and keeps async task modal 
   assert.equal(syncApi.meta.pending.completed, true);
   assert.equal(syncApi.meta.pending.hidden, true);
   assert.equal(toasts.length, 1);
-  assert.equal(syncApi.operationReceipts().length, 1);
+  assert.equal(syncApi.operationReceipts().length, 0);
 
   // Async batch mail task stays open (!p.hidden) so operator sees task progress
   storage.clear();

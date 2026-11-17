@@ -285,7 +285,7 @@ export function App() {
     setPickCharacter(false);
   }
   function request(command: Command) {
-    if (isDirectCommand(command, state)) {
+    if (isDirectCommand(command, state, selection)) {
       if (live) {
         void live.guard(() => live.runDirect(command, selection));
       } else {
@@ -631,7 +631,7 @@ export function App() {
                     disabled={!!state.api.busy}
                     onClick={() => void live.guard(() => live.enableCarbonAndRetry())}
                   >
-                    ⚡ 开启在线写入并重试预览
+                    ⚡ 开启在线写入并重试
                   </button>
                 )}
                 {live?.repreviewableDungeonQuotaPending() ? (

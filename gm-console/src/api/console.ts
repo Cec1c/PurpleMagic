@@ -1,3 +1,4 @@
+import { isDirectCommand } from "../domain";
 import type {
   Account,
   Character,
@@ -233,10 +234,23 @@ export class ConsoleAPI {
     }
   }
   private async partial(
-    jobs: (() => Promise<void>)[],
-    retry?: () => Promise<void>,
+    jobs: (() => Promise<unknown>)[],
+    retry?: () => Promise<unknown>,
   ) {
-    await Promise.all(jobs.map((job) => this.guard(job, retry)));
+    await Promise.all(
+      jobs.map((job) =>
+        this.guard(
+          async () => {
+            await job();
+          },
+          retry
+            ? async () => {
+                await retry();
+              }
+            : undefined,
+        ),
+      ),
+    );
   }
   signal(scope: string) {
     this.controllers.get(scope)?.abort();
@@ -390,15 +404,19 @@ export class ConsoleAPI {
       const raw = sessionStorage.getItem("purplemagic-operations-v2");
       if (raw) {
         const saved = JSON.parse(raw);
-        if (saved.pending?.id && Array.isArray(saved.pending.steps)) this.meta.pending = saved.pending;
+        if (saved.pending?.id && Array.isArray(saved.pending.steps) && !saved.pending.completed) {
+          this.meta.pending = saved.pending;
+        }
         this.meta.operationHistory = Array.isArray(saved.history)
-          ? saved.history.filter((p: Pending) => p?.id && Array.isArray(p.steps) && p.id !== this.meta.pending?.id)
+          ? saved.history.filter(
+              (p: Pending) => p?.id && Array.isArray(p.steps) && !p.completed && p.id !== this.meta.pending?.id,
+            )
           : [];
       } else {
         const legacy = sessionStorage.getItem("purplemagic-pending-v1");
         if (legacy) {
           const p = JSON.parse(legacy);
-          if (p.id && Array.isArray(p.steps)) this.meta.pending = p;
+          if (p.id && Array.isArray(p.steps) && !p.completed) this.meta.pending = p;
         }
       }
       const ctxRaw = sessionStorage.getItem("purplemagic-character-context-v1");
@@ -415,15 +433,21 @@ export class ConsoleAPI {
     this.publish();
   }
   persistPending() {
-    sessionStorage.setItem("purplemagic-operations-v2", JSON.stringify({
-      pending: this.meta.pending, history: this.meta.operationHistory,
-    }));
+    this.meta.operationHistory = this.meta.operationHistory.filter((p) => !p.completed);
+    sessionStorage.setItem(
+      "purplemagic-operations-v2",
+      JSON.stringify({
+        pending: this.meta.pending?.completed ? undefined : this.meta.pending,
+        history: this.meta.operationHistory,
+      }),
+    );
     sessionStorage.removeItem("purplemagic-pending-v1");
     this.publish();
   }
   operationReceipts() {
     const p = this.meta.pending;
-    return p?.confirmed ? [p, ...this.meta.operationHistory] : this.meta.operationHistory;
+    const history = this.meta.operationHistory.filter((item) => !item.completed);
+    return p?.confirmed && !p.completed ? [p, ...history] : history;
   }
   canDeleteReceipt(p: Pending) {
     return !(this.meta.busy && this.meta.pending?.id === p.id);
@@ -446,9 +470,10 @@ export class ConsoleAPI {
   }
   private archivePending() {
     const p = this.meta.pending;
-    if (p && (p.confirmed || p.steps.some(step => step.done))) {
+    this.meta.operationHistory = this.meta.operationHistory.filter((old) => !old.completed && old.id !== p?.id);
+    if (p && !p.completed && (p.confirmed || p.steps.some(step => step.done))) {
       p.hidden = true;
-      this.meta.operationHistory = [p, ...this.meta.operationHistory.filter(old => old.id !== p.id)];
+      this.meta.operationHistory = [p, ...this.meta.operationHistory];
     }
     this.meta.pending = undefined;
   }
@@ -659,21 +684,23 @@ export class ConsoleAPI {
         selection.characters.includes(c.id),
     );
   }
-  async presence(signal?: AbortSignal) {
+  async presence(signal?: AbortSignal): Promise<Set<string> | null> {
     try {
       const { data } = await this.http.get("/api/v1/presence", signal);
-      const ids = new Set(data.characterIds);
+      const ids = new Set<string>((data.characterIds || []).map(String));
       this.patch({
         characters: this.state.characters.map((c) => ({
           ...c,
           online: ids.has(c.id),
         })),
       });
+      return ids;
     } catch (e) {
       if ((e as Error).name === "AbortError") throw e;
       this.patch({
         characters: this.state.characters.map((c) => ({ ...c, online: null })),
       });
+      return null;
     }
   }
   setInventoryTab(tab: InventoryTab) {
@@ -681,6 +708,7 @@ export class ConsoleAPI {
     this.publish();
   }
   setGmTab(tab: NonNullable<import("./model").LiveData["gmTab"]>) {
+    if (this.meta.gmTab === tab) return;
     this.meta.gmTab = tab;
     this.publish();
   }
@@ -902,10 +930,28 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.meta.errorCode = undefined;
     this.publish();
-    await this.character(id, false);
+    const charJob = this.character(id, false);
+    if (signal.aborted) {
+      await charJob;
+      return;
+    }
+    const presJob = this.presence(signal).catch((e) => {
+      if ((e as Error)?.name === "AbortError") return null;
+      throw e;
+    });
+    const [, onlineIds] = await Promise.all([charJob, presJob]);
     if (!signal.aborted && this.current === id) {
+      if (onlineIds) {
+        const cur = this.state.characters.find((x) => x.id === id);
+        if (cur && cur.online !== onlineIds.has(id)) {
+          this.patch({
+            characters: this.state.characters.map((x) =>
+              x.id === id ? { ...x, online: onlineIds.has(id) } : x,
+            ),
+          });
+        }
+      }
       this.recordRecentCharacter(id);
-      await this.presence(signal);
     }
   }
   async character(id = this.current, withBalances = true) {
@@ -991,12 +1037,14 @@ export class ConsoleAPI {
       await this.partial([() => this.mailbox(), () => this.tasks()]);
     else if (refresh && section === "quests")
       await this.quests(this.meta.questFilter.status, this.meta.questFilter.q);
-    else if (refresh && section === "gm")
-      await this.partial([
-        () => this.growth(),
-        () => this.dungeonQuotas(),
-        () => this.tasks(), () => this.history(),
-      ]);
+    else if (refresh && section === "gm") {
+      const tab = this.meta.gmTab || "growth";
+      if (tab === "quotas") await this.dungeonQuotas(true);
+      else if (tab === "currency") await this.balances();
+      else if (tab === "premium") await this.premium();
+      else if (tab === "history") await this.partial([() => this.history(), () => this.tasks()]);
+      else await this.growth();
+    }
     else if (refresh && section === "benefits") await this.benefits();
     else if (refresh && section === "activities") await this.activities();
     else if (refresh && section === "anti-cheat") { this.meta.resources.moderationRefresh = { revision: Number(this.meta.resources.moderationRefresh?.revision || 0) + 1 }; this.publish(); }
@@ -1335,6 +1383,27 @@ export class ConsoleAPI {
     this.meta.resources.premium = data;
     this.publish();
   }
+  private applyDungeonQuotasData(id: string, data: DTO) {
+    this.meta.resources.dungeonQuotas = data;
+    const hasOnline = typeof data?.online === "boolean";
+    const hasLevel = typeof data?.characterLevel === "number" && Number.isFinite(data.characterLevel);
+    if (hasOnline || hasLevel) {
+      let updated = false;
+      const nextChars = this.state.characters.map((c) => {
+        if (c.id !== id) return c;
+        const nextOnline = hasOnline ? data.online : c.online;
+        const nextLevel = hasLevel ? data.characterLevel : c.level;
+        if (c.online === nextOnline && c.level === nextLevel) return c;
+        updated = true;
+        return { ...c, online: nextOnline, level: nextLevel };
+      });
+      if (updated) {
+        this.state = { ...this.state, characters: nextChars };
+        if (hasLevel) this.syncRecentCharacter(id, { level: data.characterLevel });
+      }
+    }
+    this.publish();
+  }
   async dungeonQuotas(fresh = false) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
     if (!c || !this.meta.features["dungeonQuotas.read"]) return;
@@ -1344,14 +1413,12 @@ export class ConsoleAPI {
       this.http.invalidate([`characters:${id}`, "presence"]);
       const { data } = await this.http.fresh(path, signal);
       if (signal.aborted || this.current !== id) return;
-      this.meta.resources.dungeonQuotas = data;
-      this.publish();
+      this.applyDungeonQuotasData(id, data);
       return;
     }
-    await this.http.observe(path, signal, ({data}) => {
+    await this.http.observe(path, signal, ({ data }) => {
       if (signal.aborted || this.current !== id) return;
-      this.meta.resources.dungeonQuotas = data;
-      this.publish();
+      this.applyDungeonQuotasData(id, data);
     });
   }
   async refreshGmTab(tab: "growth" | "quotas" | "currency" | "premium" | "history") {
@@ -1359,20 +1426,161 @@ export class ConsoleAPI {
     if (!id) return;
     this.meta.error = "";
     this.retries.clear();
+    if (tab === "quotas") {
+      await this.dungeonQuotas(true);
+      if (this.current === id && typeof this.meta.resources.dungeonQuotas?.online !== "boolean") {
+        await this.presence();
+      }
+      return;
+    }
     const c = this.state.characters.find(x => x.id === id);
     this.http.invalidate([
       `characters:${id}`,
       ...(c?.accountId ? [`accounts:${c.accountId}`] : []),
-      "directory",
       "presence",
     ]);
-    await this.character(id, false);
-    if (this.current !== id) return;
-    if (tab === "quotas") await Promise.all([this.presence(), this.dungeonQuotas(true)]);
-    else if (tab === "growth") await Promise.all([this.presence(), this.growth()]);
-    else if (tab === "currency") await Promise.all([this.presence(), this.balances()]);
-    else if (tab === "premium") await Promise.all([this.presence(), this.premium()]);
-    else await Promise.all([this.presence(), this.history(), this.tasks()]);
+    if (tab === "growth") {
+      await Promise.all([this.character(id, false), this.presence(), this.growth()]);
+    } else if (tab === "currency") {
+      await Promise.all([this.character(id, false), this.presence(), this.balances()]);
+    } else if (tab === "premium") {
+      await Promise.all([this.character(id, false), this.presence(), this.premium()]);
+    } else {
+      await Promise.all([this.character(id, false), this.presence(), this.history(), this.tasks()]);
+    }
+  }
+  async silentRefreshGmTab(tab: "growth" | "quotas" | "currency" | "premium") {
+    if (!this.meta.authenticated || this.meta.busy || !this.current) return;
+    const id = this.current;
+    const c0 = this.state.characters.find((x) => x.id === id);
+    if (!c0) return;
+    const signal = this.signal("silentGm");
+    try {
+      if (tab === "quotas") {
+        if (!this.meta.features["dungeonQuotas.read"]) return;
+        const { data } = await this.http.fresh(`/api/v1/characters/${segment(id)}/dungeon-quotas`, signal);
+        if (signal.aborted || this.current !== id) return;
+        this.applyDungeonQuotasData(id, data);
+        if (typeof data?.online !== "boolean") {
+          const pres = await this.http.fresh("/api/v1/presence", signal);
+          if (signal.aborted || this.current !== id) return;
+          const ids = new Set<string>((pres.data?.characterIds || []).map(String));
+          this.patch({
+            characters: this.state.characters.map((x) => ({ ...x, online: ids.has(x.id) })),
+          });
+        }
+        return;
+      }
+      if (tab === "growth") {
+        let nextChar = { ...c0 };
+        const [lvlRes, spRes, profRes, advRes, presRes] = await Promise.all([
+          this.meta.features["level.read"]
+            ? this.http.fresh(`/api/v1/characters/${segment(id)}/level`, signal).catch(() => null)
+            : Promise.resolve(null),
+          this.meta.features["skillPoints.read"]
+            ? this.http.fresh(`/api/v1/characters/${segment(id)}/skill-points`, signal).catch(() => null)
+            : Promise.resolve(null),
+          this.meta.features["profession.read"]
+            ? this.http.fresh(`/api/v1/characters/${segment(id)}/profession`, signal).catch(() => null)
+            : Promise.resolve(null),
+          this.meta.features["adventure.read"]
+            ? this.http.fresh(`/api/v1/accounts/${segment(c0.accountId)}/adventure-name`, signal).catch(() => null)
+            : Promise.resolve(null),
+          this.http.fresh("/api/v1/presence", signal).catch(() => null),
+        ]);
+        if (signal.aborted || this.current !== id) return;
+        if (lvlRes?.data) {
+          this.meta.resources.level = lvlRes.data;
+          nextChar.level = lvlRes.data.balance.level;
+        }
+        if (spRes?.data) {
+          this.meta.resources.skillPoints = spRes.data;
+          nextChar.sp = spRes.data.balance.bonusSp;
+          nextChar.tp = spRes.data.balance.bonusTp;
+        }
+        if (profRes?.data) {
+          this.meta.resources.profession = profRes.data;
+          this.meta.jobsRaw = profRes.data.jobs;
+          this.meta.jobs = (profRes.data.jobs || []).flatMap((j: DTO) =>
+            (j.choices || []).map((g: DTO) => ({
+              value: `${j.job}:${g.growType}`,
+              label: g.name || j.name,
+            })),
+          );
+          const choice = this.meta.jobs.find(
+            (j) => j.value === `${profRes.data.balance.job}:${profRes.data.balance.growType}`,
+          );
+          nextChar.job = choice?.label || nextChar.job;
+          nextChar.jobCode = String(profRes.data.balance.job);
+          nextChar.growType = profRes.data.balance.growType;
+        }
+        if (advRes?.data) {
+          this.meta.resources.adventureName = advRes.data;
+        }
+        const onlineIds = presRes?.data?.characterIds
+          ? new Set<string>(presRes.data.characterIds.map(String))
+          : null;
+        this.patch({
+          characters: this.state.characters.map((x) => {
+            if (x.id === id) {
+              return {
+                ...x,
+                level: nextChar.level,
+                sp: nextChar.sp,
+                tp: nextChar.tp,
+                job: nextChar.job,
+                jobCode: nextChar.jobCode,
+                growType: nextChar.growType,
+                online: onlineIds ? onlineIds.has(x.id) : x.online,
+              };
+            }
+            return onlineIds ? { ...x, online: onlineIds.has(x.id) } : x;
+          }),
+        });
+        this.syncRecentCharacter(id, { level: nextChar.level, job: nextChar.job });
+        return;
+      }
+      if (tab === "currency") {
+        const [goldRes, ceraRes] = await Promise.all([
+          this.meta.features["gold.read"]
+            ? this.http.fresh(`/api/v1/characters/${segment(id)}/gold`, signal).catch(() => null)
+            : Promise.resolve(null),
+          this.meta.features["currency.read"]
+            ? this.http.fresh(`/api/v1/accounts/${segment(c0.accountId)}/currency`, signal).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        if (signal.aborted || this.current !== id) return;
+        if (goldRes?.data) this.meta.resources.gold = goldRes.data;
+        if (ceraRes?.data) this.meta.resources.currency = ceraRes.data;
+        this.patch({
+          ...(goldRes?.data
+            ? {
+                characters: this.state.characters.map((x) =>
+                  x.id === id ? { ...x, gold: safeNumber(goldRes.data.balance) } : x,
+                ),
+              }
+            : {}),
+          ...(ceraRes?.data
+            ? {
+                accounts: this.state.accounts.map((a) =>
+                  a.id === c0.accountId
+                    ? { ...a, points: safeNumber(ceraRes.data.balance), rawPoints: ceraRes.data.balance }
+                    : a,
+                ),
+              }
+            : {}),
+        });
+        return;
+      }
+      if (tab === "premium" && this.meta.features["premium.read"]) {
+        const { data } = await this.http.fresh(`/api/v1/accounts/${segment(c0.accountId)}/premium`, signal);
+        if (signal.aborted || this.current !== id) return;
+        this.meta.resources.premium = data;
+        this.publish();
+      }
+    } catch {
+      // Transient network jitter or abort during background auto-refresh is silently ignored.
+    }
   }
   async balances(names = ["gold", "currency"]) {
     const id = this.current, c = this.state.characters.find(c => c.id === id);
@@ -1676,10 +1884,125 @@ export class ConsoleAPI {
       this.publish();
     }
   }
+  async resetDungeonQuotaDirect(
+    command: Extract<Command, { kind: "reset-dungeon-quota" }>,
+    selection: Selection,
+  ) {
+    if (this.meta.busy) return;
+    const c = this.state.characters.find((x) => x.id === this.current);
+    if (!c || command.characterId !== c.id) throw new Error("角色已切换，请重新选择");
+    if (!this.meta.features["dungeonQuotas.write"]) throw new Error("当前服务尚未开放副本额度重置");
+    this.meta.busy = true;
+    this.meta.resettingQuotaKey = command.quotaKey;
+    this.meta.error = "";
+    this.meta.errorCode = undefined;
+    this.lastBlockedPreview = undefined;
+    this.publish();
+    const readPath = `/api/v1/characters/${segment(c.id)}/dungeon-quotas`;
+    const opPath = `/api/v1/characters/${segment(c.id)}/dungeon-quota-operations`;
+    const commitOnce = async (data: DTO) => {
+      const entry = (data?.quotas || []).find((q: DTO) => q.key === command.quotaKey);
+      if (!entry) throw new Error("请选择有效的副本额度重置项");
+      if (!entry.canReset || !(entry.used > 0)) {
+        throw new Error("当前副本未消耗次数，无需重置");
+      }
+      const reqKey = crypto.randomUUID();
+      const response = await this.http.raw(
+        opPath,
+        "POST",
+        {
+          accountId: c.accountId,
+          action: "reset",
+          quotaKey: command.quotaKey,
+          revision: data.revision,
+          pvfChecksum: data.pvfChecksum,
+          definitionRevision: data.definitionRevision || "",
+          reason: "PurpleMagic 管理操作",
+          direct: true,
+        },
+        reqKey,
+      );
+      return { entry, done: response.data ?? response };
+    };
+    try {
+      let snapshot = this.meta.resources.dungeonQuotas;
+      if (
+        !snapshot ||
+        snapshot.characterId !== c.id ||
+        !Array.isArray(snapshot.quotas) ||
+        !snapshot.revision ||
+        !snapshot.pvfChecksum ||
+        !snapshot.definitionRevision
+      ) {
+        const { data } = await this.http.fresh(readPath);
+        if (this.current === c.id) this.applyDungeonQuotasData(c.id, data);
+        snapshot = data;
+      }
+      let outcome: { entry: DTO; done: DTO };
+      try {
+        outcome = await commitOnce(snapshot);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409 && ["revision_conflict", "pvf_conflict"].includes(e.code)) {
+          const { data: freshData } = await this.http.fresh(readPath);
+          if (this.current === c.id) this.applyDungeonQuotasData(c.id, freshData);
+          const freshEntry = (freshData?.quotas || []).find((q: DTO) => q.key === command.quotaKey);
+          if (!freshEntry || !freshEntry.canReset || !(freshEntry.used > 0)) {
+            throw new Error("角色最新副本额度已刷新，当前副本未消耗次数");
+          }
+          outcome = await commitOnce(freshData);
+        } else {
+          throw e;
+        }
+      }
+      const { entry, done } = outcome;
+      if (this.current === (done.characterId || c.id)) {
+        this.meta.resources.dungeonQuotas = {
+          ...(this.meta.resources.dungeonQuotas?.characterId === c.id ? this.meta.resources.dungeonQuotas : {}),
+          accountId: done.accountId ?? c.accountId,
+          characterId: done.characterId ?? c.id,
+          quotas: done.quotas,
+          pvfChecksum: done.pvfChecksum,
+          definitionRevision: done.definitionRevision,
+          revision: done.revision,
+        };
+      }
+      const limit = done.after?.limit ?? entry.limit;
+      const name = done.quotaName || entry.name;
+      this.onToast?.(`已重置「${name}」已用次数（0/${limit}）`);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "character_online") {
+        this.lastBlockedPreview = { command, selection };
+      }
+      throw e;
+    } finally {
+      this.meta.busy = false;
+      this.meta.resettingQuotaKey = undefined;
+      this.publish();
+    }
+  }
   async runDirect(command: Command, selection: Selection) {
+    if (command.kind === "reset-dungeon-quota") {
+      await this.resetDungeonQuotaDirect(command, selection);
+      return;
+    }
     await this.prepare(command, selection, true);
     const id = this.meta.pending?.id;
-    if (id) await this.confirm(id);
+    if (!id) return;
+    try {
+      await this.confirm(id);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "character_online") {
+        if (this.meta.pending?.id === id) {
+          this.meta.pending = undefined;
+          this.persistPending();
+        }
+        this.lastBlockedPreview = { command, selection };
+      } else if (this.meta.pending?.id === id && this.meta.pending.hidden && this.meta.pending.rejected) {
+        this.meta.pending = undefined;
+        this.persistPending();
+      }
+      throw e;
+    }
   }
   canEnableCarbonAndRetry() {
     if (this.meta.features["system.settings"] === false || this.meta.systemSettings?.carbonMode) return false;
@@ -1694,9 +2017,9 @@ export class ConsoleAPI {
     this.meta.error = "";
     this.meta.errorCode = undefined;
     this.retries.clear();
-    this.onToast?.("已开启在线写入（碳铀模式），正在重新预览");
     const p = this.meta.pending;
     if (p && p.rejected && p.errorCode === "character_online") {
+      this.onToast?.("已开启在线写入（碳铀模式），正在重新预览");
       if (this.canRepreviewInventory()) {
         await this.repreviewInventory(p.id);
         return;
@@ -1719,7 +2042,13 @@ export class ConsoleAPI {
     if (this.lastBlockedPreview) {
       const { command, selection } = this.lastBlockedPreview;
       this.lastBlockedPreview = undefined;
-      await this.prepare(command, selection);
+      if (isDirectCommand(command, this.state, selection)) {
+        this.onToast?.("已开启在线写入（碳铀模式），正在重试");
+        await this.runDirect(command, selection);
+      } else {
+        this.onToast?.("已开启在线写入（碳铀模式），正在重新预览");
+        await this.prepare(command, selection);
+      }
     }
   }
   cancel() {
@@ -1917,13 +2246,16 @@ export class ConsoleAPI {
       this.publish();
     }
     await refreshOperation(this, p);
-    const isAsyncTask = p.steps.some((s) => s.kind === "task" || s.path.endsWith("/redelivery"));
-    if (p.completed && !p.rejected && !p.error && !this.meta.error && !isAsyncTask) {
+    const isAsyncModalTask =
+      !p.hidden && p.steps.some((s) => s.kind === "task" || s.path.endsWith("/redelivery"));
+    if (p.completed && !p.rejected && !p.error && !this.meta.error && !isAsyncModalTask) {
       const wasHidden = p.hidden;
       p.hidden = true;
       this.persistPending();
       const label = p.summary || p.title;
       this.onToast?.(wasHidden ? label : `${p.target ? `${p.target} · ` : ""}${label}`);
+    } else if (p.completed) {
+      this.persistPending();
     }
   }
 }

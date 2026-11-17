@@ -326,3 +326,138 @@ test('repreviewDungeonQuotas() recovers failed quota reset in modal and after di
   assert.equal(api.meta.resources.dungeonQuotas.revision, '7'.repeat(64));
   assert.equal(api.meta.resources.dungeonQuotas.quotas.find((q) => q.key === 'pandemonium_rift').used, 0);
 });
+
+test('runDirect reset-dungeon-quota executes one-hop commit from memory, auto-retries once on 409 conflict, and emits clean toast', async () => {
+  const api = fixture();
+  const toasts = [];
+  api.onToast = (msg) => toasts.push(msg);
+
+  const calls = [];
+  let seenResettingKey = '';
+  api.http.fetcher = async (path, init) => {
+    seenResettingKey = api.meta.resettingQuotaKey || '';
+    calls.push({ method: init.method, path, body: init.body ? JSON.parse(init.body) : null, key: init.headers['Idempotency-Key'] });
+    assert.equal(init.method, 'POST');
+    assert.equal(path, '/api/v1/characters/10/dungeon-quota-operations');
+    return new Response(JSON.stringify({
+      data: {
+        kind: 'dungeon-quota-operation',
+        accountId: 'a',
+        characterId: '10',
+        quotaKey: 'echon',
+        quotaName: '艾肯（遗落的神殿 + 试炼）',
+        after: { used: 0, limit: 4 },
+        quotas: makeQuotas(2, 0, 2, 0),
+        pvfChecksum: 'a'.repeat(64),
+        definitionRevision: 'b'.repeat(64),
+        revision: '8'.repeat(64),
+      },
+    }));
+  };
+
+  await api.runDirect({ kind: 'reset-dungeon-quota', characterId: '10', quotaKey: 'echon' }, selection);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.direct, true);
+  assert.equal(calls[0].body.planToken, undefined);
+  assert.equal(seenResettingKey, 'echon');
+  assert.equal(api.meta.resettingQuotaKey, undefined);
+  assert.equal(api.meta.resources.dungeonQuotas.revision, '8'.repeat(64));
+  assert.equal(api.meta.resources.dungeonQuotas.quotas.find((q) => q.key === 'echon').used, 0);
+  assert.deepEqual(toasts, ['已重置「艾肯（遗落的神殿 + 试炼）」已用次数（0/4）']);
+  assert.equal(api.operationReceipts().length, 0);
+
+  // Now simulate 409 revision_conflict on cached revision -> silent fresh GET + one-hop retry
+  calls.length = 0;
+  toasts.length = 0;
+  api.http.fetcher = async (path, init) => {
+    calls.push({ method: init.method, path, body: init.body ? JSON.parse(init.body) : null });
+    if (init.method === 'GET' && path === '/api/v1/characters/10/dungeon-quotas') {
+      return new Response(JSON.stringify({
+        data: { ...makeQuotaSnapshot('9'.repeat(64), makeQuotas(3, 0, 2, 0)), online: true },
+      }));
+    }
+    const body = JSON.parse(init.body);
+    if (body.revision !== '9'.repeat(64)) {
+      return new Response(JSON.stringify({ error: { code: 'revision_conflict', message: '已变更' } }), { status: 409 });
+    }
+    return new Response(JSON.stringify({
+      data: {
+        kind: 'dungeon-quota-operation',
+        accountId: 'a',
+        characterId: '10',
+        quotaKey: 'pandemonium_rift',
+        quotaName: '魔界裂缝',
+        after: { used: 0, limit: 3 },
+        quotas: makeQuotas(0, 0, 2, 0),
+        pvfChecksum: 'a'.repeat(64),
+        definitionRevision: 'b'.repeat(64),
+        revision: 'c'.repeat(64),
+      },
+    }));
+  };
+
+  await api.runDirect({ kind: 'reset-dungeon-quota', characterId: '10', quotaKey: 'pandemonium_rift' }, selection);
+  assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`), [
+    'POST /api/v1/characters/10/dungeon-quota-operations',
+    'GET /api/v1/characters/10/dungeon-quotas',
+    'POST /api/v1/characters/10/dungeon-quota-operations',
+  ]);
+  assert.equal(api.state.characters[0].online, true);
+  assert.equal(api.meta.resources.dungeonQuotas.revision, 'c'.repeat(64));
+  assert.deepEqual(toasts, ['已重置「魔界裂缝」已用次数（0/3）']);
+});
+
+test('single-hop refreshGmTab("quotas"), silentRefreshGmTab("quotas"), and enter("gm", true) avoid waterfall and spinner noise', async () => {
+  const api = fixture();
+  api.meta.authenticated = true;
+  api.meta.gmTab = 'quotas';
+  api.state.characters[0].level = 85;
+  api.state.characters[0].online = false;
+
+  const seen = [];
+  let maxReadingDuringSilent = 0;
+  api.http.fetcher = async (path, init) => {
+    seen.push(`${init.method} ${path}`);
+    maxReadingDuringSilent = Math.max(maxReadingDuringSilent, api.meta.reading);
+    if (path === '/api/v1/characters/10/dungeon-quotas') {
+      return new Response(JSON.stringify({
+        data: { ...makeQuotaSnapshot('d'.repeat(64), makeQuotas(1, 2, 1, 0)), characterLevel: 90, online: true },
+      }));
+    }
+    throw new Error('unexpected path: ' + path);
+  };
+
+  // 1. refreshGmTab("quotas") with boolean online makes ONLY 1 GET request (no /characters/10, no /presence)
+  await api.refreshGmTab('quotas');
+  assert.deepEqual(seen, ['GET /api/v1/characters/10/dungeon-quotas']);
+  assert.equal(api.state.characters[0].online, true);
+  assert.equal(api.state.characters[0].level, 90);
+
+  // 2. enter("gm", true) only refreshes active gmTab ("quotas"), NOT growth/tasks/12 history endpoints
+  seen.length = 0;
+  await api.enter('gm', true);
+  assert.deepEqual(seen, ['GET /api/v1/characters/10/dungeon-quotas']);
+
+  // 3. silentRefreshGmTab("quotas") updates state with reading === 0 and ignores transient errors without setting meta.error
+  seen.length = 0;
+  maxReadingDuringSilent = 0;
+  api.http.fetcher = async (path, init) => {
+    seen.push(`${init.method} ${path}`);
+    maxReadingDuringSilent = Math.max(maxReadingDuringSilent, api.meta.reading);
+    return new Response(JSON.stringify({
+      data: { ...makeQuotaSnapshot('e'.repeat(64), makeQuotas(0, 1, 0, 1)), characterLevel: 90, online: false },
+    }));
+  };
+  await api.silentRefreshGmTab('quotas');
+  assert.deepEqual(seen, ['GET /api/v1/characters/10/dungeon-quotas']);
+  assert.equal(maxReadingDuringSilent, 0);
+  assert.equal(api.state.characters[0].online, false);
+  assert.equal(api.meta.resources.dungeonQuotas.revision, 'e'.repeat(64));
+
+  api.http.fetcher = async () => {
+    throw new Error('transient network jitter');
+  };
+  await api.silentRefreshGmTab('quotas');
+  assert.equal(api.meta.error, '');
+  assert.equal(api.meta.reading, 0);
+});

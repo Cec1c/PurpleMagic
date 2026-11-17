@@ -25,12 +25,7 @@ func validDungeonQuotaDeleteKey(key string) bool {
 }
 
 func (s *mysqlCharStore) LoadDungeonQuotaManagement(ctx context.Context, id string) (repository.DungeonQuotaManagementState, error) {
-	snapshot, closeFn, err := s.resourceSnapshot(ctx)
-	if err != nil {
-		return repository.DungeonQuotaManagementState{}, err
-	}
-	defer closeFn()
-	return snapshot.loadDungeonQuotaManagement(ctx, id)
+	return s.loadDungeonQuotaManagement(ctx, id)
 }
 
 func (s *mysqlCharStore) loadDungeonQuotaManagement(ctx context.Context, id string) (repository.DungeonQuotaManagementState, error) {
@@ -47,44 +42,57 @@ func (s *mysqlCharStore) loadDungeonQuotaManagement(ctx context.Context, id stri
 	if err != nil {
 		return v, err
 	}
-	deleted := "c.delete_flag"
-	if !characterMirrorStatsAuthoritative() {
-		deleted = "COALESCE((SELECT stat_value FROM " + st + " WHERE character_id=c.character_id AND stat_key='delete_flag'),c.delete_flag)"
-	}
-	var deleteFlag int64
-	var updated sql.NullTime
-	err = r.db.QueryRowContext(
-		ctx,
-		r.selectQuery("SELECT c.character_id,c.account_id,c.level,"+deleted+",c.updated_at FROM "+ct+" c WHERE c.character_id=? AND BINARY c.character_id=BINARY ?"),
-		id, id,
-	).Scan(&v.Character.CharacterID, &v.Character.AccountID, &v.Character.Level, &deleteFlag, &updated)
-	if err != nil {
-		return v, err
-	}
-	v.Character.UpdatedAt = scanTime(updated)
-	stats := map[string]int64{
-		"delete_flag":                deleteFlag,
-		"gm_dungeon_quota_sequence_v1": 0,
+	mirrorAuth := characterMirrorStatsAuthoritative()
+	statFilter := "s.stat_key LIKE 'dungeon_daily_entry_%' OR s.stat_key LIKE 'dungeon_cycle_entry_%' OR s.stat_key LIKE 'raid_weekly_%' OR s.stat_key='gm_dungeon_quota_sequence_v1'"
+	if !mirrorAuth {
+		statFilter += " OR s.stat_key='delete_flag'"
 	}
 	rows, err := r.db.QueryContext(
 		ctx,
-		r.selectQuery("SELECT stat_key,stat_value FROM "+st+" WHERE character_id=? AND (stat_key LIKE 'dungeon_daily_entry_%' OR stat_key LIKE 'dungeon_cycle_entry_%' OR stat_key LIKE 'raid_weekly_%' OR stat_key='gm_dungeon_quota_sequence_v1')"),
-		id,
+		r.selectQuery(
+			"SELECT c.character_id,c.account_id,c.level,c.delete_flag,c.updated_at,s.stat_key,s.stat_value "+
+				"FROM "+ct+" c "+
+				"LEFT JOIN "+st+" s ON s.character_id=c.character_id AND ("+statFilter+") "+
+				"WHERE c.character_id=? AND BINARY c.character_id=BINARY ?",
+		),
+		id, id,
 	)
 	if err != nil {
 		return v, err
 	}
 	defer rows.Close()
+	var stats map[string]int64
+	found := false
 	for rows.Next() {
-		var key string
-		var val int64
-		if err = rows.Scan(&key, &val); err != nil {
+		var charID, accountID string
+		level := v.Character.Level
+		var deleteFlag int64
+		var updated sql.NullTime
+		var statKey sql.NullString
+		var statVal sql.NullInt64
+		if err = rows.Scan(&charID, &accountID, &level, &deleteFlag, &updated, &statKey, &statVal); err != nil {
 			return v, err
 		}
-		stats[key] = val
+		if !found {
+			v.Character.CharacterID = charID
+			v.Character.AccountID = accountID
+			v.Character.Level = level
+			v.Character.UpdatedAt = scanTime(updated)
+			stats = map[string]int64{
+				"delete_flag":                deleteFlag,
+				"gm_dungeon_quota_sequence_v1": 0,
+			}
+			found = true
+		}
+		if statKey.Valid && statVal.Valid && (statKey.String != "delete_flag" || !mirrorAuth) {
+			stats[statKey.String] = statVal.Int64
+		}
 	}
 	if err = rows.Err(); err != nil {
 		return v, err
+	}
+	if !found {
+		return v, sql.ErrNoRows
 	}
 	v.Character.Stats = stats
 	return v, nil
