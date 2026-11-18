@@ -84,7 +84,7 @@ func (s *Server) redeliverBenefitPage(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			delivery, cancel := context.WithTimeout(ctx, 4*time.Second)
-			_, e = s.deps.Benefits.RedeliverCampaignRecipient(delivery, group, c.ID, in.Revision, rec.Recipient, s.v1ProjectCampaignDelivery)
+			_, e = s.deps.Benefits.RedeliverCampaignRecipientCommitted(delivery, group, c.ID, in.Revision, rec.Recipient, s.v1ProjectCampaignDelivery, s.notifyMailboxReceiptAfterCommit)
 			cancel()
 			if errors.Is(e, testbenefits.ErrRevision) || errors.Is(e, testbenefits.ErrCampaignDisabled) || errors.Is(e, testbenefits.ErrPVFReview) {
 				out.Stop = "规则状态或 PVF 已变化，请核对后重新补发"
