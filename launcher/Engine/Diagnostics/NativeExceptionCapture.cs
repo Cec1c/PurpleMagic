@@ -12,6 +12,21 @@ internal static class NativeExceptionCapture
     {
         if (!OperatingSystem.IsWindows() || IntPtr.Size != 8) { emit(new("platform_unsupported", [])); return; }
         using var identity = new ReadOnlyGameProcess(target.Pid, target.Path, target.Created);
+        GameOperationCapture? operations = null;
+        try { operations = new(target.Pid, emit); }
+        catch (Win32Exception e) { emit(new("operations_unavailable", new() { ["win32"] = new(e.NativeErrorCode) })); }
+
+        // Default off: attaching DebugActiveProcess freezes all game threads on every DLL/thread/exception event.
+        // Only attach when explicitly opted in for crash troubleshooting.
+        var attachRequested = target.AttachDebugger || Environment.GetEnvironmentVariable("PURPLEMAGIC_ATTACH_CRASH_DEBUGGER") == "1";
+        if (!attachRequested)
+        {
+            emit(new("crash_debugger_disabled", []));
+            try { while (!stopping() && !identity.Exited(out _)) { operations?.Pump(); Thread.Sleep(20); } }
+            finally { operations?.Dispose(); emit(new("observer_stopped", [])); }
+            return;
+        }
+
         var process = OpenProcess(0x410, false, target.Pid);
         var processError = process == 0 ? Marshal.GetLastWin32Error() : (int?)null;
         var wow64 = false; var architectureKnown = process != 0 && IsWow64Process(process, out wow64); var bits = wow64 ? 32 : 64;
@@ -21,9 +36,6 @@ internal static class NativeExceptionCapture
         var symbols = process != 0 && SymInitialize(process, AppContext.BaseDirectory, true);
         var symbolError = symbols ? (int?)null : Marshal.GetLastWin32Error();
         using var modules = new NativeModuleCatalog(emit);
-        GameOperationCapture? operations = null;
-        try { operations = new(target.Pid, emit); }
-        catch (Win32Exception e) { emit(new("operations_unavailable", new() { ["win32"] = new(e.NativeErrorCode) })); }
         var attached = DebugActiveProcess(target.Pid);
         if (!attached) {
             var error = Marshal.GetLastWin32Error(); emit(new(error == 5 ? "access_denied" : "attach_failed", new() { ["win32"] = new(error) }));

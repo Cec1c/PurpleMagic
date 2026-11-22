@@ -130,7 +130,10 @@ internal static class DiagnosticChecks
         var large = Job(largeId); var fields = Enumerable.Range(0, 300).ToDictionary(i => "fixture." + i, i => new DiagnosticField(i));
         for (var batch = 0; batch < 20; batch++) largeStore.Save(large with { Lines = Enumerable.Range(batch * 100 + 1, 100).Select(n => Line(largeId, n, n * 5, fields: fields)).ToArray() });
         var largeExport = largeStore.Export(largeId, Path.Combine(exportRoot, "large.log"));
-        check(largeExport.Bytes <= DiagnosticStorage.MaxLog && largeStore.ReadIndex(largeId)!.Summary.Truncated, "log budget retains complete lines and explicit truncation summary");
+        VerifyLog(largeExport.Path, check);
+        var largeText = File.ReadAllText(largeExport.Path);
+        check(largeExport.Bytes <= DiagnosticStorage.MaxLog && largeStore.ReadIndex(largeId)!.Summary.Truncated && largeText.Contains("\"sequence\":2000"),
+            "log budget tail-rolls within 10 MiB, preserves newest tail records, and marks truncation");
         var fatal = new DiagnosticRecord(3000, DateTime.UtcNow.ToString("O"), 30000, "exception", "observer", largeId, 0, "partial",
             new() { ["first_chance"] = new(0) }, "native_exception", Evidence: new("native_exception", Stack: [new("DNF.exe", "0x0000007B")]));
         var fatalBytes = JsonSerializer.SerializeToUtf8Bytes(fatal, DiagnosticJson.Default.DiagnosticRecord);
@@ -143,6 +146,16 @@ internal static class DiagnosticChecks
         largeStore.Save(large with { Lines = [new([.. exitBytes, 10], 30001, true, "event")] });
         largeStore.Export(largeId, Path.Combine(exportRoot, "large-exit.log"));
         check(File.ReadAllText(Path.Combine(exportRoot, "large-exit.log")).Contains("game_exit") && largeStore.ReadIndex(largeId)!.LastSequence == 3001, "exit has reserved capacity even after ordinary truncation");
+        // Verify two-phase roll recovery: uncommitted .log.roll is discarded; committed .log.roll + .json.roll completes cleanly.
+        var rollDir = Path.Combine(temp, "log-budget");
+        File.WriteAllText(Path.Combine(rollDir, largeId + ".log.roll"), "{uncommitted");
+        check(largeStore.ReadIndex(largeId)!.LastSequence == 3001 && !File.Exists(Path.Combine(rollDir, largeId + ".log.roll")), "uncommitted roll file is discarded without harming live log");
+        var committedIdx = largeStore.ReadIndex(largeId)!;
+        File.Copy(Path.Combine(rollDir, largeId + ".log"), Path.Combine(rollDir, largeId + ".log.roll"), true);
+        File.WriteAllBytes(Path.Combine(rollDir, largeId + ".json.roll"), JsonSerializer.SerializeToUtf8Bytes(committedIdx, DiagnosticJson.Default.DiagnosticLogIndex));
+        var recoveredExport = largeStore.Export(largeId, Path.Combine(exportRoot, "large-roll-recovered.log"));
+        VerifyLog(recoveredExport.Path, check);
+        check(!File.Exists(Path.Combine(rollDir, largeId + ".log.roll")) && !File.Exists(Path.Combine(rollDir, largeId + ".json.roll")), "committed paired roll completes cleanly on recovery");
         var legacyRoot = Path.Combine(temp, "legacy-schema"); Directory.CreateDirectory(legacyRoot);
         var legacyId = Guid.NewGuid().ToString("N"); var legacyJob = Job(legacyId);
         var legacyIndex = new DiagnosticLogIndex(legacyJob.Summary with { Records = 1 }, legacyJob.StartedUtc, legacyJob.EndedUtc, 1, 5, 0);

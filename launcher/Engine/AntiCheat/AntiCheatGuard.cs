@@ -61,6 +61,8 @@ public static class AntiCheatGuard
                     // Fixed protocol: only one game can be attached. Further input means stop.
                     disconnected = Task.Run(async () => { try { await GuardWire.Read(pipe, 16, stop.Token); } catch { } finally { stop.Cancel(); } });
                     try {
+                        // Lower guard process priority during steady-state monitoring so scans never starve foreground DNF.exe.
+                        try { self.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
                         while (!stop.IsCancellationRequested && !game.HasExited) {
                             scanner.Game(game, stop.Token); scanner.Processes(parent.SessionId, stop.Token);
                             if (scanner.Blocked) { await events.Writer.WriteAsync(new("blocked", "runtime-rule"), stop.Token); break; }

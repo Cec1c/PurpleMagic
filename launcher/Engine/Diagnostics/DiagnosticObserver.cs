@@ -24,7 +24,7 @@ internal sealed class DiagnosticObserverClient : IDisposable
         if (count == 0) return false;
         message = new("observer_dropped", new() { ["count"] = new(count) }); return true;
     }
-    internal DiagnosticObserverClient(ProcessIdentity identity, bool elevated)
+    internal DiagnosticObserverClient(ProcessIdentity identity, bool elevated, bool attachDebugger = false)
     {
         void receive(ObserverMessage message) { if (!messages.TryWrite(message)) Interlocked.Increment(ref dropped); }
         task = Task.Run(async () => {
@@ -41,7 +41,7 @@ internal sealed class DiagnosticObserverClient : IDisposable
                 if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out var client) || client != child.Id) throw new IOException();
                 using var writer = new StreamWriter(server, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
                 using var reader = new StreamReader(server, Encoding.UTF8, false, 4096, leaveOpen: true);
-                await writer.WriteLineAsync(JsonSerializer.Serialize(new ObserverTarget(identity.Pid, identity.Created, identity.Path), DiagnosticJson.Default.ObserverTarget));
+                await writer.WriteLineAsync(JsonSerializer.Serialize(new ObserverTarget(identity.Pid, identity.Created, identity.Path, attachDebugger), DiagnosticJson.Default.ObserverTarget));
                 Volatile.Write(ref connected, 1);
                 Task stop = Task.Delay(Timeout.Infinite, cancel.Token); var stopping = false;
                 var read = reader.ReadLineAsync();

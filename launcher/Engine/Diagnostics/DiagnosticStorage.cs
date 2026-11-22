@@ -42,6 +42,8 @@ internal sealed record DiagnosticLogEnvelope(string Type, int SchemaVersion, str
 internal sealed class DiagnosticStorage
 {
     public const int MaxLog = 10 * 1024 * 1024;
+    private const int RollTrigger = MaxLog - 256 * 1024;
+    private const int RollTarget = 6 * 1024 * 1024;
     private readonly string root;
     private readonly object gate = new();
     public DiagnosticStorage(string directory) { root = Path.GetFullPath(directory); }
@@ -51,9 +53,23 @@ internal sealed class DiagnosticStorage
         if (!Guid.TryParseExact(id, "N", out _)) throw new InvalidDataException("日志编号无效。");
         var path = Path.Combine(root, id + extension); SafeFiles.NoLinks(path); return path;
     }
+    private void RecoverPendingRoll(string id)
+    {
+        var logPath = FileFor(id);
+        var jsonPath = FileFor(id, ".json");
+        var logRoll = FileFor(id, ".log.roll");
+        var jsonRoll = FileFor(id, ".json.roll");
+        if (File.Exists(jsonRoll)) {
+            if (File.Exists(logRoll)) File.Move(logRoll, logPath, true);
+            File.Move(jsonRoll, jsonPath, true);
+        } else if (File.Exists(logRoll)) {
+            File.Delete(logRoll);
+        }
+    }
     public DiagnosticLogIndex? ReadIndex(string id)
     {
         lock (gate) {
+            RecoverPendingRoll(id);
             var path = FileFor(id, ".json");
             if (!File.Exists(path)) return null;
             if (new FileInfo(path).Length > 65536) throw new InvalidDataException("日志索引无效。");
@@ -76,7 +92,9 @@ internal sealed class DiagnosticStorage
     internal void Cleanup()
     {
         lock (gate) foreach (var row in Indexes().Skip(5)) {
-            File.Delete(FileFor(row.Summary.SessionId)); File.Delete(FileFor(row.Summary.SessionId, ".json"));
+            var sid = row.Summary.SessionId;
+            File.Delete(FileFor(sid)); File.Delete(FileFor(sid, ".json"));
+            File.Delete(FileFor(sid, ".log.roll")); File.Delete(FileFor(sid, ".json.roll"));
         }
     }
     public DiagnosticClip[] List()
@@ -94,38 +112,100 @@ internal sealed class DiagnosticStorage
         lock (gate) {
             EnsureRoot(); var id = job.Summary.SessionId; var previous = ReadIndex(id);
             if (previous is not null && previous.SchemaVersion != 5) throw new InvalidDataException("旧格式日志已封存，请使用新日志编号。");
-            var rows = Indexes();
+            var rows = previous is null ? Indexes() : [];
             // A still-running old instance must not displace a newer launch.
             if (previous is null && rows.Length >= 5 && string.CompareOrdinal(job.StartedUtc, rows[4].StartedUtc) < 0) return;
             var index = previous ?? new(job.Summary, job.StartedUtc, job.EndedUtc, 0, 0, 0, 5);
             var path = FileFor(id);
-            using (var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read)) {
+            var flushToDisk = job.CriticalTail || job.Summary.EndReason != "recording";
+            var truncated = index.Summary.Truncated; var records = previous is null ? 0 : index.Summary.Records;
+            var needRoll = false;
+            var pending = new List<(byte[] Bytes, long Sequence, double MonotonicMs)>(job.Lines.Length);
+            long pendingBytes = 0;
+            var lastSeq = index.LastSequence;
+            foreach (var line in job.Lines) {
+                var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord) ?? throw new InvalidDataException("日志记录无效。");
+                if (record.SessionId != id) throw new InvalidDataException("日志会话不匹配。");
+                if (record.RecordVersion != 4) throw new InvalidDataException("日志记录版本不匹配。");
+                if (record.Sequence <= lastSeq) continue;
+                lastSeq = record.Sequence;
+                pending.Add((line.Bytes, record.Sequence, record.MonotonicMs));
+                pendingBytes += line.Bytes.Length;
+            }
+            var estimatedSize = (index.Bytes == 0 ? Envelope("log_header", index).Length : index.Bytes) + pendingBytes;
+            if (estimatedSize > RollTrigger) needRoll = true;
+            if (!needRoll) {
+                using var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
                 // Roll back a failed append to the last durable index. No partial JSON line survives.
                 if (file.Length < index.Bytes) throw new InvalidDataException("日志文件长度不匹配。");
                 file.SetLength(index.Bytes); file.Position = index.Bytes;
                 if (index.Bytes == 0) file.Write(Envelope("log_header", index));
-                var truncated = index.Summary.Truncated; var records = index.Summary.Records;
-                if (previous is null) records = 0;
-                foreach (var line in job.Lines) {
-                    var record = JsonSerializer.Deserialize(line.Bytes, DiagnosticJson.Default.DiagnosticRecord) ?? throw new InvalidDataException("日志记录无效。");
-                    if (record.SessionId != id) throw new InvalidDataException("日志会话不匹配。");
-                    if (record.RecordVersion != 4) throw new InvalidDataException("日志记录版本不匹配。");
-                    if (record.Sequence <= index.LastSequence) continue;
-                    // Reserve space for exception evidence and its recent operation tail,
-                    // even after ordinary samples have filled the file.
-                    var fatal = record.Type == "exception" && record.Fields.GetValueOrDefault("first_chance")?.Value == 0;
-                    var exit = record.Reason == "game_exit";
-                    var critical = fatal || exit || record.Type == "exception" || record.Module == "server" || record.Evidence?.Kind == "managed_exception" || job.CriticalTail && record.Type != "sample";
-                    var limit = MaxLog - (exit ? 32768 : fatal ? 65536 : critical ? 256 * 1024 : 512 * 1024);
-                    if ((!critical && truncated) || file.Position + line.Bytes.Length > limit) { truncated = true; continue; }
-                    file.Write(line.Bytes); records++;
-                    index = index with { LastSequence = record.Sequence, LastTime = record.MonotonicMs };
+                foreach (var item in pending) {
+                    file.Write(item.Bytes); records++;
+                    index = index with { LastSequence = item.Sequence, LastTime = item.MonotonicMs };
                 }
-                file.Flush(true);
+                if (flushToDisk) file.Flush(true);
                 index = index with { Summary = job.Summary with { Records = records, Truncated = truncated || job.Summary.Truncated }, EndedUtc = job.EndedUtc, Bytes = file.Length };
+            } else {
+                // Tail-rolling compaction: keep log_header + newest ~6 MiB tail lines so late disconnects/crashes are never lost.
+                var existing = new List<byte[]>();
+                byte[]? header = null;
+                if (index.Bytes > 0 && File.Exists(path)) {
+                    using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    if (source.Length < index.Bytes) throw new InvalidDataException("日志文件长度不匹配。");
+                    var raw = new byte[index.Bytes];
+                    source.ReadExactly(raw, 0, raw.Length);
+                    var start = 0;
+                    for (var i = 0; i < raw.Length; i++) {
+                        if (raw[i] != 10) continue;
+                        var slice = raw.AsSpan(start, i - start + 1).ToArray();
+                        start = i + 1;
+                        if (header is null) header = slice;
+                        else existing.Add(slice);
+                    }
+                }
+                header ??= Envelope("log_header", index);
+                var combined = new List<byte[]>(existing.Count + pending.Count);
+                combined.AddRange(existing);
+                foreach (var item in pending) {
+                    combined.Add(item.Bytes); records++;
+                    index = index with { LastSequence = item.Sequence, LastTime = item.MonotonicMs };
+                }
+                var maxTailBytes = Math.Max(0, RollTarget - header.Length);
+                var keepFrom = combined.Count;
+                long keptBytes = 0;
+                for (var i = combined.Count - 1; i >= 0; i--) {
+                    var len = combined[i].Length;
+                    if (keptBytes + len > maxTailBytes && keepFrom < combined.Count) break;
+                    keptBytes += len;
+                    keepFrom = i;
+                }
+                if (keepFrom > 0) truncated = true;
+                // Ensure the rolled file always fits strictly below MaxLog even if a single batch was huge.
+                var hardTailBudget = Math.Max(0, MaxLog - 32768 - header.Length);
+                while (keepFrom < combined.Count - 1 && keptBytes > hardTailBudget) {
+                    keptBytes -= combined[keepFrom].Length;
+                    keepFrom++;
+                    truncated = true;
+                }
+                using var ms = new MemoryStream(header.Length + (int)Math.Min(keptBytes, MaxLog));
+                ms.Write(header);
+                for (var i = keepFrom; i < combined.Count; i++) ms.Write(combined[i]);
+                var rolled = ms.ToArray();
+                index = index with { Summary = job.Summary with { Records = records, Truncated = truncated || job.Summary.Truncated }, EndedUtc = job.EndedUtc, Bytes = rolled.Length };
+                // Two-phase paired roll commit: stage both .log.roll and .json.roll before replacing live files;
+                // if interrupted before .json.roll exists, RecoverPendingRoll discards .log.roll leaving old pair intact;
+                // if interrupted after .json.roll exists, RecoverPendingRoll completes both moves cleanly.
+                var logRoll = FileFor(id, ".log.roll");
+                var jsonRoll = FileFor(id, ".json.roll");
+                SafeFiles.Atomic(logRoll, rolled, flushToDisk);
+                SafeFiles.Atomic(jsonRoll, JsonSerializer.SerializeToUtf8Bytes(index, DiagnosticJson.Default.DiagnosticLogIndex), flushToDisk);
+                File.Move(logRoll, path, true);
+                File.Move(jsonRoll, FileFor(id, ".json"), true);
             }
-            SafeFiles.Atomic(FileFor(id, ".json"), JsonSerializer.SerializeToUtf8Bytes(index, DiagnosticJson.Default.DiagnosticLogIndex));
-            Cleanup();
+            if (!needRoll)
+                SafeFiles.Atomic(FileFor(id, ".json"), JsonSerializer.SerializeToUtf8Bytes(index, DiagnosticJson.Default.DiagnosticLogIndex), flushToDisk);
+            if (previous is null) Cleanup();
         }
     }
     internal byte[]? ReadCompleteLogBytes(string sessionId)

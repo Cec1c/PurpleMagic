@@ -58,6 +58,7 @@ internal static class CrashDiagnosticsChecks
         GameOperationCapture.ObserveRaw(10, 10, raw, 24, counts, down);
         check(counts["mouse_left"].Value == 1 && counts["wheel"].Value == 1 && counts["mouse_motion"].Value == 1 && counts.Values.All(v => v.Value != 12345), "mouse click and wheel recorded without cursor coordinates");
         check(await DiagnosticObserver.Run(["--diagnostic-observer", "wrong", "0", "0"]) != 0, "observer rejects untrusted invocation");
+        check(!new DiagnosticOptions().AttachCrashDebugger && !new ObserverTarget(1, 0, "DNF.exe").AttachDebugger, "crash debugger attach is opt-in and off by default");
         foreach (var arch in new[] { "x86", "x64" }) {
             var exe = Environment.GetEnvironmentVariable("PURPLEMAGIC_CRASH_FIXTURE_" + arch.ToUpperInvariant());
             if (string.IsNullOrEmpty(exe)) continue;
@@ -106,7 +107,7 @@ internal static class CrashDiagnosticsChecks
         try {
             await game.StandardOutput.ReadLineAsync();
             using var read = new ReadOnlyGameProcess(game.Id, executable);
-            using var observer = new DiagnosticObserverClient(read.Identity, false);
+            using var observer = new DiagnosticObserverClient(read.Identity, false, attachDebugger: true);
             var rows = new List<ObserverMessage>();
             async Task Wait(Func<bool> condition) {
                 var clock = Stopwatch.StartNew();
@@ -142,7 +143,7 @@ internal static class CrashDiagnosticsChecks
         try {
             check(await game.StandardOutput.ReadLineAsync() == "ready", arch + " native fixture ready");
             using var read = new ReadOnlyGameProcess(game.Id, executable);
-            var observer = new DiagnosticObserverClient(read.Identity, false);
+            var observer = new DiagnosticObserverClient(read.Identity, false, attachDebugger: true);
             var rows = new List<ObserverMessage>();
             async Task Wait(Func<bool> condition, string name) {
                 var clock = Stopwatch.StartNew();
@@ -196,7 +197,7 @@ internal static class CrashDiagnosticsChecks
                 observer.Dispose();
                 for (var i = 0; i < 80 && await Reply("debugged") == "yes"; i++) await Task.Delay(50);
                 check(!game.HasExited && await Reply("debugged") == "no", arch + " disabling observer detaches without killing game");
-                observer = new(read.Identity, false); rows.Clear();
+                observer = new(read.Identity, false, attachDebugger: true); rows.Clear();
                 await Wait(() => rows.Any(r => r.Kind == "crash_ready"), "reattach");
                 await game.StandardInput.WriteLineAsync("crash");
                 await game.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));

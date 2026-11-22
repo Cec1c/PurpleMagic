@@ -16,6 +16,8 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
     private readonly SafeProcessHandle handle;
     private readonly bool memoryAccess = true;
     private int? imageBits, largeAddressAware;
+    private nint cachedWindow;
+    private long nextWindowLookupTick;
     public ProcessIdentity Identity { get; private set; }
     internal void StartNewLog() => Identity = Identity with { Id = Guid.NewGuid().ToString("N") };
     public uint ModuleBase { get; private set; }
@@ -33,11 +35,11 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
             if (handle.IsInvalid) throw new Win32Exception();
             var path = new StringBuilder(32768); var length = path.Capacity;
             if (!QueryFullProcessImageName(handle, 0, path, ref length) || !GetProcessTimes(handle, out var start, out _, out _, out _) || !ProcessIdToSessionId(pid, out var session)) throw new Win32Exception();
-            using var self = Process.GetCurrentProcess();
-            if (session != self.SessionId || !Path.GetFullPath(path.ToString()).Equals(Path.GetFullPath(expectedPath), StringComparison.OrdinalIgnoreCase) || created is not null && start != created) throw new InvalidDataException("游戏进程身份已变化。");
+            if (!ProcessIdToSessionId(Environment.ProcessId, out var selfSession) || session != selfSession || !Path.GetFullPath(path.ToString()).Equals(Path.GetFullPath(expectedPath), StringComparison.OrdinalIgnoreCase) || created is not null && start != created) throw new InvalidDataException("游戏进程身份已变化。");
             Identity = new(pid, start, session, path.ToString(), id ?? Guid.NewGuid().ToString("N"));
-            using var p = Process.GetProcessById(pid);
-            Window = p.MainWindowTitle.Length > 0 ? p.MainWindowTitle[..Math.Min(100, p.MainWindowTitle.Length)] : $"DNF · {DateTime.FromFileTimeUtc(start).ToLocalTime():HH:mm:ss}";
+            cachedWindow = FindMainWindow(pid);
+            var title = ReadWindowTitle(cachedWindow);
+            Window = title.Length > 0 ? title[..Math.Min(100, title.Length)] : $"DNF · {DateTime.FromFileTimeUtc(start).ToLocalTime():HH:mm:ss}";
         }
         catch { handle.Dispose(); throw; }
     }
@@ -95,9 +97,9 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
         var memory = new MemoryCounters { Size = (uint)Marshal.SizeOf<MemoryCounters>() };
         if (GetProcessMemoryInfo(handle, ref memory, memory.Size)) { result["working_set_bytes"] = new(memory.WorkingSet); result["private_bytes"] = new(memory.Private); }
         else { result["working_set_bytes"] = new(null, "read_failed", "GetProcessMemoryInfo"); result["process_memory_win32"] = new(Marshal.GetLastWin32Error()); }
-        using var p = Process.GetProcessById(Identity.Pid);
-        try { result["virtual_size_bytes"] = new(p.VirtualMemorySize64); }
-        catch (Win32Exception e) { result["virtual_size_bytes"] = new(null, "read_failed", "Process.VirtualMemorySize64"); result["virtual_size_win32"] = new(e.NativeErrorCode); }
+        var vmStatus = NtQueryInformationProcess(handle, 3, out VmCounters vm, Marshal.SizeOf<VmCounters>(), out _);
+        if (vmStatus == 0) result["virtual_size_bytes"] = new((double)vm.VirtualSize);
+        else { result["virtual_size_bytes"] = new(null, "read_failed", "NtQueryInformationProcess"); result["virtual_size_ntstatus"] = new(vmStatus); }
         var system = new PerformanceInfo { Size = (uint)Marshal.SizeOf<PerformanceInfo>() };
         if (GetPerformanceInfo(ref system, system.Size)) {
             result["system_commit_total_bytes"] = new((double)system.CommitTotal * system.PageSize);
@@ -109,12 +111,47 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
         }
         result["image_pointer_bits"] = imageBits is { } bits ? new(bits) : new(null, "read_failed", "pe_header");
         result["large_address_aware"] = largeAddressAware is { } laa ? new(laa) : new(null, "read_failed", "pe_header");
-        var window = p.MainWindowHandle;
+        var window = ResolveMainWindow();
         result["window_responsive"] = window == 0 ? new(null, "not_applicable", "window_not_created") : new(IsHungAppWindow(window) ? 0 : 1);
         result["frame_time_ms"] = new(null, "unsupported", "no_client_frame_events");
         return result;
     }
+    private nint ResolveMainWindow()
+    {
+        if (cachedWindow != 0 && IsWindow(cachedWindow) && IsWindowVisible(cachedWindow) &&
+            GetWindowThreadProcessId(cachedWindow, out var ownerPid) != 0 && ownerPid == Identity.Pid)
+            return cachedWindow;
+        cachedWindow = 0;
+        var now = Environment.TickCount64;
+        if (now < nextWindowLookupTick) return 0;
+        nextWindowLookupTick = now + 10000;
+        cachedWindow = FindMainWindow(Identity.Pid);
+        return cachedWindow;
+    }
+    private static nint FindMainWindow(int pid)
+    {
+        nint found = 0;
+        EnumWindows((hwnd, _) => {
+            if (!IsWindowVisible(hwnd) || GetWindow(hwnd, 4) != 0) return true;
+            if (GetWindowThreadProcessId(hwnd, out var ownerPid) == 0 || ownerPid != pid) return true;
+            found = hwnd;
+            return false;
+        }, 0);
+        return found;
+    }
+    private static string ReadWindowTitle(nint hwnd)
+    {
+        if (hwnd == 0) return "";
+        var text = new StringBuilder(128);
+        var len = GetWindowTextW(hwnd, text, text.Capacity);
+        return len > 0 ? text.ToString(0, len) : "";
+    }
     public void Dispose() => handle.Dispose();
+    [StructLayout(LayoutKind.Sequential)] private struct VmCounters {
+        public nuint PeakVirtualSize, VirtualSize;
+        public uint PageFaultCount;
+        public nuint PeakWorkingSetSize, WorkingSetSize, QuotaPeakPagedPoolUsage, QuotaPagedPoolUsage, QuotaPeakNonPagedPoolUsage, QuotaNonPagedPoolUsage, PagefileUsage, PeakPagefileUsage;
+    }
     [StructLayout(LayoutKind.Sequential)] private struct MemoryCounters { public uint Size, Faults; public nuint PeakWorkingSet, WorkingSet, PeakPaged, Paged, PeakNonPaged, NonPaged, Pagefile, PeakPagefile, Private; }
     [StructLayout(LayoutKind.Sequential)] private struct PerformanceInfo {
         public uint Size;
@@ -127,6 +164,7 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string Name;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string Path;
     }
+    private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
     [DllImport("kernel32.dll")] private static extern SafeFileHandle CreateToolhelp32Snapshot(uint flags, int pid);
     [DllImport("kernel32.dll", EntryPoint = "Module32FirstW", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool Module32First(SafeFileHandle snapshot, ref ModuleEntry module);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern SafeProcessHandle OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int pid);
@@ -135,7 +173,14 @@ internal sealed class ReadOnlyGameProcess : IDiagnosticMemory, IDisposable
     [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ProcessIdToSessionId(int pid, out int session);
     [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetExitCodeProcess(SafeProcessHandle h, out int code);
     [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ReadProcessMemory(SafeProcessHandle h, nint address, [Out] byte[] bytes, nuint size, out nuint read);
+    [DllImport("ntdll.dll")] private static extern int NtQueryInformationProcess(SafeProcessHandle h, int infoClass, out VmCounters info, int size, out int returned);
     [DllImport("psapi.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetProcessMemoryInfo(SafeProcessHandle h, ref MemoryCounters info, uint size);
     [DllImport("psapi.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetPerformanceInfo(ref PerformanceInfo info, uint size);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsHungAppWindow(nint h);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint h);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(nint h);
+    [DllImport("user32.dll")] private static extern nint GetWindow(nint h, uint cmd);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint h, out int pid);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool EnumWindows(EnumWindowsProc callback, nint lParam);
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(nint h, StringBuilder text, int maxCount);
 }
