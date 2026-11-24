@@ -278,13 +278,19 @@ internal static class ContractDiagnosticsChecks
                 ledger.CompleteSessionExit(csB, -1073741819);
             }
 
-            // 3. Reload from persisted disk state and export Contract v1 .zip bundle
+            // 3. Reload from persisted disk state (including resilience to a partial trailing line and a corrupt sibling dir) and export Contract v1 .zip bundle
+            var persistedLauncherA = Path.Combine(stateDir, "diagnostics", "contract-v1", "sessions", csA, "launcher.jsonl");
+            File.AppendAllText(persistedLauncherA, "{\"event_seq\":999999,\"truncated");
+            var corruptSibling = Path.Combine(stateDir, "diagnostics", "contract-v1", "sessions", "cs-deadbeefdeadbeefdeadbeefdeadbeef");
+            Directory.CreateDirectory(corruptSibling);
+            File.WriteAllText(Path.Combine(corruptSibling, "meta.json"), "{not-valid-json");
+            File.WriteAllText(Path.Combine(corruptSibling, "launcher.jsonl"), "{not-valid-json\n");
             var bundlePath = Path.Combine(exportsDir, "PurpleMagic-Anton-Incident.zip");
             using (var reloaded = new ContractDiagnosticsLedger(stateDir))
             {
                 var ui = reloaded.SnapshotUiStatus();
                 check(ui.ActiveIncidentId == "inc-anton-team-sync-01" && ui.Sessions.Length == 2 && ui.Observations.Length == 2,
-                    "persisted contract sessions and observations survive launcher restart");
+                    "persisted contract sessions and observations survive launcher restart even with truncated tail and corrupt sibling");
 
                 reloaded.Configure(false, clientDir, profile, 198, "stable75", "src-20261111");
                 var exported = await reloaded.ExportBundleAsync(

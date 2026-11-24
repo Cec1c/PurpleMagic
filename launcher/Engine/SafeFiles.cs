@@ -32,13 +32,17 @@ public static class SafeFiles
             catch (DirectoryNotFoundException) { }
         }
     }
-    public static void Atomic(string path, byte[] data)
+    public static void Atomic(string path, byte[] data, bool flushToDisk = true)
     {
         NoLinks(path); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { stream.Write(data); stream.Flush(true); }
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(data);
+                if (flushToDisk) stream.Flush(true);
+            }
             File.Move(temporary, path, true);
         }
         finally { File.Delete(temporary); }

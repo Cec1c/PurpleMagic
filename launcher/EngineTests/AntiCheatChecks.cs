@@ -93,7 +93,15 @@ internal static class AntiCheatChecks
             using (var protectedGame = GuardNative.StartSuspended(fixture, "")) {
                 protectedGame.Resume();
                 using var read = new ReadOnlyGameProcess(protectedGame.Process.Id, fixture);
-                using var observer = new DiagnosticObserverClient(read.Identity, false);
+                using (var defaultObserver = new DiagnosticObserverClient(read.Identity, false)) {
+                    var defaultClock = Stopwatch.StartNew(); var disabledObserved = false;
+                    while (!disabledObserved && defaultClock.ElapsedMilliseconds < 10000) {
+                        while (defaultObserver.Take(out var row)) if (row?.Kind == "crash_debugger_disabled") disabledObserved = true;
+                        await Task.Delay(25);
+                    }
+                    check(disabledObserved, "default diagnostic observer skips DebugActiveProcess attach");
+                }
+                using var observer = new DiagnosticObserverClient(read.Identity, false, attachDebugger: true);
                 var clock = Stopwatch.StartNew(); var attached = false;
                 while (!attached && clock.ElapsedMilliseconds < 10000) {
                     while (observer.Take(out var row)) if (row?.Kind == "crash_ready") attached = true;
@@ -102,6 +110,18 @@ internal static class AntiCheatChecks
                 modules.Game(protectedGame.Process, CancellationToken.None);
                 check(attached && !modules.Blocked && !protectedGame.Process.HasExited, "diagnostic debugger coexists with protected game and scanner");
             }
+            var cacheFile = Path.Combine(temp, "cache-probe.bin");
+            File.WriteAllBytes(cacheFile, [1, 2, 3, 4]);
+            var cacheScanner = new GuardScanner(new(), hash, _ => { });
+            var firstHash = cacheScanner.HashFile(cacheFile, CancellationToken.None);
+            var secondHash = cacheScanner.HashFile(cacheFile, CancellationToken.None);
+            check(firstHash == secondHash && cacheScanner.HashComputations == 1, "GuardScanner reuses SHA-256 cache when file mtime/size unchanged");
+            var forcedHash = cacheScanner.HashFile(cacheFile, CancellationToken.None, forceRefresh: true);
+            check(forcedHash == firstHash && cacheScanner.HashComputations == 2, "GuardScanner forceRefresh recomputes SHA-256 for new process instances even if metadata matches");
+            File.WriteAllBytes(cacheFile, [9, 8, 7, 6, 5]);
+            File.SetLastWriteTimeUtc(cacheFile, DateTime.UtcNow.AddSeconds(5));
+            var updatedHash = cacheScanner.HashFile(cacheFile, CancellationToken.None);
+            check(updatedHash != firstHash && cacheScanner.HashComputations == 3, "GuardScanner recomputes SHA-256 immediately when file mtime/size changes");
             check(await AntiCheatGuard.Run(["--anticheat-guard","wrong","1","0"],profile)==2,"guard rejects malformed IPC identity");
             if (!GuardNative.Elevated(self))
                 check(await AntiCheatGuard.Run(["--anticheat-guard",GuardWire.Prefix + Guid.NewGuid().ToString("N"),self.Id.ToString(),self.StartTime.ToUniversalTime().Ticks.ToString()],profile)==3,"guard refuses to run without UAC elevation");

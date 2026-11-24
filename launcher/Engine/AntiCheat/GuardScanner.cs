@@ -7,12 +7,15 @@ namespace Dnf90.Launcher.AntiCheat;
 
 internal sealed class GuardScanner(AntiCheatPolicy policy, string exeHash, Action<GuardEvent> emit)
 {
-    private readonly Dictionary<string, (long Size, long Stamp, long Checked, string Hash)> hashes = new(StringComparer.OrdinalIgnoreCase);
+    private const long HashReverifyIntervalMs = 300_000;
+    private readonly Dictionary<string, (long Size, long Stamp, long Created, long Checked, string Hash)> hashes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, long> seenProcesses = new();
     private readonly HashSet<string> reported = new(StringComparer.Ordinal);
     private int processCursor;
     private int moduleCursor;
     private long lastMemoryScan;
     internal bool Blocked { get; private set; }
+    internal int HashComputations { get; private set; }
     private void Observe(GuardEvent value)
     {
         var key = value.Kind + ":" + value.Rule + ":" + value.Sha256;
@@ -25,18 +28,31 @@ internal sealed class GuardScanner(AntiCheatPolicy policy, string exeHash, Actio
             if (policy.Mode == "enforce") Blocked = true;
         }
     }
-    private string HashFile(string path, CancellationToken token)
+    internal string HashFile(string path, CancellationToken token, bool forceRefresh = false)
+    {
+        var reverifyBudget = 1;
+        return HashFile(path, token, forceRefresh, ref reverifyBudget);
+    }
+    private string HashFile(string path, CancellationToken token, bool forceRefresh, ref int reverifyBudget)
     {
         var info = new FileInfo(path);
         if (info.Length > 512L * 1024 * 1024) throw new IOException();
-        // Bound stale entries even when a file's timestamp/length was preserved.
-        if (hashes.TryGetValue(path, out var prior) && prior.Size == info.Length && prior.Stamp == info.LastWriteTimeUtc.Ticks && Environment.TickCount64 - prior.Checked < 30000) return prior.Hash;
+        var stamp = info.LastWriteTimeUtc.Ticks;
+        var created = info.CreationTimeUtc.Ticks;
+        var now = Environment.TickCount64;
+        // Reuse cached digest while file identity is unchanged; stagger periodic re-verification
+        // (at most one expired entry per scan pass) and always refresh newly launched processes.
+        if (!forceRefresh && hashes.TryGetValue(path, out var prior) && prior.Size == info.Length && prior.Stamp == stamp && prior.Created == created) {
+            if (now - prior.Checked < HashReverifyIntervalMs || reverifyBudget <= 0) return prior.Hash;
+            reverifyBudget--;
+        }
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 65536);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256); var buffer = new byte[65536]; int read;
         while ((read = file.Read(buffer)) != 0) { token.ThrowIfCancellationRequested(); hash.AppendData(buffer, 0, read); }
         var value = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        HashComputations++;
         if (hashes.Count >= 1024) hashes.Clear();
-        hashes[path] = (info.Length, info.LastWriteTimeUtc.Ticks, Environment.TickCount64, value); return value;
+        hashes[path] = (info.Length, stamp, created, now, value); return value;
     }
     internal void Processes(int sessionId, CancellationToken token)
     {
@@ -45,11 +61,20 @@ internal sealed class GuardScanner(AntiCheatPolicy policy, string exeHash, Actio
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(token); budget.CancelAfter(1500);
         try {
             if (processes.Length == 0) return;
+            if (seenProcesses.Count > 1024) seenProcesses.Clear();
+            var reverifyBudget = 1;
             for (var n = 0; n < processes.Length; n++) {
                 if (budget.IsCancellationRequested) { Observe(new("coverage_limited", "process-budget")); break; }
                 processCursor %= processes.Length;
                 var p = processes[processCursor++];
-                try { if (p.SessionId == sessionId) Match("process", HashFile(GuardNative.Image(p), budget.Token)); }
+                try {
+                    if (p.SessionId == sessionId) {
+                        var startTicks = p.StartTime.ToUniversalTime().Ticks;
+                        var isNewInstance = !seenProcesses.TryGetValue(p.Id, out var prevStart) || prevStart != startTicks;
+                        Match("process", HashFile(GuardNative.Image(p), budget.Token, forceRefresh: isNewInstance, ref reverifyBudget));
+                        seenProcesses[p.Id] = startTicks;
+                    }
+                }
                 catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException or OperationCanceledException) { Observe(new("coverage_limited", "process-read")); }
                 if (Blocked) break;
             }
@@ -61,12 +86,13 @@ internal sealed class GuardScanner(AntiCheatPolicy policy, string exeHash, Actio
         try {
             game.Refresh();
             var modules = game.Modules;
+            var reverifyBudget = 1;
             for (var n = 0; n < modules.Count; n++) {
                 if (budget.IsCancellationRequested) { Observe(new("coverage_limited", "module-budget")); break; }
                 moduleCursor %= modules.Count;
                 var module = modules[moduleCursor++];
                 try {
-                    var hash = HashFile(module.FileName, budget.Token); Match("module", hash);
+                    var hash = HashFile(module.FileName, budget.Token, forceRefresh: false, ref reverifyBudget); Match("module", hash);
                     if (!hash.Equals(exeHash, StringComparison.OrdinalIgnoreCase) && !policy.AllowedModuleHashes.Contains(hash, StringComparer.OrdinalIgnoreCase) &&
                         !policy.RequiredFiles.Any(f => f.Sha256.Equals(hash, StringComparison.OrdinalIgnoreCase))) Observe(new("module_observed", Sha256: hash));
                 } catch (Exception e) when (e is Win32Exception or IOException or UnauthorizedAccessException or OperationCanceledException) { Observe(new("coverage_limited", "module-read")); }
@@ -78,7 +104,7 @@ internal sealed class GuardScanner(AntiCheatPolicy policy, string exeHash, Actio
                 var actual = Convert.ToHexString(SHA256.HashData(GuardNative.Read(game, main.BaseAddress.ToInt64() + region.Rva, region.Length))).ToLowerInvariant();
                 if (!actual.Equals(region.Sha256, StringComparison.OrdinalIgnoreCase)) Observe(new("code_region_changed", region.Id, actual));
             }
-            if (Environment.TickCount64 - lastMemoryScan >= 20000) {
+            if (Environment.TickCount64 - lastMemoryScan >= 60000) {
                 lastMemoryScan = Environment.TickCount64;
                 var count = GuardNative.PrivateExecutableRegions(game);
                 if (count > 0) Observe(new("private_executable_regions", Count: count));

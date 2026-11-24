@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Dnf90.Launcher.Diagnostics;
 
-public sealed record DiagnosticOptions(bool Enabled = false, string ProblemType = "auto", int ConsentVersion = 0)
+public sealed record DiagnosticOptions(bool Enabled = false, string ProblemType = "auto", int ConsentVersion = 0, bool AttachCrashDebugger = false)
 {
     public const int CurrentConsent = 3;
     public bool HasConsent => ConsentVersion == CurrentConsent;
@@ -43,7 +43,7 @@ internal sealed record NativeEvidence(NativeExceptionRecord Exception, NativeCon
     NativePage[] Pages, NativeCode Code, NativeModule[] Modules, string ModuleStatus,
     Dictionary<string, double> StageMs, double PauseMs, bool BudgetExceeded);
 internal sealed record ObserverMessage(string Kind, Dictionary<string, DiagnosticField> Fields, DiagnosticEvidence? Evidence = null);
-internal sealed record ObserverTarget(int Pid, long Created, string Path);
+internal sealed record ObserverTarget(int Pid, long Created, string Path, bool AttachDebugger = false);
 internal sealed record DiagnosticSummary(string SessionId, string IncidentId, string ExeSha256, string PvfSha256,
     long PublicationSequence, string ExeVersion, string EndReason, long Records, long Errors, long Dropped,
     long Overwritten, bool Truncated, string[] Missing, string[] Categories, int TargetIntervalMs,

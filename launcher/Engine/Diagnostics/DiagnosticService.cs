@@ -211,14 +211,15 @@ internal sealed class DiagnosticService : IDisposable
     private static readonly HashSet<string> EventCodes = ["metadata_verified", "update_complete", "update_error", "login_started", "client_verified", "channel_verified", "account_http_response", "account_verified", "process_started", "login_error", "operation_error"];
     public Task Elevate(string id) => Send(() => {
         var s = sessions.SingleOrDefault(s => s.Id == id);
-        if (!options.Enabled || !options.HasConsent || s?.Process is null || s.CrashStatus is not ("access_denied" or "elevation_cancelled")) throw new InvalidOperationException("此启动无需提升诊断权限。");
+        if (!options.Enabled || !options.HasConsent || s?.Process is null || s.CrashStatus is not ("disabled" or "access_denied" or "elevation_cancelled")) throw new InvalidOperationException("此启动无需提升诊断权限。");
         s.Observer?.Dispose(); s.CrashStatus = "elevating";
-        s.Observer = new(s.Process.Identity, true); Publish();
+        s.Observer = new(s.Process.Identity, true, attachDebugger: true); Publish();
     });
     private void Observe(DiagnosticSession s, bool allowRestart = true)
     {
         while (s.Observer?.Take(out var message) == true && message is not null) {
             if (message.Kind == "crash_ready") s.CrashStatus = "recording";
+            else if (message.Kind == "crash_debugger_disabled") s.CrashStatus = "disabled";
             else if (message.Kind is "access_denied" or "elevation_cancelled" or "attach_failed" or "observer_failed" or "observer_timeout" or "platform_unsupported") s.CrashStatus = message.Kind;
             else if (message.Kind == "observer_disconnected" && s.CrashStatus is "recording" or "starting") s.CrashStatus = "observer_disconnected";
             else if (message.Kind == "observer_stopped" && s.CrashStatus == "recording") s.CrashStatus = "stopped";
@@ -229,9 +230,11 @@ internal sealed class DiagnosticService : IDisposable
             if (message.Kind == "observer_dropped") s.Dropped += (long)(message.Fields.GetValueOrDefault("count")?.Value ?? 0);
             Record(s, message.Kind == "native_exception" ? "exception" : "event", "observer", message.Fields,
                 message.Kind == "native_exception" ? "partial" : "ok", 0, message.Kind, evidence: message.Evidence);
-            if (message.Kind == "elevation_cancelled" && allowRestart && !closing) { s.Observer.Dispose(); s.Observer = new(s.Process!.Identity, false); break; }
+            if (message.Kind == "elevation_cancelled" && allowRestart && !closing) { s.Observer.Dispose(); s.Observer = new(s.Process!.Identity, false, ShouldAttachCrashDebugger()); break; }
         }
     }
+    private bool ShouldAttachCrashDebugger() =>
+        options.AttachCrashDebugger || Environment.GetEnvironmentVariable("PURPLEMAGIC_ATTACH_CRASH_DEBUGGER") == "1";
     public Task<string> SetIncident(ContractIncidentInput input) => Task.Run(() =>
     {
         var id = contractLedger.SetIncident(input);
@@ -322,7 +325,7 @@ internal sealed class DiagnosticService : IDisposable
         if (closing) { process.Dispose(); return; }
         bindingPid = process.Identity.Pid;
         // Attach before full EXE/PVF hashing so early crashes are not lost while hashing.
-        var observer = bindingObserver = options.HasConsent && options.Enabled ? new DiagnosticObserverClient(process.Identity, false) : null;
+        var observer = bindingObserver = options.HasConsent && options.Enabled ? new DiagnosticObserverClient(process.Identity, false, ShouldAttachCrashDebugger()) : null;
         binding = Task.Run(async () => {
             try {
                 process.VerifyImage();
@@ -569,7 +572,10 @@ internal sealed class DiagnosticService : IDisposable
                         else job.Completion.SetResult();
                         continue;
                     }
-                    storage.Save(job); clips = storage.List(); writeFailed = false;
+                    storage.Save(job);
+                    if (job.Summary.EndReason != "recording" || clips.All(c => c.SessionId != job.Summary.SessionId))
+                        clips = storage.List();
+                    writeFailed = false;
                     if (error is "diagnostic_write_failed" or "writer_queue_full") error = "";
                 } catch (Exception) { writeFailed = true; error = "diagnostic_write_failed"; }
             var registry = Interlocked.Exchange(ref registryToWrite, null);

@@ -87,6 +87,11 @@ internal sealed class ContractDiagnosticsLedger : IDisposable
         public long NextClockAnchorTicks;
         public GameSocketTracker? SocketTracker;
         public bool Dirty;
+        public long PersistedLauncherSeq;
+        public long PersistedLauncherBytes;
+        public long PersistedObsSeq;
+        public long PersistedObsBytes;
+        public bool PersistedInitialized;
         public string LatestEventUtc { get; set; } = "";
 
         public long TotalRetainedBytes => CriticalBytes + PinnedRoutineBytes + SlidingRoutineBytes;
@@ -1807,26 +1812,169 @@ internal sealed class ContractDiagnosticsLedger : IDisposable
             Directory.CreateDirectory(dir);
             SafeFiles.NoLinks(dir);
 
-            var (allLines, obsLines, descriptor, integrity) = SnapshotSessionForExport(session);
-            using (var ms = new MemoryStream())
+            var launcherPath = Path.Combine(dir, "launcher.jsonl");
+            var obsPath = Path.Combine(dir, "observations.jsonl");
+            var metaPath = Path.Combine(dir, "meta.json");
+            var isFinal = !session.Running;
+            var needRewrite = !session.PersistedInitialized || !File.Exists(launcherPath) || isFinal;
+            if (!needRewrite)
             {
-                foreach (var l in allLines) ms.Write(l, 0, l.Length);
-                SafeFiles.Atomic(Path.Combine(dir, "launcher.jsonl"), ms.ToArray());
+                var currentLen = new FileInfo(launcherPath).Length;
+                if (currentLen >= MaxBytesPerSession - CriticalReserveBytes || currentLen < session.PersistedLauncherBytes)
+                    needRewrite = true;
             }
-            using (var ms = new MemoryStream())
+            if (!needRewrite && session.PersistedObsBytes > 0 && (!File.Exists(obsPath) || new FileInfo(obsPath).Length < session.PersistedObsBytes))
+                needRewrite = true;
+
+            if (needRewrite)
             {
-                foreach (var l in obsLines) ms.Write(l, 0, l.Length);
-                SafeFiles.Atomic(Path.Combine(dir, "observations.jsonl"), ms.ToArray());
+                var (allLines, obsLines, descriptor, integrity) = SnapshotSessionForExport(session);
+                byte[] launcherBytes;
+                using (var ms = new MemoryStream())
+                {
+                    foreach (var l in allLines) ms.Write(l, 0, l.Length);
+                    launcherBytes = ms.ToArray();
+                    SafeFiles.Atomic(launcherPath, launcherBytes, flushToDisk: isFinal);
+                }
+                byte[] obsBytes;
+                using (var ms = new MemoryStream())
+                {
+                    foreach (var l in obsLines) ms.Write(l, 0, l.Length);
+                    obsBytes = ms.ToArray();
+                    SafeFiles.Atomic(obsPath, obsBytes, flushToDisk: isFinal);
+                }
+                var meta = new ContractPersistedSessionMeta(descriptor, integrity, session.IncidentId, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                SafeFiles.Atomic(metaPath, AppendNewline(JsonSerializer.SerializeToUtf8Bytes(meta, ContractDiagnosticsJson.Default.ContractPersistedSessionMeta)), flushToDisk: isFinal);
+                lock (session.Gate)
+                {
+                    session.PersistedLauncherSeq = descriptor.LastEventSeq;
+                    session.PersistedLauncherBytes = launcherBytes.Length;
+                    session.PersistedObsSeq = descriptor.LastEventSeq;
+                    session.PersistedObsBytes = obsBytes.Length;
+                    session.PersistedInitialized = true;
+                }
+                CleanupPersistedDirectories();
             }
-            var meta = new ContractPersistedSessionMeta(descriptor, integrity, session.IncidentId, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-            SafeFiles.Atomic(Path.Combine(dir, "meta.json"), AppendNewline(JsonSerializer.SerializeToUtf8Bytes(meta, ContractDiagnosticsJson.Default.ContractPersistedSessionMeta)));
-            CleanupPersistedDirectories();
+            else
+            {
+                List<StoredLine> newLauncherLines;
+                List<StoredLine> newObsLines;
+                long launcherCommittedBytes;
+                long obsCommittedBytes;
+                ContractSessionDescriptor descriptor;
+                ContractSessionIntegrity integrity;
+                string? incidentId;
+                lock (session.Gate)
+                {
+                    var fromLauncher = session.PersistedLauncherSeq;
+                    var fromObs = session.PersistedObsSeq;
+                    launcherCommittedBytes = session.PersistedLauncherBytes;
+                    obsCommittedBytes = session.PersistedObsBytes;
+                    newLauncherLines = session.CriticalLines
+                        .Concat(session.PinnedRoutineLines)
+                        .Concat(session.SlidingRoutineRing)
+                        .Where(l => l.Seq > fromLauncher)
+                        .OrderBy(l => l.Seq)
+                        .ToList();
+                    newObsLines = session.CriticalLines
+                        .Concat(session.PinnedRoutineLines)
+                        .Concat(session.SlidingRoutineRing)
+                        .Where(l => l.IsObservation && l.Seq > fromObs)
+                        .OrderBy(l => l.Seq)
+                        .ToList();
+                    incidentId = session.IncidentId;
+                    var retainedCount = session.CriticalLines.Count + session.PinnedRoutineLines.Count + session.SlidingRoutineRing.Count;
+                    var endedOrLatest = session.EndedUtc ?? (session.LatestEventUtc.Length > 0 ? session.LatestEventUtc : session.StartedUtc);
+                    descriptor = new ContractSessionDescriptor(
+                        ClientSessionId: session.ClientSessionId,
+                        LaunchInstanceId: session.LaunchInstanceId,
+                        LaunchOrdinal: session.LaunchOrdinal,
+                        ActiveSlot: session.ActiveSlot,
+                        Pid: session.Pid,
+                        ProcessCreatedUtc: session.ProcessCreatedUtc,
+                        ExecutablePath: session.ExecutablePath,
+                        ExecutablePathSha256: session.ExecutablePathSha256,
+                        HandoffMode: session.HandoffMode,
+                        StartedUtc: session.StartedUtc,
+                        EndedUtc: session.EndedUtc,
+                        EndState: session.EndState,
+                        ReceiverCharacterId: session.ReceiverCharacterId,
+                        ReceiverCharacterName: session.ReceiverCharacterName,
+                        AssociationSource: session.AssociationSource,
+                        Entries: [.. session.Entries],
+                        FirstEventSeq: session.FirstRetainedSeq,
+                        LastEventSeq: session.LastEventSeq,
+                        RetainedEvents: retainedCount,
+                        ObservationsCount: session.ObservationItems.Count);
+                    integrity = new ContractSessionIntegrity(
+                        ClientSessionId: session.ClientSessionId,
+                        LaunchInstanceId: session.LaunchInstanceId,
+                        Pid: session.Pid,
+                        ProcessCreatedUtc: session.ProcessCreatedUtc,
+                        FirstEventSeq: session.FirstRetainedSeq,
+                        LastEventSeq: session.LastEventSeq,
+                        RetainedEvents: retainedCount,
+                        QueueDropped: session.QueueDropped,
+                        CriticalEventsLost: session.CriticalEventsLost,
+                        TruncatedRecords: session.TruncatedRecords + (session.SocketTracker?.DroppedOverflowCount ?? 0),
+                        RingEvictedRecords: session.RingEvictedRecords,
+                        CaptureDroppedPackets: null,
+                        CaptureDroppedPacketsUnknownReason: "client_side_packet_capture_disabled",
+                        BudgetBytesLimit: MaxBytesPerSession,
+                        BudgetBytesUsed: session.TotalRetainedBytes,
+                        BulkCollectionPaused: session.BulkCollectionPaused,
+                        CoverageStartedUtc: session.StartedUtc,
+                        CoverageEndedUtc: endedOrLatest,
+                        CompletionStatus: "running");
+                }
+                if (newLauncherLines.Count > 0)
+                {
+                    // Truncate any uncommitted partial tail left by a prior failed write before appending.
+                    var updatedBytes = AppendCommittedLines(launcherPath, launcherCommittedBytes, newLauncherLines);
+                    lock (session.Gate)
+                    {
+                        session.PersistedLauncherBytes = updatedBytes;
+                        session.PersistedLauncherSeq = newLauncherLines[^1].Seq;
+                    }
+                }
+                if (newObsLines.Count > 0)
+                {
+                    var updatedObsBytes = AppendCommittedLines(obsPath, obsCommittedBytes, newObsLines);
+                    lock (session.Gate)
+                    {
+                        session.PersistedObsBytes = updatedObsBytes;
+                        session.PersistedObsSeq = newObsLines[^1].Seq;
+                    }
+                }
+                var meta = new ContractPersistedSessionMeta(descriptor, integrity, incidentId, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                SafeFiles.Atomic(metaPath, AppendNewline(JsonSerializer.SerializeToUtf8Bytes(meta, ContractDiagnosticsJson.Default.ContractPersistedSessionMeta)), flushToDisk: false);
+            }
         }
         catch (Exception)
         {
             // Disk errors are isolated from game/launcher operations.
         }
         return Task.CompletedTask;
+    }
+
+    private static long AppendCommittedLines(string path, long committedBytes, List<StoredLine> lines)
+    {
+        SafeFiles.NoLinks(path);
+        using var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        if (stream.Length < committedBytes) throw new IOException("persisted_length_regressed");
+        if (stream.Length > committedBytes) stream.SetLength(committedBytes);
+        stream.Position = committedBytes;
+        try
+        {
+            foreach (var l in lines) stream.Write(l.Bytes, 0, l.Bytes.Length);
+            stream.Flush();
+            return stream.Position;
+        }
+        catch
+        {
+            try { stream.SetLength(committedBytes); } catch { }
+            throw;
+        }
     }
 
     private void CleanupPersistedDirectories()
@@ -1885,87 +2033,105 @@ internal sealed class ContractDiagnosticsLedger : IDisposable
             var loaded = new List<LedgerSession>();
             foreach (var dir in Directory.EnumerateDirectories(sessionsRoot))
             {
-                var name = Path.GetFileName(dir);
-                if (!Regex.IsMatch(name, "^cs-[a-f0-9]{32}$")) continue;
-                var metaPath = Path.Combine(dir, "meta.json");
-                var launcherPath = Path.Combine(dir, "launcher.jsonl");
-                if (!File.Exists(metaPath) || !File.Exists(launcherPath)) continue;
-                var metaInfo = new FileInfo(metaPath);
-                var launcherInfo = new FileInfo(launcherPath);
-                if (metaInfo.Length > 256 * 1024 || launcherInfo.Length > MaxBytesPerSession) continue;
-
-                var meta = JsonSerializer.Deserialize(File.ReadAllBytes(metaPath), ContractDiagnosticsJson.Default.ContractPersistedSessionMeta);
-                if (meta is null || meta.Descriptor.ClientSessionId != name) continue;
-
-                var s = new LedgerSession
+                try
                 {
-                    ClientSessionId = meta.Descriptor.ClientSessionId,
-                    LaunchInstanceId = meta.Descriptor.LaunchInstanceId,
-                    LaunchOrdinal = meta.Descriptor.LaunchOrdinal,
-                    ActiveSlot = meta.Descriptor.ActiveSlot,
-                    StartedUtc = meta.Descriptor.StartedUtc,
-                    StartedMonoTicks = Stopwatch.GetTimestamp(),
-                    LatestEventUtc = meta.Integrity.CoverageEndedUtc,
-                    HandoffMode = meta.Descriptor.HandoffMode,
-                    Pid = meta.Descriptor.Pid,
-                    ProcessCreatedUtc = meta.Descriptor.ProcessCreatedUtc,
-                    ExecutablePath = meta.Descriptor.ExecutablePath,
-                    ExecutablePathSha256 = meta.Descriptor.ExecutablePathSha256,
-                    Running = false,
-                    EndedUtc = meta.Descriptor.EndedUtc ?? meta.Integrity.CoverageEndedUtc,
-                    EndState = meta.Descriptor.EndState == "running" ? "launcher_restarted_recovered" : meta.Descriptor.EndState,
-                    IncidentId = meta.IncidentId,
-                    ReceiverCharacterId = meta.Descriptor.ReceiverCharacterId,
-                    ReceiverCharacterName = meta.Descriptor.ReceiverCharacterName,
-                    AssociationSource = meta.Descriptor.AssociationSource,
-                    CurrentEntryId = meta.Descriptor.Entries.LastOrDefault()?.EntryId,
-                    SceneEpoch = meta.Descriptor.Entries.LastOrDefault()?.SceneEpoch ?? 0,
-                    NextEventSeq = meta.Integrity.LastEventSeq,
-                    FirstRetainedSeq = meta.Integrity.FirstEventSeq,
-                    LastEventSeq = meta.Integrity.LastEventSeq,
-                    QueueDropped = meta.Integrity.QueueDropped,
-                    CriticalEventsLost = meta.Integrity.CriticalEventsLost,
-                    TruncatedRecords = meta.Integrity.TruncatedRecords,
-                    RingEvictedRecords = meta.Integrity.RingEvictedRecords,
-                    BulkCollectionPaused = meta.Integrity.BulkCollectionPaused
-                };
-                s.Entries.AddRange(meta.Descriptor.Entries);
+                    var name = Path.GetFileName(dir);
+                    if (!Regex.IsMatch(name, "^cs-[a-f0-9]{32}$")) continue;
+                    var metaPath = Path.Combine(dir, "meta.json");
+                    var launcherPath = Path.Combine(dir, "launcher.jsonl");
+                    if (!File.Exists(metaPath) || !File.Exists(launcherPath)) continue;
+                    var metaInfo = new FileInfo(metaPath);
+                    var launcherInfo = new FileInfo(launcherPath);
+                    if (metaInfo.Length > 256 * 1024 || launcherInfo.Length > MaxBytesPerSession) continue;
 
-                foreach (var rawLine in File.ReadLines(launcherPath))
-                {
-                    if (string.IsNullOrWhiteSpace(rawLine)) continue;
-                    using var doc = JsonDocument.Parse(rawLine);
-                    var rootEl = doc.RootElement;
-                    var seq = rootEl.GetProperty("event_seq").GetInt64();
-                    var ticks = rootEl.GetProperty("mono_ticks").GetInt64();
-                    var evName = rootEl.GetProperty("event").GetString() ?? "";
-                    var isObs = evName == "observation.reported";
-                    var utf8 = Encoding.UTF8.GetBytes(rawLine + "\n");
-                    s.CriticalLines.Add(new StoredLine(seq, ticks, utf8, isObs));
-                    s.CriticalBytes += utf8.Length;
-                    if (isObs)
+                    var meta = JsonSerializer.Deserialize(File.ReadAllBytes(metaPath), ContractDiagnosticsJson.Default.ContractPersistedSessionMeta);
+                    if (meta is null || meta.Descriptor.ClientSessionId != name) continue;
+
+                    var s = new LedgerSession
                     {
-                        var obs = JsonSerializer.Deserialize(rawLine, ContractDiagnosticsJson.Default.ObservationReportedEvent);
-                        if (obs is not null)
+                        ClientSessionId = meta.Descriptor.ClientSessionId,
+                        LaunchInstanceId = meta.Descriptor.LaunchInstanceId,
+                        LaunchOrdinal = meta.Descriptor.LaunchOrdinal,
+                        ActiveSlot = meta.Descriptor.ActiveSlot,
+                        StartedUtc = meta.Descriptor.StartedUtc,
+                        StartedMonoTicks = Stopwatch.GetTimestamp(),
+                        LatestEventUtc = meta.Integrity.CoverageEndedUtc,
+                        HandoffMode = meta.Descriptor.HandoffMode,
+                        Pid = meta.Descriptor.Pid,
+                        ProcessCreatedUtc = meta.Descriptor.ProcessCreatedUtc,
+                        ExecutablePath = meta.Descriptor.ExecutablePath,
+                        ExecutablePathSha256 = meta.Descriptor.ExecutablePathSha256,
+                        Running = false,
+                        EndedUtc = meta.Descriptor.EndedUtc ?? meta.Integrity.CoverageEndedUtc,
+                        EndState = meta.Descriptor.EndState == "running" ? "launcher_restarted_recovered" : meta.Descriptor.EndState,
+                        IncidentId = meta.IncidentId,
+                        ReceiverCharacterId = meta.Descriptor.ReceiverCharacterId,
+                        ReceiverCharacterName = meta.Descriptor.ReceiverCharacterName,
+                        AssociationSource = meta.Descriptor.AssociationSource,
+                        CurrentEntryId = meta.Descriptor.Entries.LastOrDefault()?.EntryId,
+                        SceneEpoch = meta.Descriptor.Entries.LastOrDefault()?.SceneEpoch ?? 0,
+                        NextEventSeq = meta.Integrity.LastEventSeq,
+                        FirstRetainedSeq = meta.Integrity.FirstEventSeq,
+                        LastEventSeq = meta.Integrity.LastEventSeq,
+                        QueueDropped = meta.Integrity.QueueDropped,
+                        CriticalEventsLost = meta.Integrity.CriticalEventsLost,
+                        TruncatedRecords = meta.Integrity.TruncatedRecords,
+                        RingEvictedRecords = meta.Integrity.RingEvictedRecords,
+                        BulkCollectionPaused = meta.Integrity.BulkCollectionPaused
+                    };
+                    s.Entries.AddRange(meta.Descriptor.Entries);
+
+                    var seenSeq = new HashSet<long>();
+                    foreach (var rawLine in File.ReadLines(launcherPath))
+                    {
+                        if (string.IsNullOrWhiteSpace(rawLine)) continue;
+                        JsonDocument doc;
+                        try { doc = JsonDocument.Parse(rawLine); }
+                        catch (JsonException) { break; } // Stop at truncated/corrupt trailing line while retaining complete prefix.
+                        using (doc)
                         {
-                            s.ObservationItems.Add(new ContractObservationItem(
-                                s.ClientSessionId,
-                                s.LaunchInstanceId,
-                                s.Pid,
-                                obs.EventSeq,
-                                obs.ObservedUtc,
-                                obs.EntryId,
-                                obs.SceneEpoch,
-                                obs.ReceiverCharacterName,
-                                obs.PeerScope,
-                                obs.PeerCharacterName,
-                                obs.State,
-                                obs.EstimatedOnsetUtc,
-                                obs.TimeUncertaintyMs));
+                            var rootEl = doc.RootElement;
+                            if (!rootEl.TryGetProperty("event_seq", out var seqProp) || !rootEl.TryGetProperty("mono_ticks", out var ticksProp) || !rootEl.TryGetProperty("event", out var evProp))
+                                break;
+                            var seq = seqProp.GetInt64();
+                            if (!seenSeq.Add(seq)) continue;
+                            var ticks = ticksProp.GetInt64();
+                            var evName = evProp.GetString() ?? "";
+                            var isObs = evName == "observation.reported";
+                            var utf8 = Encoding.UTF8.GetBytes(rawLine + "\n");
+                            s.CriticalLines.Add(new StoredLine(seq, ticks, utf8, isObs));
+                            s.CriticalBytes += utf8.Length;
+                            s.LastEventSeq = Math.Max(s.LastEventSeq, seq);
+                            s.NextEventSeq = Math.Max(s.NextEventSeq, seq);
+                            if (isObs)
+                            {
+                                var obs = JsonSerializer.Deserialize(rawLine, ContractDiagnosticsJson.Default.ObservationReportedEvent);
+                                if (obs is not null)
+                                {
+                                    s.ObservationItems.Add(new ContractObservationItem(
+                                        s.ClientSessionId,
+                                        s.LaunchInstanceId,
+                                        s.Pid,
+                                        obs.EventSeq,
+                                        obs.ObservedUtc,
+                                        obs.EntryId,
+                                        obs.SceneEpoch,
+                                        obs.ReceiverCharacterName,
+                                        obs.PeerScope,
+                                        obs.PeerCharacterName,
+                                        obs.State,
+                                        obs.EstimatedOnsetUtc,
+                                        obs.TimeUncertaintyMs));
+                                }
+                            }
                         }
                     }
+                    loaded.Add(s);
                 }
-                loaded.Add(s);
+                catch (Exception)
+                {
+                    // Isolate a single corrupt persisted session directory so healthy sessions still recover.
+                }
             }
 
             string? persistedIncident = null;
