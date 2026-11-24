@@ -68,7 +68,7 @@ HRESULT ChooseDirectory(HWND owner, const flutter::EncodableValue* arguments,
   hr = dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM |
                          FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR);
   if (FAILED(hr)) return hr;
-  dialog->SetTitle(L"PurpleMagic — 选择包含 DNF.exe 和 Script.pvf 的客户端目录");
+  dialog->SetTitle(L"PurpleMagic — 选择包含 ImagePacks2 等完整资源的客户端目录");
   dialog->SetOkButtonLabel(L"选择此目录");
   const auto* fields = arguments ? std::get_if<flutter::EncodableMap>(arguments) : nullptr;
   if (fields) {

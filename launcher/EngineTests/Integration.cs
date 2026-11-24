@@ -13,6 +13,7 @@ static class Integration
             var profile = JsonSerializer.Deserialize(File.ReadAllBytes(data.GetProperty("profile").GetString()!), CoreJson.Default.PlayerProfile)!;
             var state = data.GetProperty("state").GetString()!; var game = data.GetProperty("game").GetString()!;
             if (!IPAddress.TryParse(new Uri(profile.ApiUrl).Host, out var ip) || !IPAddress.IsLoopback(ip) || !Path.GetFullPath(game).StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) || !Path.GetFullPath(state).StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase)) throw new Exception("isolated loopback fixture required");
+            ClientDirectoryChecks.SeedClientStructure(game, withFiles: false);
             File.WriteAllText(Path.Combine(game, "player-settings.ini"), "preserve-me");
             File.WriteAllBytes(Path.Combine(state, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(new Preferences(game, AutoCheck:false), WireJson.Default.Preferences));
             using var engine = new LauncherEngine(profile, state);

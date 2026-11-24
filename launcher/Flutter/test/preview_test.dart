@@ -836,6 +836,21 @@ void main() {
   );
 
   testWidgets(
+    'directory picker displays core-resolved client subdirectory',
+    (tester) async {
+      final fake = FakeCore()
+        ..resolvedClientDirectory = r'G:\PurpleOnline\新客户端\地下城与勇士';
+      final model = LauncherController(client: fake);
+      await start(tester, controller: model);
+      mockDirectoryPicker(r'G:\PurpleOnline\新客户端');
+      await tester.tap(find.byKey(const Key('directory')));
+      await tester.pumpAndSettle();
+      expect(model.clientDirectory, r'G:\PurpleOnline\新客户端\地下城与勇士');
+      expect(find.text(r'G:\PurpleOnline\新客户端\地下城与勇士'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'configuration reset requires confirmation and retains launcher account',
     (tester) async {
       final fake = FakeCore();
@@ -939,6 +954,7 @@ class FakeCore extends CoreClient {
   String? launcherError;
   Map<String, dynamic>? resetArguments;
   String? resetError;
+  String? resolvedClientDirectory;
   Completer<Map<String, dynamic>>? updating;
   final state = <String, dynamic>{
     'phase': 'ready',
@@ -1105,7 +1121,12 @@ class FakeCore extends CoreClient {
         if (args!.containsKey('password')) {
           throw StateError('Password must not be persisted');
         }
-        state['preferences'] = Map<String, dynamic>.from(args);
+        final nextPrefs = Map<String, dynamic>.from(args);
+        if (resolvedClientDirectory != null &&
+            (nextPrefs['clientDirectory'] as String? ?? '').isNotEmpty) {
+          nextPrefs['clientDirectory'] = resolvedClientDirectory;
+        }
+        state['preferences'] = nextPrefs;
         state['diagnostics'] = {
           ...?state['diagnostics'] as Map<String, dynamic>?,
           'enabled': args['diagnostics']?['enabled'] == true,

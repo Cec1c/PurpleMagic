@@ -364,7 +364,7 @@ class _PreviewHomeState extends State<PreviewHome> {
               '使用帮助',
               () => _article(
                 '开启你的阿拉德之旅',
-                '选择包含 DNF.exe 和 Script.pvf 的客户端目录，检查更新后输入账号密码。\n\n更新前请退出游戏。记住账号不会保存密码；更新来源由本服后台配置。',
+                '选择包含 ImagePacks2 等完整游戏资源的客户端目录，检查更新后输入账号密码。\n\n若选择了外层文件夹，登录器会自动向下探测一层客户端子目录。更新前请退出游戏；记住账号不会保存密码。',
               ),
             ),
           ],
@@ -742,15 +742,18 @@ class _PreviewHomeState extends State<PreviewHome> {
               height: 20,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  error,
-                  key: const Key('form-error'),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xffffb9b4),
+                child: Tooltip(
+                  message: error,
+                  child: Text(
+                    error,
+                    key: const Key('form-error'),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xffffb9b4),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
@@ -779,7 +782,9 @@ class _PreviewHomeState extends State<PreviewHome> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            directory,
+                            model.clientDirectory.isNotEmpty
+                                ? model.clientDirectory
+                                : directory,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1098,7 +1103,9 @@ class _PreviewHomeState extends State<PreviewHome> {
     });
     try {
       await model.save(
-        directory: directory,
+        directory: model.clientDirectory.isNotEmpty
+            ? model.clientDirectory
+            : directory,
         remembered: account.text.trim(),
         remember: remember,
       );
@@ -1252,11 +1259,20 @@ class _PreviewHomeState extends State<PreviewHome> {
     _choosingDirectory = true;
     try {
       final selected = await platform.invokeMethod<String>('chooseDirectory', {
-        'initialDirectory': directory,
+        'initialDirectory': model.clientDirectory.isNotEmpty
+            ? model.clientDirectory
+            : directory,
       });
       if (!mounted || selected == null || selected.isEmpty) return;
       await model.save(directory: selected);
-      if (mounted) setState(() => directory = selected);
+      if (mounted) {
+        setState(() {
+          directory = model.clientDirectory.isNotEmpty
+              ? model.clientDirectory
+              : selected;
+          error = '';
+        });
+      }
       if (mounted) await _automaticUpdate();
     } on PlatformException catch (failure) {
       if (mounted) setState(() => error = failure.message ?? '无法打开目录选择器');

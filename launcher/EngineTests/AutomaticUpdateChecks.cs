@@ -17,9 +17,7 @@ internal static class AutomaticUpdateChecks
         var protectedState = Path.Combine(migrationRoot, "DNF90Launcher-anticheat");
         Directory.CreateDirectory(legacy);
         var oldClient = Path.Combine(migrationRoot, "existing-client");
-        Directory.CreateDirectory(oldClient);
-        File.WriteAllText(Path.Combine(oldClient, "DNF.exe"), "MZ isolated client");
-        File.WriteAllText(Path.Combine(oldClient, "Script.pvf"), "isolated pvf");
+        ClientDirectoryChecks.SeedClientStructure(oldClient);
         var previousPreferences = JsonSerializer.SerializeToUtf8Bytes(new Preferences(ClientDirectory: oldClient, Account: "migration-fixture", AutoCheck: false, ReducedEffects: true, AntiCheatConsentVersion: 99), WireJson.Default.Preferences);
         File.WriteAllBytes(Path.Combine(legacy, "preferences.json"), previousPreferences);
         File.WriteAllText(Path.Combine(legacy, "bootstrap.json"), "old channel sequence must not migrate");

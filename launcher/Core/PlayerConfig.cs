@@ -57,7 +57,10 @@ public static class GameContract
     {
         foreach (var (file, expected) in new[] { ("DNF.exe", profile.ExeSha256), ("Script.pvf", profile.PvfSha256) })
         {
-            await using var stream = File.OpenRead(Path.Combine(directory, file));
+            var path = Path.Combine(directory, file);
+            if (!File.Exists(path))
+                throw new InvalidDataException($"缺少核心文件 {file}，可能是客户端路径选择错误，请点击「更改」选择包含完整游戏资源的正确客户端目录或重新检查更新。");
+            await using var stream = File.OpenRead(path);
             var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream));
             if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase) &&
                 !(file == "DNF.exe" && NativeGuildCompatibility.AcceptsDerivative(profile, actual)))

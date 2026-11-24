@@ -1,8 +1,11 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 using ServerS5A3;
 using Dnf90.Launcher.Diagnostics;
 #if ANTICHEAT
@@ -13,7 +16,7 @@ namespace Dnf90.Launcher;
 
 public sealed class LauncherEngine : IDisposable
 {
-    public const string VersionText = "1.0.12";
+    public const string VersionText = "1.1.0";
     public const string ContentCapabilitiesHeader = "X-DNF90-Content-Capabilities";
     public const string ContentCapabilities = "native-plugins-v1";
     private readonly PlayerProfile root;
@@ -27,6 +30,7 @@ public sealed class LauncherEngine : IDisposable
     private Preferences preferences = new();
     private ContentFile[] plan = [];
     private string clientVersion = "";
+    private bool clientDirectoryValid;
     private readonly List<(string Account, Process Process)> games = [];
 #if ANTICHEAT
     private readonly List<AntiCheatSession> protectedGames = [];
@@ -52,14 +56,16 @@ public sealed class LauncherEngine : IDisposable
             preferences = preferences with { Diagnostics = legacy with { Enabled = false } };
             SafeFiles.Atomic(file, JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
         }
+        var previousDirectory = preferences.ClientDirectory;
         var detected = ClientDirectoryDiscovery.Find(preferences.ClientDirectory, root.DefaultClientDirectory,
             AppContext.BaseDirectory, Environment.GetEnvironmentVariable(ClientDirectoryDiscovery.LaunchDirectoryVariable), Environment.CurrentDirectory);
-        var discovered = detected != "" && detected != preferences.ClientDirectory;
+        var discovered = detected != "" && !detected.Equals(preferences.ClientDirectory, StringComparison.OrdinalIgnoreCase);
         if (discovered)
         {
             preferences = preferences with { ClientDirectory = detected };
             SafeFiles.Atomic(file, JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
         }
+        clientDirectoryValid = preferences.ClientDirectory != "" && ClientDirectoryDiscovery.IsValidStructure(preferences.ClientDirectory);
         var cached = Path.Combine(stateRoot, "bootstrap.json");
         if (File.Exists(cached)) { envelope = File.ReadAllBytes(cached); bootstrap = Trust.Verify(envelope, root); }
         RefreshClientVersion();
@@ -69,13 +75,21 @@ public sealed class LauncherEngine : IDisposable
         diagnostics = new(stateRoot);
         diagnostics.Changed += () => Changed?.Invoke(State);
         diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
-        Emit("ready", previousUpdateFailure ?? (discovered ? "已自动识别客户端目录。" : preferences.ClientDirectory == "" ? "请选择客户端目录，检查更新后登录。" : "客户端目录已就绪。"));
+        var startupMessage = previousUpdateFailure ??
+            (discovered
+                ? (!string.IsNullOrWhiteSpace(previousDirectory) ? $"已自动定位客户端子目录：{Path.GetFileName(detected)}。" : "已自动识别客户端目录。")
+                : preferences.ClientDirectory == ""
+                    ? "请选择客户端目录，检查更新后登录。"
+                    : clientDirectoryValid
+                        ? "客户端目录已就绪。"
+                        : ClientDirectoryDiscovery.DescribeInvalid(ClientDirectoryDiscovery.Resolve(preferences.ClientDirectory)));
+        Emit("ready", startupMessage);
     }
     private void Emit(string phase, string message, long current = 0, long total = 0)
     {
         var busy = phase is "checking" or "downloading" or "installing" or "logging-in" or "resetting";
         State = new(phase, message, total == 0 ? 0 : Math.Clamp((double)current / total, 0, 1), current, total,
-            !busy && phase != "paused" && plan.Length == 0 && preferences.ClientDirectory != "" && SupportsContent(Profile), plan.Length != 0,
+            !busy && phase != "paused" && plan.Length == 0 && clientDirectoryValid && SupportsContent(Profile), plan.Length != 0,
             bootstrap?.Launcher is { } b && b.BuildFlavor == LauncherBuild.Flavor && System.Version.Parse(b.Version) > System.Version.Parse(VersionText),
             bootstrap?.Content?.SourceId ?? "本服批准源", bootstrap?.Content?.Version ?? "", preferences, bootstrap?.News ?? []) { ClientVersion = clientVersion, QQBindingEnabled = root.EnableQQBinding, RequireQQBinding = Profile.RequireQQBinding, AntiCheatEnabled = LauncherBuild.AntiCheat && Profile.AntiCheat is { Enabled: true } };
         Changed?.Invoke(State);
@@ -173,12 +187,25 @@ public sealed class LauncherEngine : IDisposable
             if (value.Diagnostics?.ProblemType is not (null or "auto" or "quests" or "interaction" or "connection" or "performance")) throw new InvalidDataException("诊断问题类型无效。");
             if (value.Diagnostics is { Enabled: true, HasConsent: false }) throw new InvalidOperationException("请先阅读并同意异常栈与游戏操作采集说明。");
             if (value.Account.Length > 64 || value.ClientDirectory.Length > 1000) throw new InvalidDataException("设置内容过长。");
-            var directoryChanged = value.ClientDirectory != preferences.ClientDirectory;
-            preferences = value with { Account = value.RememberAccount ? value.Account : "" };
+            var effectiveDirectory = value.ClientDirectory;
+            ClientDirectoryResolution? resolution = null;
+            if (!string.IsNullOrWhiteSpace(effectiveDirectory))
+            {
+                resolution = ClientDirectoryDiscovery.Resolve(effectiveDirectory);
+                if (resolution.IsValid) effectiveDirectory = resolution.Path;
+            }
+            var directoryChanged = !effectiveDirectory.Equals(preferences.ClientDirectory, StringComparison.OrdinalIgnoreCase);
+            preferences = value with { ClientDirectory = effectiveDirectory, Account = value.RememberAccount ? value.Account : "" };
+            clientDirectoryValid = resolution?.IsValid ?? false;
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
             diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
             if (directoryChanged) { plan = []; await Task.Run(RefreshClientVersion); }
-            Emit("ready", "设置已保存。");
+            var savedMessage = resolution?.Kind == ClientDirectoryResolutionKind.AutoResolvedSubdirectory
+                ? $"已自动定位客户端子目录：{Path.GetFileName(effectiveDirectory)}。"
+                : (directoryChanged && resolution is not null && !resolution.IsValid
+                    ? ClientDirectoryDiscovery.DescribeInvalid(resolution)
+                    : "设置已保存。");
+            Emit("ready", savedMessage);
         }
         finally { operation.Release(); }
     }
@@ -240,27 +267,46 @@ public sealed class LauncherEngine : IDisposable
         diagnostics.Event("metadata_verified", metadataClock.Elapsed.TotalMilliseconds, bootstrap?.Sequence);
         Emit("checking", "发布信息已验证。");
     }
+    private string EnsureValidClientDirectory()
+    {
+        var resolved = ClientDirectoryDiscovery.Resolve(preferences.ClientDirectory);
+        if (resolved.IsValid)
+        {
+            clientDirectoryValid = true;
+            if (!resolved.Path.Equals(preferences.ClientDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                preferences = preferences with { ClientDirectory = resolved.Path };
+                SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
+                diagnostics.Configure(preferences.Diagnostics ?? new(), preferences.ClientDirectory, Profile.PvfSha256, bootstrap?.Sequence ?? 0, Profile, bootstrap?.Content?.Version, bootstrap?.Content?.SourceId);
+            }
+            return resolved.Path;
+        }
+        plan = [];
+        clientDirectoryValid = false;
+        throw new InvalidOperationException(ClientDirectoryDiscovery.DescribeInvalid(resolved));
+    }
     private async Task PlanContent()
     {
         if (bootstrap is null) return;
         if (!SupportsContent(Profile)) { plan = []; Emit("ready", "请先更新登录器，再安装资源或登录游戏。"); return; }
-        if (preferences.ClientDirectory == "") { Emit("ready", "发布信息已更新，请先选择客户端目录。"); return; }
+        if (preferences.ClientDirectory == "") { clientDirectoryValid = false; Emit("ready", "发布信息已更新，请先选择客户端目录。"); return; }
+        var clientDirectory = EnsureValidClientDirectory();
         RequireNoGames();
-        using var transaction = new FileTransaction(preferences.ClientDirectory); transaction.Recover();
+        using var transaction = new FileTransaction(clientDirectory); transaction.Recover();
         await Task.Run(RefreshClientVersion);
         if (bootstrap.Content is { } content)
         {
-            Emit("checking", "正在校验客户端资源…"); plan = await ContentUpdater.Plan(preferences.ClientDirectory, content, CancellationToken.None, Path.Combine(stateRoot, "content-check.txt"));
+            Emit("checking", "正在校验客户端资源…"); plan = await ContentUpdater.Plan(clientDirectory, content, CancellationToken.None, Path.Combine(stateRoot, "content-check.txt"));
             Emit("ready", plan.Length == 0 ? "客户端资源与本服批准版本一致。" : $"发现 {plan.Length} 个待更新文件，请点击安装更新。");
         }
-        else { plan = []; await GameContract.VerifyClient(preferences.ClientDirectory, Profile); Emit("ready", "客户端兼容校验通过；后台尚未发布资源更新。"); }
+        else { plan = []; await GameContract.VerifyClient(clientDirectory, Profile); Emit("ready", "客户端兼容校验通过；后台尚未发布资源更新。"); }
     }
     public async Task UpdateContent()
     {
         if (!await operation.WaitAsync(0)) throw new InvalidOperationException("已有操作正在进行。");
         try
         {
-            RequireNoGames(); await CheckCore(); await InstallContent();
+            EnsureValidClientDirectory(); RequireNoGames(); await CheckCore(); await InstallContent();
         }
         catch (OperationCanceledException) { Emit("paused", "下载已暂停，点击继续会保留已下载的断点。", State.Downloaded, State.Total); }
         catch (Exception error) { diagnostics.Failure("update_error", error); Emit("error", "更新未完成，已保留当前版本与可恢复记录。", State.Downloaded, State.Total); throw; }
@@ -271,8 +317,9 @@ public sealed class LauncherEngine : IDisposable
         var updateClock = Stopwatch.StartNew();
         RequireContentSupport(Profile);
         if (bootstrap?.Content is not { } content || plan.Length == 0) return;
+        var clientDirectory = EnsureValidClientDirectory();
         RequireNoGames();
-        using var transaction = new FileTransaction(preferences.ClientDirectory); transaction.Recover();
+        using var transaction = new FileTransaction(clientDirectory); transaction.Recover();
         using var client = ContentUpdater.Client(content); using var cancel = new CancellationTokenSource(TimeSpan.FromHours(6)); download = cancel;
             using var delivery = new LauncherBundleDownloader(root with { ApiUrl = content.Endpoint, CertificateSha256 = content.CertificateSha256 });
         var total = plan.Sum(ContentUpdater.TransferSize); long finished = 0;
@@ -324,19 +371,20 @@ public sealed class LauncherEngine : IDisposable
             var stageClock = Stopwatch.StartNew();
             RequireContentSupport(Profile);
             ValidateCredentials(input); Emit("checking", "正在验证客户端与本服版本…");
-            using var clientLock = new FileTransaction(preferences.ClientDirectory);
-            if (File.Exists(Path.Combine(preferences.ClientDirectory, ".dnf90-update", "journal.json"))) RequireNoGames();
+            var clientDirectory = EnsureValidClientDirectory();
+            using var clientLock = new FileTransaction(clientDirectory);
+            if (File.Exists(Path.Combine(clientDirectory, ".dnf90-update", "journal.json"))) RequireNoGames();
             clientLock.Recover();
             if (bootstrap?.Content is { } content)
             {
-                plan = await ContentUpdater.Plan(preferences.ClientDirectory, content, CancellationToken.None, Path.Combine(stateRoot, "content-check.txt"));
+                plan = await ContentUpdater.Plan(clientDirectory, content, CancellationToken.None, Path.Combine(stateRoot, "content-check.txt"));
                 if (plan.Length != 0) throw new InvalidOperationException("请先完成客户端资源更新。");
             }
-            await GameContract.VerifyClient(preferences.ClientDirectory, Profile);
+            await GameContract.VerifyClient(clientDirectory, Profile);
             diagnostics.Event("client_verified", stageClock.Elapsed.TotalMilliseconds); stageClock.Restart();
-            if (NativeGuildCompatibility.Prepare(preferences.ClientDirectory, Profile))
+            if (NativeGuildCompatibility.Prepare(clientDirectory, Profile))
                 Emit("checking", "公会兼容补丁已应用，原版客户端已备份。");
-            games.RemoveAll(g => g.Process.HasExited);
+            games.RemoveAll(g => HasProcessExited(g.Process));
             if (games.Any(g => g.Account.Equals(input.Account.Trim(), StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("该账号已经启动，请使用另一个账号。");
             if (Profile.AntiCheat is { Enabled: true }) {
 #if ANTICHEAT
@@ -362,7 +410,7 @@ public sealed class LauncherEngine : IDisposable
             if (correlation is not null) diagnostics.LoginContext(Profile, correlation, reply.Diagnostics);
             diagnostics.Event("account_verified", stageClock.Elapsed.TotalMilliseconds); stageClock.Restart();
             NativeChannelHistory.Prepare(Profile, channels);
-            var executable = Path.Combine(preferences.ClientDirectory, "DNF.exe");
+            var executable = Path.Combine(clientDirectory, "DNF.exe");
             var running = Process.GetProcessesByName("DNF");
             try
             {
@@ -370,25 +418,39 @@ public sealed class LauncherEngine : IDisposable
                 if (running.Length == 1) NativeClientGate.PrepareSecondClient(running[0], executable, Profile.ExeSha256);
             }
             finally { foreach (var process in running) process.Dispose(); }
-            var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = preferences.ClientDirectory, Arguments = GameContract.Arguments(reply.Token ?? "", Profile.GameHost, Profile.BootstrapPort) };
+            var start = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = clientDirectory, Arguments = GameContract.Arguments(reply.Token ?? "", Profile.GameHost, Profile.BootstrapPort) };
             Process game;
             string handoffMode;
+            try
+            {
 #if ANTICHEAT
-            handoffMode = guard is null ? "direct_child" : "anticheat_guard_child";
-            game = guard is null ? Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。") : await guard.Launch(executable, start.Arguments);
+                handoffMode = guard is null ? "direct_child" : "anticheat_guard_child";
+                game = guard is null ? Process.Start(start) ?? throw new InvalidOperationException("游戏启动失败，可能是客户端路径选择错误或缺少核心文件，请点击「更改」核对客户端目录。") : await guard.Launch(executable, start.Arguments);
 #else
-            handoffMode = "direct_child";
-            game = Process.Start(start) ?? throw new InvalidOperationException("游戏进程创建失败。");
+                handoffMode = "direct_child";
+                game = Process.Start(start) ?? throw new InvalidOperationException("游戏启动失败，可能是客户端路径选择错误或缺少核心文件，请点击「更改」核对客户端目录。");
 #endif
+            }
+            catch (Exception error) when (error is Win32Exception or FileNotFoundException or DirectoryNotFoundException || (error is InvalidOperationException && !HasChinese(error.Message)))
+            {
+                throw new InvalidOperationException("游戏启动失败，可能是客户端路径选择错误或缺少核心文件，请点击「更改」选择包含完整游戏资源（如 ImagePacks2）的正确客户端目录。", error);
+            }
             games.Add((input.Account.Trim(), game));
             diagnostics.Track(game, executable, handoffMode);
             diagnostics.Event("process_started", stageClock.Elapsed.TotalMilliseconds);
             preferences = preferences with { Account = preferences.RememberAccount ? input.Account.Trim() : "" };
             SafeFiles.Atomic(Path.Combine(stateRoot, "preferences.json"), JsonSerializer.SerializeToUtf8Bytes(preferences, WireJson.Default.Preferences));
             Emit("logging-in", "游戏进程已创建，正在等待客户端启动…");
+            using var exitQueryHandle = TryOpenProcessForExitCode(game);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            try { await game.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
-            if (game.HasExited) throw new InvalidOperationException($"客户端提前退出（代码 {game.ExitCode}），请等待约 20 秒后重试。");
+            try { await game.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
+            catch (InvalidOperationException) { }
+            if (HasProcessExited(game))
+            {
+                var detail = TryGetProcessExitCode(game, out var exitCode, exitQueryHandle) ? $"（错误码 0x{exitCode:X8}）" : "";
+                throw new InvalidOperationException($"游戏启动失败并提前退出{detail}，可能是客户端路径选择错误或缺少核心文件，请点击「更改」选择包含完整游戏资源（如 ImagePacks2）的正确客户端目录。");
+            }
 #if ANTICHEAT
             guard = null; // Ownership remains with the launcher until game/launcher exit.
 #endif
@@ -431,5 +493,69 @@ public sealed class LauncherEngine : IDisposable
         lock (guardLock) { guardClosing = true; guardLifetime.Cancel(); foreach (var session in protectedGames) session.Dispose(); protectedGames.Clear(); }
 #endif
     }
+    public static string FormatUserError(Exception error) => error switch
+    {
+        AccountApiException => error.Message,
+        HttpRequestException => "无法连接服务器或证书验证失败。请检查网络和后台配置。",
+        FileNotFoundException or DirectoryNotFoundException => "找不到客户端核心文件或目录，可能是客户端路径选择错误，请点击「更改」选择包含完整游戏资源（如 ImagePacks2）的正确客户端目录。",
+        IOException when error is not InvalidDataException => "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",
+        InvalidDataException or InvalidOperationException when HasChinese(error.Message) => error.Message,
+        InvalidDataException or InvalidOperationException or Win32Exception => "游戏启动失败，可能是客户端路径选择错误或缺少核心文件，请点击「更改」选择包含完整游戏资源（如 ImagePacks2）的正确客户端目录。",
+        OperationCanceledException => "操作已取消或超时。",
+        _ => "操作未完成，请重试并联系管理员。"
+    };
+    private static bool HasChinese(string? text) => !string.IsNullOrEmpty(text) && text.Any(c => c is >= '\u4e00' and <= '\u9fff');
+    internal static bool HasProcessExited(Process process)
+    {
+        try { return process.HasExited; }
+        catch (Exception error) when (error is InvalidOperationException or Win32Exception or NotSupportedException or ObjectDisposedException) { return true; }
+    }
+    internal static SafeProcessHandle? TryOpenProcessForExitCode(Process process)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            var handle = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, process.Id);
+            if (!handle.IsInvalid) return handle;
+            handle.Dispose();
+            return null;
+        }
+        catch (Exception error) when (error is InvalidOperationException or Win32Exception or ObjectDisposedException)
+        {
+            return null;
+        }
+    }
+    internal static bool TryGetProcessExitCode(Process process, out uint exitCode, SafeProcessHandle? queryHandle = null)
+    {
+        exitCode = 0;
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                if (queryHandle is not null && !queryHandle.IsInvalid && GetExitCodeProcess(queryHandle, out var queried) && queried != 259)
+                {
+                    exitCode = queried;
+                    return true;
+                }
+                if (GetExitCodeProcess(process.SafeHandle, out var code) && code != 259)
+                {
+                    exitCode = code;
+                    return true;
+                }
+                return false;
+            }
+            exitCode = unchecked((uint)process.ExitCode);
+            return true;
+        }
+        catch (Exception error) when (error is InvalidOperationException or Win32Exception or NotSupportedException or ObjectDisposedException)
+        {
+            return false;
+        }
+    }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern SafeProcessHandle OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, int pid);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetExitCodeProcess(SafeProcessHandle process, out uint exitCode);
     public void Dispose() { StopProtectedGames(); download?.Cancel(); diagnostics.Dispose(); foreach (var (_, p) in games) p.Dispose(); operation.Dispose(); }
 }
