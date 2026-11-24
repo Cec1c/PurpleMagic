@@ -94,13 +94,7 @@ async Task Dispatch(Request request)
     catch (Exception error)
     {
         engine.RecordDiagnosticError(error);
-        var message = error switch {
-            HttpRequestException => "无法连接服务器或证书验证失败。请检查网络和后台配置。",
-            IOException when error is not InvalidDataException => "文件无法读写，请检查目录权限、剩余空间及游戏是否已退出。",
-            InvalidDataException or InvalidOperationException => error.Message,
-            OperationCanceledException => "操作已取消或超时。",
-            _ => "操作未完成，请重试并联系管理员。"
-        };
+        var message = LauncherEngine.FormatUserError(error);
         Respond(new(request.Id, false, message, engine.State, ErrorCode: (error as AccountApiException)?.Code, RetryAfter: (error as AccountApiException)?.RetryAfter ?? 0));
     }
 }
