@@ -73,6 +73,8 @@ func (s *Server) scanBenefitPage(ctx context.Context, position benefitScanPositi
 	if err != nil {
 		return out, err
 	}
+	var committed []testbenefits.DeliveryReceipt
+	defer func() { _ = s.notifyMailboxReceipts(ctx, committed) }()
 	op := ">"
 	if position.Character != "" {
 		op = ">="
@@ -155,7 +157,9 @@ func (s *Server) scanBenefitPage(ctx context.Context, position benefitScanPositi
 				}
 				if e == nil {
 					delivery, stop := context.WithTimeout(ctx, 4*time.Second)
-					e = s.deps.Benefits.DeliverCampaignToNewCharacter(delivery, group, c.ID, ch, s.v1ProjectCampaignDelivery)
+					e = s.deps.Benefits.DeliverCampaignToNewCharacterCommitted(delivery, group, c.ID, ch, s.v1ProjectCampaignDelivery, func(_ context.Context, receipt testbenefits.DeliveryReceipt) {
+						committed = append(committed, receipt)
+					})
 					stop()
 				}
 				attempts++

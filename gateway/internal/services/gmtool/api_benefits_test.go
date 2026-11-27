@@ -3,12 +3,17 @@ package gmtool
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +21,154 @@ import (
 	"dnf90.local/gateway/internal/modules/dnf/repository/memory"
 	"dnf90.local/gateway/internal/modules/dnf/testbenefits"
 )
+
+type benefitRunSQLState struct {
+	mu        sync.Mutex
+	payload   []byte
+	committed bool
+	commitErr error
+}
+
+func (s *benefitRunSQLState) wasCommitted() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.committed
+}
+
+type benefitRunConnector struct{ state *benefitRunSQLState }
+
+func (c benefitRunConnector) Connect(context.Context) (driver.Conn, error) {
+	return benefitRunConn{state: c.state}, nil
+}
+func (c benefitRunConnector) Driver() driver.Driver { return benefitRunDriver{state: c.state} }
+
+type benefitRunDriver struct{ state *benefitRunSQLState }
+
+func (d benefitRunDriver) Open(string) (driver.Conn, error) {
+	return benefitRunConn{state: d.state}, nil
+}
+
+type benefitRunConn struct{ state *benefitRunSQLState }
+
+func (benefitRunConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("benefit run test driver does not prepare statements")
+}
+func (benefitRunConn) Close() error { return nil }
+func (c benefitRunConn) Begin() (driver.Tx, error) {
+	return c.BeginTx(context.Background(), driver.TxOptions{})
+}
+func (c benefitRunConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
+	return benefitRunTx{state: c.state}, nil
+}
+func (c benefitRunConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	c.state.mu.Lock()
+	raw := append([]byte(nil), c.state.payload...)
+	c.state.mu.Unlock()
+	return &benefitRunRows{raw: raw}, nil
+}
+func (benefitRunConn) ExecContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Result, error) {
+	if !strings.HasPrefix(strings.TrimSpace(query), "UPDATE ") {
+		return nil, errors.New("unexpected benefit run SQL")
+	}
+	return driver.RowsAffected(1), nil
+}
+
+type benefitRunTx struct{ state *benefitRunSQLState }
+
+func (benefitRunTx) Rollback() error { return nil }
+func (t benefitRunTx) Commit() error {
+	t.state.mu.Lock()
+	defer t.state.mu.Unlock()
+	if t.state.commitErr != nil {
+		return t.state.commitErr
+	}
+	t.state.committed = true
+	return nil
+}
+
+type benefitRunRows struct {
+	raw  []byte
+	done bool
+}
+
+func (*benefitRunRows) Columns() []string { return []string{"payload"} }
+func (*benefitRunRows) Close() error      { return nil }
+func (r *benefitRunRows) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = r.raw
+	return nil
+}
+
+func TestLegacyBenefitsRunNotifiesOnlyAfterOuterCommit(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		commitErr   error
+		wantNotify  int32
+		wantSuccess bool
+	}{
+		{name: "committed", wantNotify: 1, wantSuccess: true},
+		{name: "commit failure", commitErr: errors.New("outer commit failed")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			harness := newGmtoolWriteHarness(t, nil)
+			ctx := context.Background()
+			if err := harness.group.Account.Save(ctx, repository.AccountRecord{AccountID: "acc-1", Metadata: map[string]string{}}); err != nil {
+				t.Fatal(err)
+			}
+			job := testbenefits.Job{
+				ID:    strings.Repeat("a", 32),
+				Scope: testbenefits.ScopeAccount,
+				Gold:  1,
+				Title: "legacy notification fixture",
+				Recipients: []testbenefits.Recipient{{
+					AccountID: "acc-1", CharacterID: "1", Name: "tester",
+				}},
+			}
+			payload, err := json.Marshal(job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := &benefitRunSQLState{payload: payload, commitErr: tc.commitErr}
+			db := sql.OpenDB(benefitRunConnector{state: state})
+			t.Cleanup(func() { _ = db.Close() })
+			store, err := testbenefits.NewStore(db, "web_accounts")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var notifications atomic.Int32
+			client := mailboxNotificationServer(t, func(request mailboxNotificationRequest, w http.ResponseWriter, _ *http.Request) {
+				notifications.Add(1)
+				if request.Action != notifyMailboxAction || request.CharacterID != 1 {
+					t.Errorf("notification request = %+v", request)
+				}
+				if !state.wasCommitted() {
+					t.Error("notification ran before the outer job commit")
+				}
+				box, _, loadErr := harness.group.Mailbox.Load(context.Background(), "1")
+				if loadErr != nil || len(box.Mails) != 1 {
+					t.Errorf("notification durable mail = %d, err=%v", len(box.Mails), loadErr)
+				}
+				mailboxSuccessResponse(w, true)
+			})
+			harness.server.deps.Benefits = store
+			harness.server.deps.Runtime = client
+			r := httptest.NewRequest(http.MethodPost, "/api/benefits/jobs/"+job.ID+"/run", strings.NewReader(`{"confirm":true}`))
+			r.SetPathValue("id", job.ID)
+			w := httptest.NewRecorder()
+			harness.server.handleBenefitsRun(w, r)
+			var response map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response["success"] != tc.wantSuccess || notifications.Load() != tc.wantNotify {
+				t.Fatalf("success=%v notifications=%d body=%s", response["success"], notifications.Load(), w.Body.String())
+			}
+		})
+	}
+}
 
 func TestBenefitsRequiresAuthentication(t *testing.T) {
 	s := &Server{www: http.NotFoundHandler(), sessions: map[string]time.Time{}}

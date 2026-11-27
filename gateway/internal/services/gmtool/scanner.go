@@ -35,6 +35,8 @@ func (s *Server) ScanNewCharacters(ctx context.Context, cursor int64, limit int)
 	if err != nil {
 		return cursor, err
 	}
+	var committed []testbenefits.DeliveryReceipt
+	defer func() { _ = s.notifyMailboxReceipts(ctx, committed) }()
 	rows, err := s.db.QueryContext(ctx, "SELECT id,account_id FROM "+quoteIdentifier(s.cfg.Table)+" WHERE id>? ORDER BY id LIMIT ?", cursor, limit)
 	if err != nil {
 		return cursor, err
@@ -78,7 +80,9 @@ func (s *Server) ScanNewCharacters(ctx context.Context, cursor int64, limit int)
 					if !testbenefits.EligibleNewCharacter(campaign, c) {
 						continue
 					}
-					if err = s.deps.Benefits.DeliverCampaignToNewCharacter(ctx, group, campaign.ID, c, s.v1ProjectCampaignDelivery); err != nil {
+					if err = s.deps.Benefits.DeliverCampaignToNewCharacterCommitted(ctx, group, campaign.ID, c, s.v1ProjectCampaignDelivery, func(_ context.Context, receipt testbenefits.DeliveryReceipt) {
+						committed = append(committed, receipt)
+					}); err != nil {
 						failures = append(failures, err)
 					}
 				}
